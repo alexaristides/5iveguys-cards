@@ -37,13 +37,6 @@ const activities = [
     suffix: "per comment",
     key: "comment" as const,
   },
-  {
-    icon: "▶️",
-    label: "Watch videos here",
-    points: POINTS_CONFIG.watchMinute,
-    suffix: "per minute",
-    key: "watchMinute" as const,
-  },
 ];
 
 export default function PointsActivity({ sync, onSync, syncing }: PointsActivityProps) {
@@ -104,7 +97,6 @@ export default function PointsActivity({ sync, onSync, syncing }: PointsActivity
           />
           <Stat label="Liked videos" value={String(likedCount)} />
           <Stat label="Comments" value={String(sync.commentCount)} />
-          <Stat label="Watch time" value={`${sync.watchMinutes} min`} />
         </div>
       )}
     </div>

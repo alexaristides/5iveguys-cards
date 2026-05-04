@@ -92,7 +92,6 @@ export default function LandingPage() {
             { icon: "🔔", label: "Subscribe", pts: "+500 pts" },
             { icon: "👍", label: "Like videos", pts: "+10 pts each" },
             { icon: "💬", label: "Comment", pts: "+25 pts each" },
-            { icon: "▶️", label: "Watch here", pts: "+1 pt/min" },
           ].map((f) => (
             <div
               key={f.label}
