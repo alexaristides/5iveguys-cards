@@ -61,16 +61,29 @@ async function getAccessToken(userId: string): Promise<{ token: string; hasYoutu
   return { token: account.access_token, hasYoutubeScope };
 }
 
+async function getUploadsPlaylistId(accessToken: string): Promise<string | null> {
+  const data = await fetchYouTube(
+    `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${CHANNEL_ID}`,
+    accessToken
+  );
+  return (data as { items?: { contentDetails?: { relatedPlaylists?: { uploads?: string } } }[] })
+    ?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads ?? null;
+}
+
+// Uses playlistItems API (1 unit/page) instead of search (100 units/page)
 async function getChannelVideoIds(accessToken: string): Promise<string[]> {
+  const uploadsPlaylistId = await getUploadsPlaylistId(accessToken);
+  if (!uploadsPlaylistId) return [];
+
   const allIds: string[] = [];
   let pageToken: string | undefined;
   do {
-    const url = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${CHANNEL_ID}&type=video&maxResults=50&order=date${pageToken ? `&pageToken=${pageToken}` : ""}`;
+    const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ""}`;
     const data = await fetchYouTube(url, accessToken);
     if (!data?.items) break;
-    const ids = data.items
-      .map((item: { id: { videoId: string } }) => item.id.videoId)
-      .filter(Boolean);
+    const ids = (data.items as { contentDetails?: { videoId?: string } }[])
+      .map((item) => item.contentDetails?.videoId)
+      .filter((id): id is string => Boolean(id));
     allIds.push(...ids);
     pageToken = data.nextPageToken;
   } while (pageToken && allIds.length < 100);

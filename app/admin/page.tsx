@@ -32,12 +32,13 @@ export default function AdminPage() {
       let page = 0;
       let hasMore = true;
       let lastTotal = 0;
+      let uploadsPlaylistId: string | undefined;
 
       while (hasMore) {
         const res = await fetch("/api/admin/scan", {
           method: "POST",
           headers: { "x-admin-secret": secret, "Content-Type": "application/json" },
-          body: JSON.stringify({ page }),
+          body: JSON.stringify({ page, uploadsPlaylistId }),
         });
 
         if (!res.ok) {
@@ -56,6 +57,7 @@ export default function AdminPage() {
         }
 
         lastTotal = data.totalVideos;
+        uploadsPlaylistId = data.uploadsPlaylistId;
         setProgress({ done: data.videosProcessed, total: data.totalVideos });
         setStatus(`Scanning… ${data.videosProcessed} / ${data.totalVideos} videos`);
 
