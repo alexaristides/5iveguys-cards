@@ -1,30 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+
+interface CacheStats {
+  lastScanned: string | null;
+  videoCount: number;
+  totalAuthors: number;
+  totalComments: number;
+  avgCommentsPerUser: number;
+}
 
 export default function AdminPage() {
   const [secret, setSecret] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [stats, setStats] = useState<CacheStats | null>(null);
+
+  const loadStats = useCallback(async (s: string) => {
+    if (!s) return;
+    const res = await fetch("/api/admin/stats", { headers: { "x-admin-secret": s } });
+    if (res.ok) setStats(await res.json());
+  }, []);
 
   async function runScan() {
     setLoading(true);
     setProgress(null);
     setStatus("Starting scan…");
 
-    // Clear existing cache before a fresh full scan
     try {
       let page = 0;
       let hasMore = true;
+      let lastTotal = 0;
 
       while (hasMore) {
         const res = await fetch("/api/admin/scan", {
           method: "POST",
-          headers: {
-            "x-admin-secret": secret,
-            "Content-Type": "application/json",
-          },
+          headers: { "x-admin-secret": secret, "Content-Type": "application/json" },
           body: JSON.stringify({ page }),
         });
 
@@ -36,6 +48,14 @@ export default function AdminPage() {
         }
 
         const data = await res.json();
+
+        if (data.totalVideos === 0) {
+          setStatus("Error: 0 videos found — check that YOUTUBE_API_KEY is set correctly in Vercel and that YouTube Data API v3 is enabled for that key.");
+          setLoading(false);
+          return;
+        }
+
+        lastTotal = data.totalVideos;
         setProgress({ done: data.videosProcessed, total: data.totalVideos });
         setStatus(`Scanning… ${data.videosProcessed} / ${data.totalVideos} videos`);
 
@@ -43,7 +63,8 @@ export default function AdminPage() {
         page = data.nextPage ?? page + 1;
       }
 
-      setStatus(`Done! Scanned all ${progress?.total ?? "?"} videos. Comment counts updated.`);
+      setStatus(`Done! Scanned all ${lastTotal} videos.`);
+      await loadStats(secret);
     } catch {
       setStatus("Network error — check console.");
     } finally {
@@ -54,22 +75,51 @@ export default function AdminPage() {
   const pct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-8">
-      <div className="w-full max-w-md space-y-6">
+    <main className="min-h-screen bg-[#0a0a0a] p-8">
+      <div className="max-w-lg mx-auto space-y-6">
         <h1 className="text-white text-2xl font-bold">Admin — Channel Scan</h1>
         <p className="text-zinc-400 text-sm">
           Scans every video and all comments on the 5iveguysfc channel, stores
-          comment counts per author. Run once a day — users pick up accurate
-          comment counts on their next sync.
+          comment counts per author. Run once a day.
         </p>
 
-        <input
-          type="password"
-          placeholder="Admin secret"
-          value={secret}
-          onChange={(e) => setSecret(e.target.value)}
-          className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500"
-        />
+        <div className="flex gap-3">
+          <input
+            type="password"
+            placeholder="Admin secret"
+            value={secret}
+            onChange={(e) => {
+              setSecret(e.target.value);
+            }}
+            onBlur={() => loadStats(secret)}
+            className="flex-1 px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500"
+          />
+          <button
+            onClick={() => loadStats(secret)}
+            disabled={!secret}
+            className="px-4 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-white text-sm transition-all"
+          >
+            Refresh
+          </button>
+        </div>
+
+        {/* Cache stats */}
+        {stats && (
+          <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-5 space-y-4">
+            <h2 className="text-white font-semibold text-sm">Current Cache</h2>
+            <div className="grid grid-cols-2 gap-3">
+              <Stat label="Videos scanned" value={stats.videoCount.toLocaleString()} />
+              <Stat label="Unique commenters" value={stats.totalAuthors.toLocaleString()} />
+              <Stat label="Total comments" value={stats.totalComments.toLocaleString()} />
+              <Stat label="Avg per user" value={stats.avgCommentsPerUser.toFixed(1)} />
+            </div>
+            {stats.lastScanned && (
+              <p className="text-zinc-600 text-xs">
+                Last scan: {new Date(stats.lastScanned).toLocaleString()}
+              </p>
+            )}
+          </div>
+        )}
 
         <button
           onClick={runScan}
@@ -107,5 +157,14 @@ export default function AdminPage() {
         )}
       </div>
     </main>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-zinc-800/60 rounded-xl p-3">
+      <p className="text-zinc-500 text-xs">{label}</p>
+      <p className="text-white font-semibold text-lg mt-0.5">{value}</p>
+    </div>
   );
 }
