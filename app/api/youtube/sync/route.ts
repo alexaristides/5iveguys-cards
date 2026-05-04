@@ -22,7 +22,37 @@ async function getAccessToken(userId: string): Promise<string | null> {
   const account = await prisma.account.findFirst({
     where: { userId, provider: "google" },
   });
-  return account?.access_token ?? null;
+  if (!account) return null;
+
+  // If token is expired or about to expire, refresh it
+  const expiresAt = account.expires_at ? account.expires_at * 1000 : 0;
+  const isExpired = expiresAt < Date.now() + 60_000;
+
+  if (isExpired && account.refresh_token) {
+    const res = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID!,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        grant_type: "refresh_token",
+        refresh_token: account.refresh_token,
+      }),
+    });
+    if (res.ok) {
+      const tokens = await res.json();
+      await prisma.account.update({
+        where: { id: account.id },
+        data: {
+          access_token: tokens.access_token,
+          expires_at: Math.floor(Date.now() / 1000 + tokens.expires_in),
+        },
+      });
+      return tokens.access_token;
+    }
+  }
+
+  return account.access_token ?? null;
 }
 
 async function getChannelVideoIds(accessToken: string): Promise<string[]> {
