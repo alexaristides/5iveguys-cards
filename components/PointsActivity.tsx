@@ -6,7 +6,6 @@ interface SyncData {
   isSubscribed: boolean;
   likedVideoIds?: string;
   commentCount: number;
-  watchMinutes: number;
 }
 
 interface PointsActivityProps {

@@ -49,12 +49,19 @@ export default function DashboardPage() {
       const res = await fetch("/api/youtube/sync", { method: "POST" });
       const data = await res.json();
       if (res.ok) {
-        setSyncMessage(
-          data.pointsEarned > 0
-            ? `+${data.pointsEarned} points earned!`
-            : "All caught up — keep engaging!"
-        );
-        fetchUser();
+        if (data.cooldown) {
+          setSyncMessage(`Already synced recently — try again in ${data.minutesLeft} min.`);
+        } else if (data.pointsEarned > 0) {
+          setSyncMessage(`+${data.pointsEarned} points earned!`);
+          fetchUser();
+        } else {
+          setSyncMessage("All caught up — keep engaging!");
+          fetchUser();
+        }
+      } else if (data.error === "reauth_required") {
+        setSyncMessage("⚠️ Please sign out and sign back in to grant YouTube access.");
+      } else {
+        setSyncMessage("Sync failed — please try again.");
       }
     } finally {
       setSyncing(false);

@@ -7,8 +7,8 @@ import { POINTS_CONFIG } from "@/lib/cards";
 export const maxDuration = 60;
 
 const CHANNEL_ID = process.env.YOUTUBE_CHANNEL_ID!;
-// Only scan this many recent videos for comments — 1 page each = N API calls max
 const COMMENT_SCAN_LIMIT = 5;
+const SYNC_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 async function fetchYouTube(url: string, accessToken: string) {
   const res = await fetch(url, {
@@ -22,11 +22,15 @@ async function fetchYouTube(url: string, accessToken: string) {
   return res.json();
 }
 
-async function getAccessToken(userId: string): Promise<string | null> {
+async function getAccessToken(userId: string): Promise<{ token: string; hasYoutubeScope: boolean } | null> {
   const account = await prisma.account.findFirst({
     where: { userId, provider: "google" },
   });
   if (!account) return null;
+
+  // Check if this token has the youtube.force-ssl scope
+  const scope = account.scope ?? "";
+  const hasYoutubeScope = scope.includes("youtube");
 
   const expiresAt = account.expires_at ? account.expires_at * 1000 : 0;
   const isExpired = expiresAt < Date.now() + 60_000;
@@ -51,11 +55,12 @@ async function getAccessToken(userId: string): Promise<string | null> {
           expires_at: Math.floor(Date.now() / 1000 + tokens.expires_in),
         },
       });
-      return tokens.access_token;
+      return { token: tokens.access_token, hasYoutubeScope };
     }
   }
 
-  return account.access_token ?? null;
+  if (!account.access_token) return null;
+  return { token: account.access_token, hasYoutubeScope };
 }
 
 async function getChannelVideoIds(accessToken: string): Promise<string[]> {
@@ -89,21 +94,54 @@ export async function POST() {
   }
 
   const userId = session.user.id;
-  const accessToken = await getAccessToken(userId);
-  if (!accessToken) {
+
+  // ── Cooldown check: don't burn quota if synced recently ──────────────────
+  const existing = await prisma.youtubeSync.findUnique({ where: { userId } });
+  if (existing?.lastSynced) {
+    const msSinceLast = Date.now() - new Date(existing.lastSynced).getTime();
+    if (msSinceLast < SYNC_COOLDOWN_MS) {
+      const minutesLeft = Math.ceil((SYNC_COOLDOWN_MS - msSinceLast) / 60_000);
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      return NextResponse.json({
+        pointsEarned: 0,
+        points: user?.points ?? 0,
+        isSubscribed: existing.isSubscribed,
+        likedCount: JSON.parse(existing.likedVideoIds).length,
+        commentCount: existing.commentCount,
+        cooldown: true,
+        minutesLeft,
+      });
+    }
+  }
+
+  // ── Get access token ──────────────────────────────────────────────────────
+  const tokenResult = await getAccessToken(userId);
+  if (!tokenResult) {
     return NextResponse.json({ error: "No YouTube access token" }, { status: 400 });
   }
 
-  const existing = await prisma.youtubeSync.findUnique({ where: { userId } });
+  const { token: accessToken, hasYoutubeScope } = tokenResult;
+
+  // If the user signed in before youtube.force-ssl scope was added, tell them to re-auth
+  if (!hasYoutubeScope) {
+    return NextResponse.json(
+      { error: "reauth_required", message: "Please sign out and sign back in to grant YouTube access." },
+      { status: 403 }
+    );
+  }
+
   const prevLiked: string[] = existing ? JSON.parse(existing.likedVideoIds) : [];
 
-  // Check subscription
-  const subUrl = `https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&forChannelId=${CHANNEL_ID}`;
-  const subData = await fetchYouTube(subUrl, accessToken);
-  const isSubscribed = (subData?.pageInfo?.totalResults ?? 0) > 0;
+  // Run subscription check + video ID fetch in parallel
+  const [subData, videoIds] = await Promise.all([
+    fetchYouTube(
+      `https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&forChannelId=${CHANNEL_ID}`,
+      accessToken
+    ),
+    getChannelVideoIds(accessToken),
+  ]);
 
-  // Get channel video IDs (all, for like checking)
-  const videoIds = await getChannelVideoIds(accessToken);
+  const isSubscribed = (subData?.pageInfo?.totalResults ?? 0) > 0;
 
   // Check liked videos — parallel batch calls
   let likedVideoIds: string[] = [];
@@ -128,13 +166,12 @@ export async function POST() {
     }
   }
 
-  // Count user's comments — only scan the most recent videos to avoid timeout
+  // Count comments on the most recent videos (parallel, 1 page each)
   let commentCount = 0;
   const myChannelId = await getMyChannelId(accessToken);
   const videosToScan = videoIds.slice(0, COMMENT_SCAN_LIMIT);
 
   if (myChannelId && videosToScan.length > 0) {
-    // Fetch in parallel — one page per video, no pagination (keeps it to COMMENT_SCAN_LIMIT API calls)
     const results = await Promise.all(
       videosToScan.map((videoId) =>
         fetchYouTube(
@@ -159,12 +196,10 @@ export async function POST() {
     }
   }
 
-  // Preserve comments found on older videos from previous syncs
+  // Never subtract comments found in previous syncs
   const prevComments = existing?.commentCount ?? 0;
-  // Only add newly discovered comments; never subtract
   const newComments = Math.max(0, commentCount - prevComments);
 
-  // Calculate points delta
   let pointsDelta = 0;
 
   const wasSubscribed = existing?.isSubscribed ?? false;
@@ -174,7 +209,6 @@ export async function POST() {
 
   const newLikes = likedVideoIds.filter((id) => !prevLiked.includes(id));
   pointsDelta += newLikes.length * POINTS_CONFIG.like;
-
   pointsDelta += newComments * POINTS_CONFIG.comment;
 
   await prisma.youtubeSync.upsert({
@@ -212,5 +246,6 @@ export async function POST() {
     isSubscribed,
     likedCount: likedVideoIds.length,
     commentCount,
+    cooldown: false,
   });
 }
