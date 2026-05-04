@@ -50,7 +50,7 @@ export default function DashboardPage() {
       const data = await res.json();
       if (res.ok) {
         if (data.cooldown) {
-          setSyncMessage(`Already synced recently — try again in ${data.minutesLeft} min.`);
+          setSyncMessage(`Already synced today — try again in ${data.hoursLeft}h.`);
         } else if (data.pointsEarned > 0) {
           setSyncMessage(`+${data.pointsEarned} points earned!`);
           fetchUser();

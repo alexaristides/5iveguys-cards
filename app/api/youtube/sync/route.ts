@@ -7,8 +7,7 @@ import { POINTS_CONFIG } from "@/lib/cards";
 export const maxDuration = 60;
 
 const CHANNEL_ID = process.env.YOUTUBE_CHANNEL_ID!;
-const COMMENT_SCAN_LIMIT = 5;
-const SYNC_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours
+const SYNC_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 async function fetchYouTube(url: string, accessToken: string) {
   const res = await fetch(url, {
@@ -22,13 +21,23 @@ async function fetchYouTube(url: string, accessToken: string) {
   return res.json();
 }
 
+// Run promises in batches to avoid hitting YouTube rate limits
+async function batchAll<T>(items: T[], batchSize: number, fn: (item: T) => Promise<unknown>) {
+  const results: unknown[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(fn));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
 async function getAccessToken(userId: string): Promise<{ token: string; hasYoutubeScope: boolean } | null> {
   const account = await prisma.account.findFirst({
     where: { userId, provider: "google" },
   });
   if (!account) return null;
 
-  // Check if this token has the youtube.force-ssl scope
   const scope = account.scope ?? "";
   const hasYoutubeScope = scope.includes("youtube");
 
@@ -63,7 +72,8 @@ async function getAccessToken(userId: string): Promise<{ token: string; hasYoutu
   return { token: account.access_token, hasYoutubeScope };
 }
 
-async function getChannelVideoIds(accessToken: string): Promise<string[]> {
+// Fetch ALL channel video IDs (every page)
+async function getAllChannelVideoIds(accessToken: string): Promise<string[]> {
   const allIds: string[] = [];
   let pageToken: string | undefined;
   do {
@@ -75,7 +85,7 @@ async function getChannelVideoIds(accessToken: string): Promise<string[]> {
       .filter(Boolean);
     allIds.push(...ids);
     pageToken = data.nextPageToken;
-  } while (pageToken && allIds.length < 100);
+  } while (pageToken);
   return allIds;
 }
 
@@ -95,12 +105,12 @@ export async function POST() {
 
   const userId = session.user.id;
 
-  // ── Cooldown check: don't burn quota if synced recently ──────────────────
+  // ── 24h cooldown: return cached data without hitting YouTube ─────────────
   const existing = await prisma.youtubeSync.findUnique({ where: { userId } });
   if (existing?.lastSynced) {
     const msSinceLast = Date.now() - new Date(existing.lastSynced).getTime();
     if (msSinceLast < SYNC_COOLDOWN_MS) {
-      const minutesLeft = Math.ceil((SYNC_COOLDOWN_MS - msSinceLast) / 60_000);
+      const hoursLeft = Math.ceil((SYNC_COOLDOWN_MS - msSinceLast) / (60 * 60 * 1000));
       const user = await prisma.user.findUnique({ where: { id: userId } });
       return NextResponse.json({
         pointsEarned: 0,
@@ -109,7 +119,7 @@ export async function POST() {
         likedCount: JSON.parse(existing.likedVideoIds).length,
         commentCount: existing.commentCount,
         cooldown: true,
-        minutesLeft,
+        hoursLeft,
       });
     }
   }
@@ -122,7 +132,6 @@ export async function POST() {
 
   const { token: accessToken, hasYoutubeScope } = tokenResult;
 
-  // If the user signed in before youtube.force-ssl scope was added, tell them to re-auth
   if (!hasYoutubeScope) {
     return NextResponse.json(
       { error: "reauth_required", message: "Please sign out and sign back in to grant YouTube access." },
@@ -131,19 +140,20 @@ export async function POST() {
   }
 
   const prevLiked: string[] = existing ? JSON.parse(existing.likedVideoIds) : [];
+  const prevCommentCount = existing?.commentCount ?? 0;
 
-  // Run subscription check + video ID fetch in parallel
+  // ── Fetch subscription + all video IDs in parallel ───────────────────────
   const [subData, videoIds] = await Promise.all([
     fetchYouTube(
       `https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&forChannelId=${CHANNEL_ID}`,
       accessToken
     ),
-    getChannelVideoIds(accessToken),
+    getAllChannelVideoIds(accessToken),
   ]);
 
   const isSubscribed = (subData?.pageInfo?.totalResults ?? 0) > 0;
 
-  // Check liked videos — parallel batch calls
+  // ── Check all liked videos — batched parallel (50 per call) ─────────────
   let likedVideoIds: string[] = [];
   if (videoIds.length > 0) {
     const chunks: string[][] = [];
@@ -166,29 +176,26 @@ export async function POST() {
     }
   }
 
-  // Count comments on the most recent videos (parallel, 1 page each)
+  // ── Count comments on every video — batched 20 at a time ─────────────────
   let commentCount = 0;
   const myChannelId = await getMyChannelId(accessToken);
-  const videosToScan = videoIds.slice(0, COMMENT_SCAN_LIMIT);
 
-  if (myChannelId && videosToScan.length > 0) {
-    const results = await Promise.all(
-      videosToScan.map((videoId) =>
-        fetchYouTube(
-          `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet,replies&videoId=${videoId}&maxResults=100`,
-          accessToken
-        )
+  if (myChannelId && videoIds.length > 0) {
+    const results = await batchAll(videoIds, 20, (videoId) =>
+      fetchYouTube(
+        `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet,replies&videoId=${videoId}&maxResults=100`,
+        accessToken
       )
     );
 
     for (const data of results) {
-      if (!data?.items) continue;
-      for (const thread of data.items) {
+      const d = data as { items?: { snippet?: { topLevelComment?: { snippet?: { authorChannelId?: { value?: string } } }; totalReplyCount?: number }; replies?: { comments?: { snippet?: { authorChannelId?: { value?: string } } }[] } }[] } | null;
+      if (!d?.items) continue;
+      for (const thread of d.items) {
         const topAuthor = thread.snippet?.topLevelComment?.snippet?.authorChannelId?.value;
         if (topAuthor === myChannelId) commentCount++;
 
-        const inlineReplies: { snippet: { authorChannelId: { value: string } } }[] =
-          thread.replies?.comments ?? [];
+        const inlineReplies = thread.replies?.comments ?? [];
         for (const reply of inlineReplies) {
           if (reply.snippet?.authorChannelId?.value === myChannelId) commentCount++;
         }
@@ -196,10 +203,11 @@ export async function POST() {
     }
   }
 
-  // Never subtract comments found in previous syncs
-  const prevComments = existing?.commentCount ?? 0;
-  const newComments = Math.max(0, commentCount - prevComments);
+  // Never lose comments found in previous syncs
+  const storedCommentCount = Math.max(commentCount, prevCommentCount);
+  const newComments = Math.max(0, commentCount - prevCommentCount);
 
+  // ── Calculate points delta ────────────────────────────────────────────────
   let pointsDelta = 0;
 
   const wasSubscribed = existing?.isSubscribed ?? false;
@@ -217,13 +225,13 @@ export async function POST() {
       userId,
       isSubscribed,
       likedVideoIds: JSON.stringify(likedVideoIds),
-      commentCount,
+      commentCount: storedCommentCount,
       lastSynced: new Date(),
     },
     update: {
       isSubscribed,
       likedVideoIds: JSON.stringify(likedVideoIds),
-      commentCount,
+      commentCount: storedCommentCount,
       lastSynced: new Date(),
     },
   });
@@ -245,7 +253,7 @@ export async function POST() {
     points: user?.points ?? 0,
     isSubscribed,
     likedCount: likedVideoIds.length,
-    commentCount,
+    commentCount: storedCommentCount,
     cooldown: false,
   });
 }

@@ -32,6 +32,15 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
+  events: {
+    async createUser({ user }) {
+      // Give every new user 100 free points so they can open a pack immediately
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { points: 100, totalEarned: 100 },
+      });
+    },
+  },
   pages: {
     signIn: "/",
     error: "/auth/error",
