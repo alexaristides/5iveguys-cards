@@ -5,6 +5,7 @@ export const maxDuration = 60;
 
 const CHANNEL_ID = process.env.YOUTUBE_CHANNEL_ID!;
 const ADMIN_SECRET = process.env.ADMIN_SECRET!;
+const PAGE_SIZE = 20; // videos per request
 
 async function fetchYouTube(url: string, apiKey: string) {
   const sep = url.includes("?") ? "&" : "?";
@@ -18,7 +19,6 @@ async function fetchYouTube(url: string, apiKey: string) {
 }
 
 export async function POST(req: NextRequest) {
-  // Protect with a secret header
   const secret = req.headers.get("x-admin-secret");
   if (!ADMIN_SECRET || secret !== ADMIN_SECRET) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -29,7 +29,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "YOUTUBE_API_KEY not set" }, { status: 500 });
   }
 
-  // 1. Fetch all channel video IDs
+  const { page = 0 } = await req.json().catch(() => ({ page: 0 }));
+
+  // On page 0, wipe the existing cache so we start fresh
+  if (page === 0) {
+    await prisma.channelCommentCache.deleteMany({});
+  }
+
+  // ── Step 1: Fetch all video IDs ───────────────────────────────────────────
   const allVideoIds: string[] = [];
   let pageToken: string | undefined;
   do {
@@ -43,79 +50,81 @@ export async function POST(req: NextRequest) {
     pageToken = data.nextPageToken;
   } while (pageToken);
 
-  console.log(`[Admin Scan] Found ${allVideoIds.length} videos`);
+  const totalVideos = allVideoIds.length;
+  const start = page * PAGE_SIZE;
+  const end = Math.min(start + PAGE_SIZE, totalVideos);
+  const videoBatch = allVideoIds.slice(start, end);
 
-  // 2. For each video, fetch all comment threads (paginated), tally per author
+  // ── Step 2: Scan comments for this batch of videos ────────────────────────
   const authorCounts: Record<string, number> = {};
 
-  // Process in batches of 10 videos at a time
-  for (let i = 0; i < allVideoIds.length; i += 10) {
-    const batch = allVideoIds.slice(i, i + 10);
-    await Promise.all(
-      batch.map(async (videoId) => {
-        let vtPageToken: string | undefined;
-        do {
-          const url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet,replies&videoId=${videoId}&maxResults=100${vtPageToken ? `&pageToken=${vtPageToken}` : ""}`;
-          const data = await fetchYouTube(url, apiKey);
-          if (!data?.items) break;
+  await Promise.all(
+    videoBatch.map(async (videoId) => {
+      let vtPageToken: string | undefined;
+      do {
+        const url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet,replies&videoId=${videoId}&maxResults=100${vtPageToken ? `&pageToken=${vtPageToken}` : ""}`;
+        const data = await fetchYouTube(url, apiKey);
+        if (!data?.items) break;
 
-          for (const thread of data.items) {
-            const topAuthor: string | undefined =
-              thread.snippet?.topLevelComment?.snippet?.authorChannelId?.value;
-            if (topAuthor) {
-              authorCounts[topAuthor] = (authorCounts[topAuthor] ?? 0) + 1;
-            }
-
-            const replies: { snippet?: { authorChannelId?: { value?: string } } }[] =
-              thread.replies?.comments ?? [];
-            for (const reply of replies) {
-              const replyAuthor = reply.snippet?.authorChannelId?.value;
-              if (replyAuthor) {
-                authorCounts[replyAuthor] = (authorCounts[replyAuthor] ?? 0) + 1;
-              }
+        for (const thread of data.items) {
+          const topAuthor: string | undefined =
+            thread.snippet?.topLevelComment?.snippet?.authorChannelId?.value;
+          if (topAuthor) {
+            authorCounts[topAuthor] = (authorCounts[topAuthor] ?? 0) + 1;
+          }
+          const replies: { snippet?: { authorChannelId?: { value?: string } } }[] =
+            thread.replies?.comments ?? [];
+          for (const reply of replies) {
+            const replyAuthor = reply.snippet?.authorChannelId?.value;
+            if (replyAuthor) {
+              authorCounts[replyAuthor] = (authorCounts[replyAuthor] ?? 0) + 1;
             }
           }
-
-          vtPageToken = data.nextPageToken;
-        } while (vtPageToken);
-      })
-    );
-  }
-
-  const totalComments = Object.values(authorCounts).reduce((a, b) => a + b, 0);
-  console.log(`[Admin Scan] ${totalComments} comments from ${Object.keys(authorCounts).length} unique authors`);
-
-  // 3. Upsert all author counts into ChannelCommentCache
-  await Promise.all(
-    Object.entries(authorCounts).map(([authorChannelId, commentCount]) =>
-      prisma.channelCommentCache.upsert({
-        where: { authorChannelId },
-        create: { authorChannelId, commentCount },
-        update: { commentCount },
-      })
-    )
+        }
+        vtPageToken = data.nextPageToken;
+      } while (vtPageToken);
+    })
   );
 
-  // 4. Update scan status
-  await prisma.channelScanStatus.upsert({
-    where: { id: "singleton" },
-    create: {
-      id: "singleton",
-      lastScanned: new Date(),
-      videoCount: allVideoIds.length,
-      commentCount: totalComments,
-    },
-    update: {
-      lastScanned: new Date(),
-      videoCount: allVideoIds.length,
-      commentCount: totalComments,
-    },
-  });
+  // ── Step 3: Merge into DB (increment, don't replace, so pages accumulate) ─
+  await Promise.all(
+    Object.entries(authorCounts).map(async ([authorChannelId, count]) => {
+      await prisma.channelCommentCache.upsert({
+        where: { authorChannelId },
+        create: { authorChannelId, commentCount: count },
+        update: { commentCount: { increment: count } },
+      });
+    })
+  );
+
+  const hasMore = end < totalVideos;
+
+  // On final page, update scan status
+  if (!hasMore) {
+    const total = await prisma.channelCommentCache.aggregate({ _sum: { commentCount: true } });
+    await prisma.channelScanStatus.upsert({
+      where: { id: "singleton" },
+      create: {
+        id: "singleton",
+        lastScanned: new Date(),
+        videoCount: totalVideos,
+        commentCount: total._sum.commentCount ?? 0,
+      },
+      update: {
+        lastScanned: new Date(),
+        videoCount: totalVideos,
+        commentCount: total._sum.commentCount ?? 0,
+      },
+    });
+  }
 
   return NextResponse.json({
     ok: true,
-    videosScanned: allVideoIds.length,
-    uniqueAuthors: Object.keys(authorCounts).length,
-    totalComments,
+    page,
+    videosInPage: videoBatch.length,
+    totalVideos,
+    videosProcessed: end,
+    hasMore,
+    nextPage: hasMore ? page + 1 : null,
   });
 }
