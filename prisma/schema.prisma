@@ -60,15 +60,30 @@ model VerificationToken {
 }
 
 model YoutubeSync {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  isSubscribed    Boolean  @default(false)
-  likedVideoIds   String   @default("[]")
-  commentCount    Int      @default(0)
-  watchMinutes    Int      @default(0)
-  lastSynced      DateTime @default(now())
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  youtubeChannelId  String?
+  isSubscribed      Boolean  @default(false)
+  likedVideoIds     String   @default("[]")
+  commentCount      Int      @default(0)
+  lastSynced        DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Stores comment counts per YouTube channel author — built by the admin scan
+model ChannelCommentCache {
+  authorChannelId String   @id
+  commentCount    Int      @default(0)
+  updatedAt       DateTime @updatedAt
+}
+
+// Tracks when the last full channel comment scan ran
+model ChannelScanStatus {
+  id           String   @id @default("singleton")
+  lastScanned  DateTime
+  videoCount   Int      @default(0)
+  commentCount Int      @default(0)
 }
 
 model UserCard {

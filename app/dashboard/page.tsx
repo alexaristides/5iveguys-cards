@@ -18,7 +18,6 @@ interface UserData {
     isSubscribed: boolean;
     likedVideoIds: string;
     commentCount: number;
-    watchMinutes: number;
   } | null;
 }
 

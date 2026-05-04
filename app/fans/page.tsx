@@ -17,7 +17,6 @@ interface LeaderboardEntry {
   isSubscribed: boolean;
   likedCount: number;
   commentCount: number;
-  watchMinutes: number;
   isCurrentUser: boolean;
 }
 
