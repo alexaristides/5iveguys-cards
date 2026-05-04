@@ -4,7 +4,11 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { POINTS_CONFIG } from "@/lib/cards";
 
+export const maxDuration = 60;
+
 const CHANNEL_ID = process.env.YOUTUBE_CHANNEL_ID!;
+// Only scan this many recent videos for comments (saves ~95% of API calls)
+const COMMENT_SCAN_LIMIT = 30;
 
 async function fetchYouTube(url: string, accessToken: string) {
   const res = await fetch(url, {
@@ -24,7 +28,6 @@ async function getAccessToken(userId: string): Promise<string | null> {
   });
   if (!account) return null;
 
-  // If token is expired or about to expire, refresh it
   const expiresAt = account.expires_at ? account.expires_at * 1000 : 0;
   const isExpired = expiresAt < Date.now() + 60_000;
 
@@ -58,19 +61,19 @@ async function getAccessToken(userId: string): Promise<string | null> {
 async function getChannelVideoIds(accessToken: string): Promise<string[]> {
   const allIds: string[] = [];
   let pageToken: string | undefined;
-  // Paginate through ALL channel videos (up to 500)
   do {
     const url = `https://www.googleapis.com/youtube/v3/search?part=id&channelId=${CHANNEL_ID}&type=video&maxResults=50&order=date${pageToken ? `&pageToken=${pageToken}` : ""}`;
     const data = await fetchYouTube(url, accessToken);
     if (!data?.items) break;
-    const ids = data.items.map((item: { id: { videoId: string } }) => item.id.videoId).filter(Boolean);
+    const ids = data.items
+      .map((item: { id: { videoId: string } }) => item.id.videoId)
+      .filter(Boolean);
     allIds.push(...ids);
     pageToken = data.nextPageToken;
   } while (pageToken && allIds.length < 500);
   return allIds;
 }
 
-// Get the authed user's own YouTube channel ID so we can match their comments
 async function getMyChannelId(accessToken: string): Promise<string | null> {
   const data = await fetchYouTube(
     "https://www.googleapis.com/youtube/v3/channels?part=id&mine=true",
@@ -99,10 +102,10 @@ export async function POST() {
   const subData = await fetchYouTube(subUrl, accessToken);
   const isSubscribed = (subData?.pageInfo?.totalResults ?? 0) > 0;
 
-  // Get channel video IDs
+  // Get channel video IDs (all, for like checking)
   const videoIds = await getChannelVideoIds(accessToken);
 
-  // Check liked videos using getRating (requires youtube.force-ssl scope)
+  // Check liked videos (batch, fast)
   let likedVideoIds: string[] = [];
   if (videoIds.length > 0) {
     const chunks: string[][] = [];
@@ -119,36 +122,32 @@ export async function POST() {
     }
   }
 
-  // Count user's comments on the channel using allThreadsRelatedToChannelId
+  // Count user's comments — only scan the most recent videos to avoid timeout
   let commentCount = 0;
   const myChannelId = await getMyChannelId(accessToken);
-  if (myChannelId && videoIds.length > 0) {
-    for (const videoId of videoIds) {
+  const videosToScan = videoIds.slice(0, COMMENT_SCAN_LIMIT);
+
+  if (myChannelId && videosToScan.length > 0) {
+    for (const videoId of videosToScan) {
       let pageToken: string | undefined;
-      // Scan every page of top-level comment threads on this video
       do {
         const url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet,replies&videoId=${videoId}&maxResults=100${pageToken ? `&pageToken=${pageToken}` : ""}`;
         const data = await fetchYouTube(url, accessToken);
         if (!data?.items) break;
 
         for (const thread of data.items) {
-          // Count top-level comment if authored by this user
           const topAuthor = thread.snippet?.topLevelComment?.snippet?.authorChannelId?.value;
           if (topAuthor === myChannelId) commentCount++;
 
-          // Count replies in this thread authored by this user
-          // The API returns up to 5 replies inline; fetch more if replyCount > 5
           const replyCount: number = thread.snippet?.totalReplyCount ?? 0;
           const inlineReplies: { snippet: { authorChannelId: { value: string } } }[] =
             thread.replies?.comments ?? [];
 
           if (replyCount <= 5) {
-            // All replies are inline
             for (const reply of inlineReplies) {
               if (reply.snippet?.authorChannelId?.value === myChannelId) commentCount++;
             }
           } else {
-            // Fetch all replies for this thread
             const threadId: string = thread.id;
             let replyPageToken: string | undefined;
             do {
@@ -168,6 +167,11 @@ export async function POST() {
     }
   }
 
+  // Preserve comments found on older videos from previous syncs
+  const prevComments = existing?.commentCount ?? 0;
+  // Only add newly discovered comments; never subtract
+  const newComments = Math.max(0, commentCount - prevComments);
+
   // Calculate points delta
   let pointsDelta = 0;
 
@@ -179,8 +183,6 @@ export async function POST() {
   const newLikes = likedVideoIds.filter((id) => !prevLiked.includes(id));
   pointsDelta += newLikes.length * POINTS_CONFIG.like;
 
-  const prevComments = existing?.commentCount ?? 0;
-  const newComments = Math.max(0, commentCount - prevComments);
   pointsDelta += newComments * POINTS_CONFIG.comment;
 
   await prisma.youtubeSync.upsert({
