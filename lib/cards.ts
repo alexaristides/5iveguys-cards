@@ -137,8 +137,9 @@ export const PACKS: Pack[] = [
 
 export const POINTS_CONFIG = {
   subscribe: 500,
+  earlyLike: 50,
   like: 10,
-  comment: 25,
+  earlyLikeWindowHours: 24,
   watchMinute: 1,
 } as const;
 

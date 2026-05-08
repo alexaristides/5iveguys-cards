@@ -70,24 +70,30 @@ async function getUploadsPlaylistId(accessToken: string): Promise<string | null>
     ?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads ?? null;
 }
 
-// Uses playlistItems API (1 unit/page) instead of search (100 units/page)
-async function getChannelVideoIds(accessToken: string): Promise<string[]> {
+// Returns videoId → publishedAt map. contentDetails.videoPublishedAt is free with part=contentDetails.
+async function getChannelVideoMap(accessToken: string): Promise<Map<string, Date>> {
   const uploadsPlaylistId = await getUploadsPlaylistId(accessToken);
-  if (!uploadsPlaylistId) return [];
+  if (!uploadsPlaylistId) return new Map();
 
-  const allIds: string[] = [];
+  const videoMap = new Map<string, Date>();
   let pageToken: string | undefined;
   do {
     const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ""}`;
     const data = await fetchYouTube(url, accessToken);
     if (!data?.items) break;
-    const ids = (data.items as { contentDetails?: { videoId?: string } }[])
-      .map((item) => item.contentDetails?.videoId)
-      .filter((id): id is string => Boolean(id));
-    allIds.push(...ids);
+    type Item = { contentDetails?: { videoId?: string; videoPublishedAt?: string } };
+    for (const item of data.items as Item[]) {
+      const videoId = item.contentDetails?.videoId;
+      const publishedAt = item.contentDetails?.videoPublishedAt;
+      if (videoId && publishedAt) {
+        videoMap.set(videoId, new Date(publishedAt));
+      } else if (videoId) {
+        videoMap.set(videoId, new Date(0));
+      }
+    }
     pageToken = data.nextPageToken;
-  } while (pageToken && allIds.length < 100);
-  return allIds;
+  } while (pageToken && videoMap.size < 100);
+  return videoMap;
 }
 
 async function getMyChannelId(accessToken: string): Promise<string | null> {
@@ -118,7 +124,7 @@ export async function POST() {
         points: user?.points ?? 0,
         isSubscribed: existing.isSubscribed,
         likedCount: JSON.parse(existing.likedVideoIds).length,
-        commentCount: existing.commentCount,
+        earlyLikedCount: JSON.parse(existing.earlyLikedVideoIds).length,
         cooldown: true,
         hoursLeft,
       });
@@ -141,7 +147,7 @@ export async function POST() {
   }
 
   const prevLiked: string[] = existing ? JSON.parse(existing.likedVideoIds) : [];
-  const prevCommentCount = existing?.commentCount ?? 0;
+  const prevEarlyLiked: string[] = existing ? JSON.parse(existing.earlyLikedVideoIds) : [];
 
   // ── Get user's YouTube channel ID (fetch once, then store) ────────────────
   let youtubeChannelId = existing?.youtubeChannelId ?? null;
@@ -149,16 +155,25 @@ export async function POST() {
     youtubeChannelId = await getMyChannelId(accessToken);
   }
 
-  // ── Subscription + video IDs in parallel ─────────────────────────────────
-  const [subData, videoIds] = await Promise.all([
+  // ── Subscription + video map in parallel ─────────────────────────────────
+  const [subData, videoMap] = await Promise.all([
     fetchYouTube(
       `https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&forChannelId=${CHANNEL_ID}`,
       accessToken
     ),
-    getChannelVideoIds(accessToken),
+    getChannelVideoMap(accessToken),
   ]);
 
   const isSubscribed = (subData?.pageInfo?.totalResults ?? 0) > 0;
+  const videoIds = [...videoMap.keys()];
+
+  // ── Persist video publish dates (skipDuplicates — only new videos cost a write) ──
+  if (videoIds.length > 0) {
+    await prisma.videoMeta.createMany({
+      data: [...videoMap.entries()].map(([videoId, publishedAt]) => ({ videoId, publishedAt })),
+      skipDuplicates: true,
+    });
+  }
 
   // ── Liked videos — parallel batch calls ──────────────────────────────────
   let likedVideoIds: string[] = [];
@@ -183,17 +198,27 @@ export async function POST() {
     }
   }
 
-  // ── Comment count from pre-built cache (no YouTube scanning) ─────────────
-  let commentCount = prevCommentCount;
-  if (youtubeChannelId) {
-    const cached = await prisma.channelCommentCache.findUnique({
-      where: { authorChannelId: youtubeChannelId },
-    });
-    // Use cached count; never go below what we've previously counted
-    commentCount = Math.max(cached?.commentCount ?? 0, prevCommentCount);
-  }
+  // ── Tiered like points ────────────────────────────────────────────────────
+  const newLikes = likedVideoIds.filter((id) => !prevLiked.includes(id));
+  const earlyLikeWindowMs = POINTS_CONFIG.earlyLikeWindowHours * 60 * 60 * 1000;
+  const now = Date.now();
 
-  const newComments = Math.max(0, commentCount - prevCommentCount);
+  // Look up publish dates for new likes (may not all be in videoMap if edge cases)
+  const metaRecords = await prisma.videoMeta.findMany({
+    where: { videoId: { in: newLikes } },
+  });
+  const metaByVideoId = new Map(metaRecords.map((m) => [m.videoId, m.publishedAt]));
+
+  const newEarlyLikes: string[] = [];
+  const newRegularLikes: string[] = [];
+  for (const videoId of newLikes) {
+    const publishedAt = metaByVideoId.get(videoId) ?? videoMap.get(videoId);
+    if (publishedAt && publishedAt.getTime() > 0 && now - publishedAt.getTime() <= earlyLikeWindowMs) {
+      newEarlyLikes.push(videoId);
+    } else {
+      newRegularLikes.push(videoId);
+    }
+  }
 
   // ── Points delta ──────────────────────────────────────────────────────────
   let pointsDelta = 0;
@@ -203,9 +228,10 @@ export async function POST() {
     pointsDelta += POINTS_CONFIG.subscribe;
   }
 
-  const newLikes = likedVideoIds.filter((id) => !prevLiked.includes(id));
-  pointsDelta += newLikes.length * POINTS_CONFIG.like;
-  pointsDelta += newComments * POINTS_CONFIG.comment;
+  pointsDelta += newEarlyLikes.length * POINTS_CONFIG.earlyLike;
+  pointsDelta += newRegularLikes.length * POINTS_CONFIG.like;
+
+  const updatedEarlyLikedVideoIds = [...prevEarlyLiked, ...newEarlyLikes];
 
   await prisma.youtubeSync.upsert({
     where: { userId },
@@ -214,14 +240,14 @@ export async function POST() {
       youtubeChannelId,
       isSubscribed,
       likedVideoIds: JSON.stringify(likedVideoIds),
-      commentCount,
+      earlyLikedVideoIds: JSON.stringify(updatedEarlyLikedVideoIds),
       lastSynced: new Date(),
     },
     update: {
       youtubeChannelId,
       isSubscribed,
       likedVideoIds: JSON.stringify(likedVideoIds),
-      commentCount,
+      earlyLikedVideoIds: JSON.stringify(updatedEarlyLikedVideoIds),
       lastSynced: new Date(),
     },
   });
@@ -243,7 +269,7 @@ export async function POST() {
     points: user?.points ?? 0,
     isSubscribed,
     likedCount: likedVideoIds.length,
-    commentCount,
+    earlyLikedCount: updatedEarlyLikedVideoIds.length,
     cooldown: false,
   });
 }

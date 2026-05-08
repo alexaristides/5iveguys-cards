@@ -25,7 +25,7 @@ export async function GET() {
         select: {
           isSubscribed: true,
           likedVideoIds: true,
-          commentCount: true,
+          earlyLikedVideoIds: true,
         },
       },
     },
@@ -45,7 +45,7 @@ export async function GET() {
       cardCount: u._count.cards,
       isSubscribed: u.youtubeSync?.isSubscribed ?? false,
       likedCount: u.youtubeSync ? JSON.parse(u.youtubeSync.likedVideoIds || "[]").length : 0,
-      commentCount: u.youtubeSync?.commentCount ?? 0,
+      earlyLikedCount: u.youtubeSync ? JSON.parse(u.youtubeSync.earlyLikedVideoIds || "[]").length : 0,
       isCurrentUser: u.id === currentUserId,
     })),
     currentUserRank: currentUserRank || null,

@@ -9,17 +9,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const [scanStatus, totalAuthors, aggregate] = await Promise.all([
-    prisma.channelScanStatus.findUnique({ where: { id: "singleton" } }),
-    prisma.channelCommentCache.count(),
-    prisma.channelCommentCache.aggregate({ _sum: { commentCount: true }, _avg: { commentCount: true } }),
+  const [userCount, syncCount, syncs] = await Promise.all([
+    prisma.user.count(),
+    prisma.youtubeSync.count(),
+    prisma.youtubeSync.findMany({
+      select: { likedVideoIds: true, earlyLikedVideoIds: true },
+    }),
   ]);
 
+  let totalLikes = 0;
+  let totalEarlyLikes = 0;
+  for (const s of syncs) {
+    totalLikes += (JSON.parse(s.likedVideoIds || "[]") as string[]).length;
+    totalEarlyLikes += (JSON.parse(s.earlyLikedVideoIds || "[]") as string[]).length;
+  }
+
   return NextResponse.json({
-    lastScanned: scanStatus?.lastScanned ?? null,
-    videoCount: scanStatus?.videoCount ?? 0,
-    totalAuthors,
-    totalComments: aggregate._sum.commentCount ?? 0,
-    avgCommentsPerUser: Math.round((aggregate._avg.commentCount ?? 0) * 10) / 10,
+    userCount,
+    syncCount,
+    totalLikes,
+    totalEarlyLikes,
   });
 }

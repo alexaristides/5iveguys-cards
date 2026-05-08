@@ -16,7 +16,7 @@ interface LeaderboardEntry {
   cardCount: number;
   isSubscribed: boolean;
   likedCount: number;
-  commentCount: number;
+  earlyLikedCount: number;
   isCurrentUser: boolean;
 }
 
@@ -144,8 +144,8 @@ export default function FansPage() {
                           <span className="text-zinc-400 text-[10px] font-medium">{entry.likedCount}</span>
                         </div>
                         <div className="flex items-center gap-0.5 bg-zinc-800/60 rounded-md px-1.5 py-0.5">
-                          <span className="text-[10px]">💬</span>
-                          <span className="text-zinc-400 text-[10px] font-medium">{entry.commentCount}</span>
+                          <span className="text-[10px]">⚡</span>
+                          <span className="text-zinc-400 text-[10px] font-medium">{entry.earlyLikedCount}</span>
                         </div>
                       </div>
                     </div>
@@ -189,7 +189,7 @@ export default function FansPage() {
                       <div className="flex items-center gap-2 mt-0.5">
                         {entry.isSubscribed && <span className="text-green-400 text-[10px]">✓ Sub</span>}
                         <span className="text-zinc-600 text-[10px]">👍 {entry.likedCount}</span>
-                        <span className="text-zinc-600 text-[10px]">💬 {entry.commentCount}</span>
+                        <span className="text-zinc-600 text-[10px]">⚡ {entry.earlyLikedCount}</span>
                       </div>
                     </div>
 

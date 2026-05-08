@@ -60,38 +60,21 @@ model VerificationToken {
 }
 
 model YoutubeSync {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-  youtubeChannelId  String?
-  isSubscribed      Boolean  @default(false)
-  likedVideoIds     String   @default("[]")
-  commentCount      Int      @default(0)
-  lastSynced        DateTime @default(now())
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  youtubeChannelId    String?
+  isSubscribed        Boolean  @default(false)
+  likedVideoIds       String   @default("[]")
+  earlyLikedVideoIds  String   @default("[]")
+  lastSynced          DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// Comment count per YouTube author — rebuilt by admin scan
-model ChannelCommentCache {
-  authorChannelId   String   @id
-  displayName       String?
-  commentCount      Int      @default(0)
-  updatedAt         DateTime @updatedAt
-}
-
-// Per-video scan state — stores newest comment timestamp so re-scans only fetch new comments
-model VideoScanStatus {
-  videoId         String    @id
-  lastScanned     DateTime
-  newestCommentAt DateTime?
-}
-
-// Summary of the last full channel scan
-model ChannelScanStatus {
-  id           String   @id @default("singleton")
-  lastScanned  DateTime
-  videoCount   Int      @default(0)
-  commentCount Int      @default(0)
+// Publish dates for channel videos — populated as a side effect of user syncs
+model VideoMeta {
+  videoId     String   @id
+  publishedAt DateTime
 }
 
 model UserCard {

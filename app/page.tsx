@@ -13,8 +13,8 @@ const PREVIEW_CARDS = [
 
 const FEATURES = [
   { icon: "🔔", label: "Subscribe", pts: "+500 pts" },
+  { icon: "⚡", label: "Early like", pts: "+50 pts" },
   { icon: "👍", label: "Like videos", pts: "+10 pts each" },
-  { icon: "💬", label: "Comment", pts: "+25 pts each" },
 ];
 
 export default function LandingPage() {
@@ -92,7 +92,7 @@ export default function LandingPage() {
           </button>
 
           <p className="text-zinc-600 text-xs mt-3 max-w-xs lg:max-w-none">
-            We only read your YouTube activity — likes, subscription, and comments on 5iveguysfc videos.
+            We only read your YouTube likes and subscription status for 5iveguysfc videos.
           </p>
         </div>
 

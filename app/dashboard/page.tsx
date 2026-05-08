@@ -17,7 +17,7 @@ interface UserData {
   youtubeSync: {
     isSubscribed: boolean;
     likedVideoIds: string;
-    commentCount: number;
+    earlyLikedVideoIds: string;
   } | null;
 }
 

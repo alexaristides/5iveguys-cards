@@ -5,7 +5,7 @@ import { POINTS_CONFIG } from "@/lib/cards";
 interface SyncData {
   isSubscribed: boolean;
   likedVideoIds?: string;
-  commentCount: number;
+  earlyLikedVideoIds?: string;
 }
 
 interface PointsActivityProps {
@@ -23,23 +23,24 @@ const activities = [
     key: "subscribe" as const,
   },
   {
+    icon: "⚡",
+    label: `Like within ${POINTS_CONFIG.earlyLikeWindowHours}h of upload`,
+    points: POINTS_CONFIG.earlyLike,
+    suffix: "per early like",
+    key: "earlyLike" as const,
+  },
+  {
     icon: "👍",
     label: "Like a video",
     points: POINTS_CONFIG.like,
     suffix: "per like",
     key: "like" as const,
   },
-  {
-    icon: "💬",
-    label: "Comment on a video",
-    points: POINTS_CONFIG.comment,
-    suffix: "per comment",
-    key: "comment" as const,
-  },
 ];
 
 export default function PointsActivity({ sync, onSync, syncing }: PointsActivityProps) {
   const likedCount = sync ? JSON.parse(sync.likedVideoIds ?? "[]").length : 0;
+  const earlyLikedCount = sync ? JSON.parse(sync.earlyLikedVideoIds ?? "[]").length : 0;
 
   return (
     <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-6 backdrop-blur">
@@ -88,14 +89,14 @@ export default function PointsActivity({ sync, onSync, syncing }: PointsActivity
       </div>
 
       {sync && (
-        <div className="mt-4 pt-4 border-t border-zinc-800 grid grid-cols-2 gap-3">
+        <div className="mt-4 pt-4 border-t border-zinc-800 grid grid-cols-3 gap-3">
           <Stat
             label="Subscribed"
             value={sync.isSubscribed ? "✓ Yes" : "Not yet"}
             highlight={sync.isSubscribed}
           />
           <Stat label="Liked videos" value={String(likedCount)} />
-          <Stat label="Comments" value={String(sync.commentCount)} />
+          <Stat label="Early likes" value={String(earlyLikedCount)} />
         </div>
       )}
     </div>
