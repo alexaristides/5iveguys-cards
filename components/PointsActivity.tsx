@@ -21,6 +21,7 @@ const activities = [
     points: POINTS_CONFIG.subscribe,
     suffix: "one-time",
     key: "subscribe" as const,
+    href: "https://www.youtube.com/@5iveguysfc?sub_confirmation=1",
   },
   {
     icon: "⚡",
@@ -28,6 +29,7 @@ const activities = [
     points: POINTS_CONFIG.earlyLike,
     suffix: "per early like",
     key: "earlyLike" as const,
+    href: "https://www.youtube.com/@5iveguysfc/videos",
   },
   {
     icon: "👍",
@@ -35,6 +37,7 @@ const activities = [
     points: POINTS_CONFIG.like,
     suffix: "per like",
     key: "like" as const,
+    href: "https://www.youtube.com/@5iveguysfc/videos",
   },
 ];
 
@@ -69,9 +72,12 @@ export default function PointsActivity({ sync, onSync, syncing }: PointsActivity
 
       <div className="space-y-3">
         {activities.map((activity) => (
-          <div
+          <a
             key={activity.key}
-            className="flex items-center justify-between p-3 rounded-xl bg-zinc-800/50"
+            href={activity.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between p-3 rounded-xl bg-zinc-800/50 hover:bg-zinc-700/50 transition-colors"
           >
             <div className="flex items-center gap-3">
               <span className="text-xl">{activity.icon}</span>
@@ -84,7 +90,7 @@ export default function PointsActivity({ sync, onSync, syncing }: PointsActivity
               <span className="text-purple-400 font-bold text-sm">+{activity.points}</span>
               <span className="text-zinc-600 text-xs"> pts</span>
             </div>
-          </div>
+          </a>
         ))}
       </div>
 
