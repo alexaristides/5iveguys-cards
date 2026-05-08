@@ -5,6 +5,9 @@ import Providers from "./providers";
 export const metadata: Metadata = {
   title: "5iveguysfc Cards",
   description: "Collect official 5iveguysfc trading cards by supporting the channel",
+  verification: {
+    google: "6-H9bzJiq9WozG1o5zUxpwiKRUOfK4ySXjXhoAUFa38",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
