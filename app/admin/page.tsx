@@ -23,10 +23,10 @@ export default function AdminPage() {
     if (res.ok) setStats(await res.json());
   }, []);
 
-  async function runScan() {
+  async function runScan(fullReset = false) {
     setLoading(true);
     setProgress(null);
-    setStatus("Starting scan…");
+    setStatus(fullReset ? "Full reset — clearing old data and scanning everything…" : "Starting incremental scan (only new comments since last scan)…");
 
     try {
       let page = 0;
@@ -38,7 +38,7 @@ export default function AdminPage() {
         const res = await fetch("/api/admin/scan", {
           method: "POST",
           headers: { "x-admin-secret": secret, "Content-Type": "application/json" },
-          body: JSON.stringify({ page, uploadsPlaylistId }),
+          body: JSON.stringify({ page, uploadsPlaylistId, fullReset: fullReset && page === 0 }),
         });
 
         if (!res.ok) {
@@ -51,7 +51,7 @@ export default function AdminPage() {
         const data = await res.json();
 
         if (data.totalVideos === 0) {
-          setStatus("Error: 0 videos found — check that YOUTUBE_API_KEY is set correctly in Vercel and that YouTube Data API v3 is enabled for that key.");
+          setStatus("Error: 0 videos found — check YOUTUBE_API_KEY in Vercel and that YouTube Data API v3 is enabled.");
           setLoading(false);
           return;
         }
@@ -81,8 +81,8 @@ export default function AdminPage() {
       <div className="max-w-lg mx-auto space-y-6">
         <h1 className="text-white text-2xl font-bold">Admin — Channel Scan</h1>
         <p className="text-zinc-400 text-sm">
-          Scans every video and all comments on the 5iveguysfc channel, stores
-          comment counts per author. Run once a day.
+          Scans every video on the 5iveguysfc channel and stores comment counts per author.
+          Incremental scans only fetch <em>new</em> comments since the last scan — much faster.
         </p>
 
         <div className="flex gap-3">
@@ -90,9 +90,7 @@ export default function AdminPage() {
             type="password"
             placeholder="Admin secret"
             value={secret}
-            onChange={(e) => {
-              setSecret(e.target.value);
-            }}
+            onChange={(e) => setSecret(e.target.value)}
             onBlur={() => loadStats(secret)}
             className="flex-1 px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500"
           />
@@ -123,15 +121,27 @@ export default function AdminPage() {
           </div>
         )}
 
-        <button
-          onClick={runScan}
-          disabled={loading || !secret}
-          className="w-full py-3 rounded-xl bg-purple-700 hover:bg-purple-600 disabled:bg-zinc-800
-            text-white font-semibold text-sm transition-all"
-        >
-          {loading ? "Scanning…" : "Run Channel Scan"}
-        </button>
+        {/* Scan buttons */}
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={() => runScan(false)}
+            disabled={loading || !secret}
+            className="w-full py-3 rounded-xl bg-purple-700 hover:bg-purple-600 disabled:bg-zinc-800
+              text-white font-semibold text-sm transition-all"
+          >
+            {loading ? "Scanning…" : "Run Incremental Scan"}
+          </button>
+          <button
+            onClick={() => runScan(true)}
+            disabled={loading || !secret}
+            className="w-full py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40
+              text-zinc-400 text-sm transition-all border border-zinc-700"
+          >
+            Full Reset + Rescan Everything
+          </button>
+        </div>
 
+        {/* Progress bar */}
         {loading && progress && (
           <div className="space-y-2">
             <div className="w-full bg-zinc-800 rounded-full h-2">

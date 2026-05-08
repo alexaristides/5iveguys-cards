@@ -5,41 +5,45 @@ export const maxDuration = 60;
 
 const CHANNEL_ID = process.env.YOUTUBE_CHANNEL_ID!;
 const ADMIN_SECRET = process.env.ADMIN_SECRET!;
-const PAGE_SIZE = 20;
+const VIDEOS_PER_PAGE = 15; // videos processed per API call
 
-type YTResponse = { _error?: string; _status?: number; items?: unknown[]; nextPageToken?: string };
+type YTResponse = {
+  _error?: string;
+  _status?: number;
+  items?: unknown[];
+  nextPageToken?: string;
+};
 
-async function fetchYouTube(url: string, apiKey: string): Promise<YTResponse | null> {
+async function ytFetch(url: string, apiKey: string): Promise<YTResponse | null> {
   const sep = url.includes("?") ? "&" : "?";
   const res = await fetch(`${url}${sep}key=${apiKey}`);
   if (!res.ok) {
     const body = await res.text();
-    console.error(`[Admin Scan] ${res.status} ${url.split("?")[0]}\n`, body);
     return { _error: body, _status: res.status };
   }
   return res.json();
 }
 
-// Get the channel's uploads playlist ID — costs 1 unit (vs 100 for search.list)
 async function getUploadsPlaylistId(apiKey: string): Promise<{ id: string | null; error?: string }> {
-  const url = `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${CHANNEL_ID}`;
-  const data = await fetchYouTube(url, apiKey);
+  const data = await ytFetch(
+    `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${CHANNEL_ID}`,
+    apiKey
+  );
   if (data?._error) return { id: null, error: `YouTube API error (${data._status}): ${data._error.slice(0, 300)}` };
-  const playlistId = (data?.items as { contentDetails?: { relatedPlaylists?: { uploads?: string } } }[])?.[0]?.contentDetails?.relatedPlaylists?.uploads;
-  return { id: playlistId ?? null };
+  type Ch = { contentDetails?: { relatedPlaylists?: { uploads?: string } } };
+  const id = (data?.items as Ch[])?.[0]?.contentDetails?.relatedPlaylists?.uploads ?? null;
+  return { id };
 }
 
-// Fetch all video IDs from uploads playlist — 1 unit per page (vs 100 for search.list)
 async function getAllVideoIds(apiKey: string, uploadsPlaylistId: string): Promise<string[]> {
   const allIds: string[] = [];
   let pageToken: string | undefined;
   do {
     const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ""}`;
-    const data = await fetchYouTube(url, apiKey);
+    const data = await ytFetch(url, apiKey);
     if (!data?.items) break;
-    const ids = (data.items as { contentDetails?: { videoId?: string } }[])
-      .map((item) => item.contentDetails?.videoId)
-      .filter((id): id is string => Boolean(id));
+    type Item = { contentDetails?: { videoId?: string } };
+    const ids = (data.items as Item[]).map((i) => i.contentDetails?.videoId).filter((id): id is string => Boolean(id));
     allIds.push(...ids);
     pageToken = data.nextPageToken;
   } while (pageToken);
@@ -53,96 +57,162 @@ export async function POST(req: NextRequest) {
   }
 
   const apiKey = process.env.YOUTUBE_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "YOUTUBE_API_KEY not set" }, { status: 500 });
-  }
+  if (!apiKey) return NextResponse.json({ error: "YOUTUBE_API_KEY not set" }, { status: 500 });
 
-  const { page = 0, uploadsPlaylistId: cachedPlaylistId } = await req.json().catch(() => ({ page: 0, uploadsPlaylistId: undefined }));
+  const body = await req.json().catch(() => ({}));
+  const page: number = body.page ?? 0;
+  const uploadsPlaylistId: string | undefined = body.uploadsPlaylistId;
+  const isFullReset: boolean = body.fullReset ?? false;
 
-  // On page 0, wipe existing cache for a fresh scan
-  if (page === 0) {
+  // Page 0: optionally wipe VideoScanStatus for a full re-scan
+  if (page === 0 && isFullReset) {
+    await prisma.videoScanStatus.deleteMany({});
     await prisma.channelCommentCache.deleteMany({});
   }
 
-  // ── Step 1: Get uploads playlist ID (only needed on page 0) ──────────────
-  let uploadsPlaylistId: string = cachedPlaylistId;
-  if (!uploadsPlaylistId) {
+  // Resolve uploads playlist ID
+  let playlistId = uploadsPlaylistId;
+  if (!playlistId) {
     const result = await getUploadsPlaylistId(apiKey);
-    if (!result.id) {
-      return NextResponse.json({ error: result.error ?? "Could not get uploads playlist — check YOUTUBE_CHANNEL_ID and YOUTUBE_API_KEY" }, { status: 400 });
-    }
-    uploadsPlaylistId = result.id;
+    if (!result.id) return NextResponse.json({ error: result.error ?? "Could not get uploads playlist" }, { status: 400 });
+    playlistId = result.id;
   }
 
-  // ── Step 2: Fetch all video IDs via playlistItems (1 unit/page) ───────────
-  const allVideoIds = await getAllVideoIds(apiKey, uploadsPlaylistId);
-
-  if (allVideoIds.length === 0) {
-    return NextResponse.json({ error: "No videos found in uploads playlist" }, { status: 400 });
-  }
+  // Fetch all video IDs (cheap: 1 unit per 50 videos)
+  const allVideoIds = await getAllVideoIds(apiKey, playlistId);
+  if (allVideoIds.length === 0) return NextResponse.json({ error: "No videos found" }, { status: 400 });
 
   const totalVideos = allVideoIds.length;
-  const start = page * PAGE_SIZE;
-  const end = Math.min(start + PAGE_SIZE, totalVideos);
+  const start = page * VIDEOS_PER_PAGE;
+  const end = Math.min(start + VIDEOS_PER_PAGE, totalVideos);
   const videoBatch = allVideoIds.slice(start, end);
 
-  // ── Step 3: Scan comments for this batch (parallel, 1 page per video) ────
-  const authorCounts: Record<string, number> = {};
+  // Load existing scan timestamps for this batch
+  const existingStatuses = await prisma.videoScanStatus.findMany({
+    where: { videoId: { in: videoBatch } },
+  });
+  const statusMap = new Map(existingStatuses.map((s) => [s.videoId, s]));
+
+  // Collect new comment counts per author for this batch
+  const newCounts: Record<string, { count: number; displayName: string }> = {};
 
   await Promise.all(
     videoBatch.map(async (videoId) => {
-      let vtPageToken: string | undefined;
+      const existing = statusMap.get(videoId);
+      const cutoff = existing?.newestCommentAt ?? null;
+      let newestSeen: Date | null = null;
+      let pageToken: string | undefined;
+      let done = false;
+
       do {
-        const url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet,replies&videoId=${videoId}&maxResults=100${vtPageToken ? `&pageToken=${vtPageToken}` : ""}`;
-        const data = await fetchYouTube(url, apiKey);
+        const url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet,replies&videoId=${videoId}&maxResults=100&order=time${pageToken ? `&pageToken=${pageToken}` : ""}`;
+        const data = await ytFetch(url, apiKey);
         if (!data?.items) break;
 
         type Thread = {
-          snippet?: { topLevelComment?: { snippet?: { authorChannelId?: { value?: string } } } };
-          replies?: { comments?: { snippet?: { authorChannelId?: { value?: string } } }[] };
+          snippet?: {
+            topLevelComment?: {
+              snippet?: {
+                authorChannelId?: { value?: string };
+                authorDisplayName?: string;
+                publishedAt?: string;
+              };
+            };
+            totalReplyCount?: number;
+          };
+          replies?: {
+            comments?: {
+              snippet?: {
+                authorChannelId?: { value?: string };
+                authorDisplayName?: string;
+                publishedAt?: string;
+              };
+            }[];
+          };
         };
+
         for (const thread of data.items as Thread[]) {
-          const topAuthor = thread.snippet?.topLevelComment?.snippet?.authorChannelId?.value;
-          if (topAuthor) authorCounts[topAuthor] = (authorCounts[topAuthor] ?? 0) + 1;
+          const top = thread.snippet?.topLevelComment?.snippet;
+          const publishedAt = top?.publishedAt ? new Date(top.publishedAt) : null;
+
+          // Stop paginating once we hit comments older than our last scan
+          if (cutoff && publishedAt && publishedAt <= cutoff) {
+            done = true;
+            break;
+          }
+
+          if (publishedAt && (!newestSeen || publishedAt > newestSeen)) {
+            newestSeen = publishedAt;
+          }
+
+          const authorId = top?.authorChannelId?.value;
+          if (authorId) {
+            if (!newCounts[authorId]) newCounts[authorId] = { count: 0, displayName: top?.authorDisplayName ?? "" };
+            newCounts[authorId].count++;
+          }
+
+          // Count replies (inline only — stays within 1 API call per video page)
           for (const reply of thread.replies?.comments ?? []) {
-            const replyAuthor = reply.snippet?.authorChannelId?.value;
-            if (replyAuthor) authorCounts[replyAuthor] = (authorCounts[replyAuthor] ?? 0) + 1;
+            const rId = reply.snippet?.authorChannelId?.value;
+            if (rId) {
+              if (!newCounts[rId]) newCounts[rId] = { count: 0, displayName: reply.snippet?.authorDisplayName ?? "" };
+              newCounts[rId].count++;
+            }
           }
         }
-        vtPageToken = data.nextPageToken;
-      } while (vtPageToken);
+
+        if (done) break;
+        pageToken = data.nextPageToken;
+      } while (pageToken);
+
+      // Update per-video scan status
+      const newNewest = newestSeen ?? existing?.newestCommentAt ?? null;
+      await prisma.videoScanStatus.upsert({
+        where: { videoId },
+        create: { videoId, lastScanned: new Date(), newestCommentAt: newNewest },
+        update: { lastScanned: new Date(), newestCommentAt: newNewest ?? undefined },
+      });
     })
   );
 
-  // ── Step 4: Merge into DB ─────────────────────────────────────────────────
-  await Promise.all(
-    Object.entries(authorCounts).map(([authorChannelId, count]) =>
-      prisma.channelCommentCache.upsert({
-        where: { authorChannelId },
-        create: { authorChannelId, commentCount: count },
-        update: { commentCount: { increment: count } },
-      })
-    )
-  );
+  // Write comment counts to DB in serial batches of 50 to avoid connection exhaustion
+  const entries = Object.entries(newCounts);
+  for (let i = 0; i < entries.length; i += 50) {
+    const batch = entries.slice(i, i + 50);
+    await Promise.all(
+      batch.map(([authorChannelId, { count, displayName }]) =>
+        prisma.channelCommentCache.upsert({
+          where: { authorChannelId },
+          create: { authorChannelId, displayName, commentCount: count },
+          update: {
+            commentCount: { increment: count },
+            displayName: displayName || undefined,
+          },
+        })
+      )
+    );
+  }
 
   const hasMore = end < totalVideos;
 
+  // On final page, update overall scan status
   if (!hasMore) {
-    const total = await prisma.channelCommentCache.aggregate({ _sum: { commentCount: true } });
+    const agg = await prisma.channelCommentCache.aggregate({ _sum: { commentCount: true } });
     await prisma.channelScanStatus.upsert({
       where: { id: "singleton" },
-      create: { id: "singleton", lastScanned: new Date(), videoCount: totalVideos, commentCount: total._sum.commentCount ?? 0 },
-      update: { lastScanned: new Date(), videoCount: totalVideos, commentCount: total._sum.commentCount ?? 0 },
+      create: { id: "singleton", lastScanned: new Date(), videoCount: totalVideos, commentCount: agg._sum.commentCount ?? 0 },
+      update: { lastScanned: new Date(), videoCount: totalVideos, commentCount: agg._sum.commentCount ?? 0 },
     });
   }
 
   return NextResponse.json({
     ok: true,
     page,
-    uploadsPlaylistId,
+    uploadsPlaylistId: playlistId,
     videosInPage: videoBatch.length,
     totalVideos,
     videosProcessed: end,
+    newAuthorsFound: Object.keys(newCounts).length,
     hasMore,
     nextPage: hasMore ? page + 1 : null,
   });

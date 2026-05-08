@@ -71,14 +71,22 @@ model YoutubeSync {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// Stores comment counts per YouTube channel author — built by the admin scan
+// Comment count per YouTube author — rebuilt by admin scan
 model ChannelCommentCache {
-  authorChannelId String   @id
-  commentCount    Int      @default(0)
-  updatedAt       DateTime @updatedAt
+  authorChannelId   String   @id
+  displayName       String?
+  commentCount      Int      @default(0)
+  updatedAt         DateTime @updatedAt
 }
 
-// Tracks when the last full channel comment scan ran
+// Per-video scan state — stores newest comment timestamp so re-scans only fetch new comments
+model VideoScanStatus {
+  videoId         String    @id
+  lastScanned     DateTime
+  newestCommentAt DateTime?
+}
+
+// Summary of the last full channel scan
 model ChannelScanStatus {
   id           String   @id @default("singleton")
   lastScanned  DateTime
