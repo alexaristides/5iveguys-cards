@@ -11,6 +11,11 @@ export interface Card {
   description?: string;
 }
 
+export interface CardResult extends Card {
+  isDuplicate: boolean;
+  refundPoints: number;
+}
+
 export interface Pack {
   id: string;
   name: string;
@@ -134,6 +139,13 @@ export const PACKS: Pack[] = [
     odds: { common: 50, rare: 25, epic: 20, legendary: 5 },
   },
 ];
+
+export const DUPLICATE_REFUND: Record<Rarity, number> = {
+  common: 10,
+  rare: 35,
+  epic: 100,
+  legendary: 250,
+};
 
 export const POINTS_CONFIG = {
   subscribe: 500,

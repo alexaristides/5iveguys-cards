@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import Navbar from "@/components/Navbar";
 import PackOpening from "@/components/PackOpening";
-import { PACKS, Card } from "@/lib/cards";
+import { PACKS, CardResult } from "@/lib/cards";
 
 export default function PacksPage() {
   const { data: session, status } = useSession();
@@ -29,7 +29,7 @@ export default function PacksPage() {
     if (status === "authenticated") fetchPoints();
   }, [status, fetchPoints]);
 
-  async function handleOpenPack(packId: string): Promise<{ cards: Card[]; remainingPoints: number } | null> {
+  async function handleOpenPack(packId: string): Promise<{ cards: CardResult[]; remainingPoints: number; totalRefund: number; duplicateCount: number } | null> {
     const res = await fetch("/api/packs/open", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
