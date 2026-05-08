@@ -116,6 +116,17 @@ export default function LandingPage() {
         </div>
 
       </div>
+
+      {/* Footer */}
+      <div className="relative pb-6 text-center">
+        <p className="text-zinc-700 text-xs">
+          By signing in you agree to our{" "}
+          <a href="/terms" className="underline hover:text-zinc-500 transition-colors">Terms of Service</a>
+          {" "}and{" "}
+          <a href="/privacy" className="underline hover:text-zinc-500 transition-colors">Privacy Policy</a>.
+          {" "}5iveguysfc Trading Cards is a fan project and is not affiliated with YouTube or Google.
+        </p>
+      </div>
     </main>
   );
 }
