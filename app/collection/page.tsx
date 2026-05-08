@@ -50,6 +50,8 @@ export default function CollectionPage() {
     owned: new Set(ownedIds).size,
     legendary: CARDS.filter((c) => c.rarity === "legendary" && ownedSet.has(c.id)).length,
     epic: CARDS.filter((c) => c.rarity === "epic" && ownedSet.has(c.id)).length,
+    rare: CARDS.filter((c) => c.rarity === "rare" && ownedSet.has(c.id)).length,
+    common: CARDS.filter((c) => c.rarity === "common" && ownedSet.has(c.id)).length,
   };
 
   const progress = Math.round((stats.owned / stats.total) * 100);
@@ -90,6 +92,8 @@ export default function CollectionPage() {
           <div className="flex gap-6 mt-4">
             <MiniStat label="Legendary" value={`${stats.legendary}/${CARDS.filter(c => c.rarity === "legendary").length}`} color="text-amber-400" />
             <MiniStat label="Epic" value={`${stats.epic}/${CARDS.filter(c => c.rarity === "epic").length}`} color="text-purple-400" />
+            <MiniStat label="Rare" value={`${stats.rare}/${CARDS.filter(c => c.rarity === "rare").length}`} color="text-blue-400" />
+            <MiniStat label="Common" value={`${stats.common}/${CARDS.filter(c => c.rarity === "common").length}`} color="text-zinc-400" />
           </div>
         </div>
 
