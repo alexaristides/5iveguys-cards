@@ -149,17 +149,12 @@ export async function POST() {
   const isSubscribed = (subData?.pageInfo?.totalResults ?? 0) > 0;
   const videoIds = [...videoMap.keys()];
 
-  // ── Persist video publish dates (upsert to handle SQLite lack of skipDuplicates) ──
+  // ── Persist video publish dates (skipDuplicates — only new videos cost a write) ──
   if (videoIds.length > 0) {
-    await Promise.all(
-      [...videoMap.entries()].map(([videoId, publishedAt]) =>
-        prisma.videoMeta.upsert({
-          where: { videoId },
-          create: { videoId, publishedAt },
-          update: {},
-        })
-      )
-    );
+    await prisma.videoMeta.createMany({
+      data: [...videoMap.entries()].map(([videoId, publishedAt]) => ({ videoId, publishedAt })),
+      skipDuplicates: true,
+    });
   }
 
   // ── Liked videos — parallel batch calls ──────────────────────────────────
