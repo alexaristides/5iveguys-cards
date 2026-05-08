@@ -7,7 +7,6 @@ import { POINTS_CONFIG } from "@/lib/cards";
 export const maxDuration = 30;
 
 const CHANNEL_ID = process.env.YOUTUBE_CHANNEL_ID!;
-const SYNC_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 async function fetchYouTube(url: string, accessToken: string) {
   const res = await fetch(url, {
@@ -112,24 +111,7 @@ export async function POST() {
 
   const userId = session.user.id;
 
-  // ── 24h cooldown ─────────────────────────────────────────────────────────
   const existing = await prisma.youtubeSync.findUnique({ where: { userId } });
-  if (existing?.lastSynced) {
-    const msSinceLast = Date.now() - new Date(existing.lastSynced).getTime();
-    if (msSinceLast < SYNC_COOLDOWN_MS) {
-      const hoursLeft = Math.ceil((SYNC_COOLDOWN_MS - msSinceLast) / (60 * 60 * 1000));
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      return NextResponse.json({
-        pointsEarned: 0,
-        points: user?.points ?? 0,
-        isSubscribed: existing.isSubscribed,
-        likedCount: JSON.parse(existing.likedVideoIds).length,
-        earlyLikedCount: JSON.parse(existing.earlyLikedVideoIds).length,
-        cooldown: true,
-        hoursLeft,
-      });
-    }
-  }
 
   // ── Get access token ──────────────────────────────────────────────────────
   const tokenResult = await getAccessToken(userId);

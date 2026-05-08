@@ -48,9 +48,7 @@ export default function DashboardPage() {
       const res = await fetch("/api/youtube/sync", { method: "POST" });
       const data = await res.json();
       if (res.ok) {
-        if (data.cooldown) {
-          setSyncMessage(`Already synced today — try again in ${data.hoursLeft}h.`);
-        } else if (data.pointsEarned > 0) {
+        if (data.pointsEarned > 0) {
           setSyncMessage(`+${data.pointsEarned} points earned!`);
           fetchUser();
         } else {
