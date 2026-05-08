@@ -16,6 +16,7 @@ const NAV_LINKS = [
   { href: "/packs", label: "Packs", icon: "📦" },
   { href: "/collection", label: "Collection", icon: "🃏" },
   { href: "/fans", label: "Fans", icon: "🏆" },
+  { href: "/games", label: "Games", icon: "⚔️" },
 ];
 
 export default function Navbar({ user, points }: NavbarProps) {

@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -49,6 +49,10 @@ model User {
   cards      UserCard[]
   packOpens  PackOpen[]
   youtubeSync YoutubeSync?
+
+  challengedBattles CardBattle[] @relation("ChallengerBattles")
+  acceptedBattles   CardBattle[] @relation("AcceptorBattles")
+  wonBattles        CardBattle[] @relation("WonBattles")
 }
 
 model VerificationToken {
@@ -98,4 +102,27 @@ model PackOpen {
   openedAt  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// status values: PENDING | RESOLVED | CANCELLED
+model CardBattle {
+  id               String   @id @default(cuid())
+  challengerId     String
+  challenger       User     @relation("ChallengerBattles", fields: [challengerId], references: [id])
+  acceptorId       String?
+  acceptor         User?    @relation("AcceptorBattles", fields: [acceptorId], references: [id])
+  challengerCardId String
+  acceptorCardId   String?
+  wager            Int
+  status           String   @default("PENDING")
+  winnerId         String?
+  winner           User?    @relation("WonBattles", fields: [winnerId], references: [id])
+  challengerRoll   Int?
+  acceptorRoll     Int?
+  createdAt        DateTime @default(now())
+  resolvedAt       DateTime?
+
+  @@index([status, createdAt])
+  @@index([challengerId])
+  @@index([acceptorId])
 }
