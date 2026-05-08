@@ -5,7 +5,7 @@ export const maxDuration = 60;
 
 const CHANNEL_ID = process.env.YOUTUBE_CHANNEL_ID!;
 const ADMIN_SECRET = process.env.ADMIN_SECRET!;
-const VIDEOS_PER_PAGE = 15; // videos processed per API call
+const VIDEOS_PER_PAGE = 25;
 
 type YTResponse = {
   _error?: string;
@@ -100,13 +100,18 @@ export async function POST(req: NextRequest) {
     videoBatch.map(async (videoId) => {
       const existing = statusMap.get(videoId);
       const cutoff = existing?.newestCommentAt ?? null;
+      // First-ever scan: only fetch 1 page (most recent 100 comments) — fast, captures active commenters
+      // Re-scans: paginate until we hit the cutoff timestamp — usually stops after 0-1 pages
+      const isFirstScan = !cutoff;
       let newestSeen: Date | null = null;
       let pageToken: string | undefined;
       let done = false;
+      let pagesScanned = 0;
 
       do {
         const url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet,replies&videoId=${videoId}&maxResults=100&order=time${pageToken ? `&pageToken=${pageToken}` : ""}`;
         const data = await ytFetch(url, apiKey);
+        pagesScanned++;
         if (!data?.items) break;
 
         type Thread = {
@@ -162,6 +167,8 @@ export async function POST(req: NextRequest) {
         }
 
         if (done) break;
+        // First scan: stop after 1 page — captures recent commenters without timing out
+        if (isFirstScan && pagesScanned >= 1) break;
         pageToken = data.nextPageToken;
       } while (pageToken);
 
