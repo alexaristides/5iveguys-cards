@@ -116,14 +116,13 @@ model CardBattle {
   challenger       User         @relation("ChallengerBattles", fields: [challengerId], references: [id])
   acceptorId       String?
   acceptor         User?        @relation("AcceptorBattles", fields: [acceptorId], references: [id])
-  challengerCardId String
-  acceptorCardId   String?
-  wager            Int
-  status           BattleStatus @default(PENDING)
-  winnerId         String?
-  winner           User?    @relation("WonBattles", fields: [winnerId], references: [id])
-  challengerRoll   Int?
-  acceptorRoll     Int?
+  challengerCardIds String[]
+  acceptorCardIds   String[]
+  wager             Int
+  status            BattleStatus @default(PENDING)
+  winnerId          String?
+  winner            User?    @relation("WonBattles", fields: [winnerId], references: [id])
+  matchResults      Json?
   createdAt        DateTime @default(now())
   resolvedAt       DateTime?
 

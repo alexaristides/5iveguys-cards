@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import Navbar from "@/components/Navbar";
 import BattleBoard from "@/components/battles/BattleBoard";
-import CreateBattleModal from "@/components/battles/CreateBattleModal";
+import SquadBuilderModal from "@/components/battles/SquadBuilderModal";
+import BattleReport from "@/components/battles/BattleReport";
 import { type BattleEntry, type ResolvedBattle } from "@/lib/battles";
 
 const LIMIT = 10;
@@ -21,7 +22,7 @@ export default function GamesPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [result, setResult] = useState<(ResolvedBattle & { battleId: string }) | null>(null);
+  const [result, setResult] = useState<(ResolvedBattle & { battleId: string; challengerId: string }) | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,11 +59,11 @@ export default function GamesPage() {
     }
   }, [status, fetchUser, fetchBattles]);
 
-  async function handleCreate(cardId: string, wager: number) {
+  async function handleCreate(cardIds: string[], wager: number) {
     const res = await fetch("/api/battles", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cardId, wager }),
+      body: JSON.stringify({ cardIds, wager }),
     });
     const data = await res.json().catch(() => ({} as Record<string, unknown>));
     if (!res.ok) throw new Error((data.error as string) ?? "Failed to create challenge");
@@ -71,12 +72,13 @@ export default function GamesPage() {
     setPage(1);
   }
 
-  async function handleAccept(battleId: string, cardId: string) {
+  async function handleAccept(battleId: string, cardIds: string[]) {
     setError(null);
+    const battle = battles.find((b) => b.id === battleId);
     const res = await fetch(`/api/battles/${battleId}/accept`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cardId }),
+      body: JSON.stringify({ cardIds }),
     });
     const data = await res.json().catch(() => ({} as Record<string, unknown>));
     if (!res.ok) {
@@ -84,7 +86,11 @@ export default function GamesPage() {
       return;
     }
     setPoints(data.remainingPoints as number);
-    setResult({ ...(data as ResolvedBattle), battleId });
+    setResult({
+      ...(data as ResolvedBattle),
+      battleId,
+      challengerId: battle?.challengerId ?? "",
+    });
     await fetchBattles(page);
     await fetchUser();
   }
@@ -129,17 +135,28 @@ export default function GamesPage() {
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-white">Card Wars ⚔</h1>
           <p className="text-zinc-500 text-sm mt-1">
-            Challenge other collectors. Higher rarity wins. Winner takes the pot.
+            Build a 3-card squad under the 100pt salary cap. Type advantages give a +50% roll boost.
+            Win 2-of-3 rounds to take the pot.
           </p>
-          <div className="flex items-center gap-1.5 mt-3">
-            <span className="text-zinc-500 text-xs">Roll ranges:</span>
-            <span className="text-zinc-600 text-xs">Common 1–10</span>
+          <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+            <span className="text-zinc-500 text-xs">Cap costs:</span>
+            <span className="text-zinc-600 text-xs">Common 10</span>
             <span className="text-zinc-700 text-xs">·</span>
-            <span className="text-blue-500 text-xs">Rare 11–25</span>
+            <span className="text-blue-500 text-xs">Rare 25</span>
             <span className="text-zinc-700 text-xs">·</span>
-            <span className="text-purple-400 text-xs">Epic 26–50</span>
+            <span className="text-purple-400 text-xs">Epic 40</span>
             <span className="text-zinc-700 text-xs">·</span>
-            <span className="text-amber-400 text-xs">Legend 51–100</span>
+            <span className="text-amber-400 text-xs">Legend 60</span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            <span className="text-zinc-500 text-xs">Types:</span>
+            <span className="text-blue-400 text-xs">Pace</span>
+            <span className="text-zinc-600 text-xs">beats</span>
+            <span className="text-red-400 text-xs">Power</span>
+            <span className="text-zinc-600 text-xs">beats</span>
+            <span className="text-green-400 text-xs">Skill</span>
+            <span className="text-zinc-600 text-xs">beats</span>
+            <span className="text-blue-400 text-xs">Pace</span>
           </div>
         </div>
 
@@ -167,38 +184,6 @@ export default function GamesPage() {
           </div>
         )}
 
-        {/* Battle result overlay */}
-        {result && (
-          <div className="mb-5 bg-zinc-900 border border-zinc-700 rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">{result.tie ? "🤝" : result.winnerId === userId ? "🏆" : "💀"}</span>
-              <h3 className="text-white font-bold">
-                {result.tie
-                  ? "It's a tie! Wagers refunded."
-                  : result.winnerId === userId
-                  ? `You won ${result.pot.toLocaleString()} pts!`
-                  : `You lost. Better luck next time.`}
-              </h3>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-center mb-4">
-              <div className="bg-zinc-800/60 rounded-xl p-3">
-                <p className="text-zinc-500 text-xs mb-1">Challenger&apos;s roll</p>
-                <p className="text-white text-2xl font-bold">{result.challengerRoll}</p>
-              </div>
-              <div className="bg-zinc-800/60 rounded-xl p-3">
-                <p className="text-zinc-500 text-xs mb-1">Your roll</p>
-                <p className="text-white text-2xl font-bold">{result.acceptorRoll}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setResult(null)}
-              className="w-full py-2 rounded-xl border border-zinc-700 text-zinc-400 hover:text-white text-sm transition-colors"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-
         {/* Pending battles */}
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-zinc-400 text-sm font-medium">Open Challenges</h2>
@@ -211,6 +196,7 @@ export default function GamesPage() {
           battles={battles}
           currentUserId={userId}
           ownedCardIds={ownedCardIds}
+          userPoints={points}
           onAccept={handleAccept}
           onCancel={handleCancel}
           loading={loading}
@@ -241,11 +227,24 @@ export default function GamesPage() {
       </main>
 
       {showCreate && (
-        <CreateBattleModal
+        <SquadBuilderModal
+          mode="create"
           ownedCardIds={ownedCardIds}
           userPoints={points}
           onClose={() => setShowCreate(false)}
           onCreate={handleCreate}
+        />
+      )}
+
+      {result && (
+        <BattleReport
+          matchResults={result.matchResults}
+          winnerId={result.winnerId}
+          currentUserId={userId}
+          challengerId={result.challengerId}
+          pot={result.pot}
+          tie={result.tie}
+          onDismiss={() => setResult(null)}
         />
       )}
     </div>

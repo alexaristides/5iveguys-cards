@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { CARDS_BY_ID } from "@/lib/cards";
-import { rollForRarity } from "@/lib/battles";
+import { CARDS_BY_ID, CAP_COSTS, SALARY_CAP } from "@/lib/cards";
+import { resolveMatch } from "@/lib/battles";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -26,10 +26,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const body = await req.json();
-    const { cardId } = body as { cardId?: string };
+    const { cardIds } = body as { cardIds?: string[] };
 
-    if (!cardId || !CARDS_BY_ID[cardId]) {
-      return NextResponse.json({ error: "Invalid card" }, { status: 400 });
+    if (!Array.isArray(cardIds) || cardIds.length !== 3) {
+      return NextResponse.json({ error: "Exactly 3 cardIds required" }, { status: 400 });
+    }
+
+    const acceptorCards = cardIds.map((id) => CARDS_BY_ID[id]);
+    if (acceptorCards.some((c) => !c)) {
+      return NextResponse.json({ error: "One or more invalid cardIds" }, { status: 400 });
+    }
+
+    const capCost = acceptorCards.reduce((sum, c) => sum + CAP_COSTS[c.rarity], 0);
+    if (capCost > SALARY_CAP) {
+      return NextResponse.json(
+        { error: `Squad exceeds salary cap (${capCost}/${SALARY_CAP})` },
+        { status: 400 }
+      );
     }
 
     const acceptor = await prisma.user.findUnique({ where: { id: session.user.id } });
@@ -37,30 +50,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Insufficient points" }, { status: 400 });
     }
 
-    const owns = await prisma.userCard.findFirst({
-      where: { userId: session.user.id, cardId },
-    });
-    if (!owns) {
-      return NextResponse.json({ error: "You don't own this card" }, { status: 400 });
+    for (const cardId of cardIds) {
+      const owns = await prisma.userCard.findFirst({
+        where: { userId: session.user.id, cardId },
+      });
+      if (!owns) {
+        return NextResponse.json({ error: `You don't own card: ${cardId}` }, { status: 400 });
+      }
     }
 
+    // Guard: acceptor can't use cards they've already committed to their own pending challenges
     const lockedBattle = await prisma.cardBattle.findFirst({
-      where: { acceptorCardId: cardId, acceptorId: session.user.id, status: "PENDING" },
+      where: {
+        challengerId: session.user.id,
+        status: "PENDING",
+        challengerCardIds: { hasSome: cardIds },
+      },
     });
     if (lockedBattle) {
-      return NextResponse.json({ error: "That card is already in an active challenge" }, { status: 400 });
+      return NextResponse.json(
+        { error: "One or more cards are already committed to another challenge" },
+        { status: 400 }
+      );
     }
 
-    const challengerCard = CARDS_BY_ID[battle.challengerCardId];
-    const acceptorCard = CARDS_BY_ID[cardId];
-
-    const challengerRoll = rollForRarity(challengerCard.rarity);
-    const acceptorRoll = rollForRarity(acceptorCard.rarity);
+    const matchResults = resolveMatch(battle.challengerCardIds, cardIds);
+    const { overallWinner } = matchResults;
     const pot = battle.wager * 2;
-    const tie = challengerRoll === acceptorRoll;
+    const tie = overallWinner === "tie";
     const winnerId = tie
       ? null
-      : challengerRoll > acceptorRoll
+      : overallWinner === "challenger"
       ? battle.challengerId
       : session.user.id;
 
@@ -68,16 +88,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       where: { id: session.user.id },
       data: { points: { decrement: battle.wager } },
     });
-    // updateMany guards against race condition: if another request already resolved
-    // this battle, count will be 0 and we can detect it after the transaction.
+
+    // updateMany guards against race condition — count === 0 means already resolved
     const resolveBattle = prisma.cardBattle.updateMany({
       where: { id, status: "PENDING" },
       data: {
         acceptorId: session.user.id,
-        acceptorCardId: cardId,
+        acceptorCardIds: cardIds,
         status: "RESOLVED",
-        challengerRoll,
-        acceptorRoll,
+        matchResults: matchResults as object,
         winnerId,
         resolvedAt: new Date(),
       },
@@ -93,7 +112,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       : [];
 
     const results = await prisma.$transaction([deductAcceptor, resolveBattle, ...awardOps]);
-    // results[1] is the updateMany result
     const updateResult = results[1] as { count: number };
     if (updateResult.count === 0) {
       return NextResponse.json({ error: "Battle was just accepted by someone else" }, { status: 409 });
@@ -103,8 +121,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     return NextResponse.json({
       winnerId,
-      challengerRoll,
-      acceptorRoll,
+      matchResults,
       pot,
       tie,
       remainingPoints: updatedAcceptor?.points ?? 0,
