@@ -34,54 +34,59 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { cardId, wager } = body as { cardId?: string; wager?: number };
+
+    if (!cardId || typeof wager !== "number") {
+      return NextResponse.json({ error: "cardId and wager are required" }, { status: 400 });
+    }
+    if (wager < MIN_WAGER) {
+      return NextResponse.json({ error: `Minimum wager is ${MIN_WAGER} points` }, { status: 400 });
+    }
+    if (!CARDS_BY_ID[cardId]) {
+      return NextResponse.json({ error: "Invalid card" }, { status: 400 });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+    if (!user || user.points < wager) {
+      return NextResponse.json({ error: "Insufficient points" }, { status: 400 });
+    }
+
+    const owns = await prisma.userCard.findFirst({
+      where: { userId: session.user.id, cardId },
+    });
+    if (!owns) {
+      return NextResponse.json({ error: "You don't own this card" }, { status: 400 });
+    }
+
+    const activeBattle = await prisma.cardBattle.findFirst({
+      where: { challengerCardId: cardId, challengerId: session.user.id, status: "PENDING" },
+    });
+    if (activeBattle) {
+      return NextResponse.json({ error: "This card is already in an active challenge" }, { status: 400 });
+    }
+
+    const [, battle] = await prisma.$transaction([
+      prisma.user.update({
+        where: { id: session.user.id },
+        data: { points: { decrement: wager } },
+      }),
+      prisma.cardBattle.create({
+        data: { challengerId: session.user.id, challengerCardId: cardId, wager },
+      }),
+    ]);
+
+    const updatedUser = await prisma.user.findUnique({ where: { id: session.user.id } });
+
+    return NextResponse.json({ battle, remainingPoints: updatedUser?.points ?? 0 });
+  } catch (err) {
+    console.error("[POST /api/battles]", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  const body = await req.json();
-  const { cardId, wager } = body as { cardId?: string; wager?: number };
-
-  if (!cardId || typeof wager !== "number") {
-    return NextResponse.json({ error: "cardId and wager are required" }, { status: 400 });
-  }
-  if (wager < MIN_WAGER) {
-    return NextResponse.json({ error: `Minimum wager is ${MIN_WAGER} points` }, { status: 400 });
-  }
-  if (!CARDS_BY_ID[cardId]) {
-    return NextResponse.json({ error: "Invalid card" }, { status: 400 });
-  }
-
-  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
-  if (!user || user.points < wager) {
-    return NextResponse.json({ error: "Insufficient points" }, { status: 400 });
-  }
-
-  const owns = await prisma.userCard.findFirst({
-    where: { userId: session.user.id, cardId },
-  });
-  if (!owns) {
-    return NextResponse.json({ error: "You don't own this card" }, { status: 400 });
-  }
-
-  const activeBattle = await prisma.cardBattle.findFirst({
-    where: { challengerCardId: cardId, challengerId: session.user.id, status: "PENDING" },
-  });
-  if (activeBattle) {
-    return NextResponse.json({ error: "This card is already in an active challenge" }, { status: 400 });
-  }
-
-  const [, battle] = await prisma.$transaction([
-    prisma.user.update({
-      where: { id: session.user.id },
-      data: { points: { decrement: wager } },
-    }),
-    prisma.cardBattle.create({
-      data: { challengerId: session.user.id, challengerCardId: cardId, wager },
-    }),
-  ]);
-
-  const updatedUser = await prisma.user.findUnique({ where: { id: session.user.id } });
-
-  return NextResponse.json({ battle, remainingPoints: updatedUser?.points ?? 0 });
 }
