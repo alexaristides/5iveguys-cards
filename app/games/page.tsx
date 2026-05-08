@@ -64,9 +64,9 @@ export default function GamesPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cardId, wager }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error ?? "Failed to create challenge");
-    setPoints(data.remainingPoints);
+    const data = await res.json().catch(() => ({} as Record<string, unknown>));
+    if (!res.ok) throw new Error((data.error as string) ?? "Failed to create challenge");
+    setPoints(data.remainingPoints as number);
     await fetchBattles(1);
     setPage(1);
   }
@@ -78,13 +78,13 @@ export default function GamesPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cardId }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({} as Record<string, unknown>));
     if (!res.ok) {
-      setError(data.error ?? "Failed to accept challenge");
+      setError((data.error as string) ?? "Failed to accept challenge");
       return;
     }
-    setPoints(data.remainingPoints);
-    setResult({ ...data, battleId });
+    setPoints(data.remainingPoints as number);
+    setResult({ ...(data as ResolvedBattle), battleId });
     await fetchBattles(page);
     await fetchUser();
   }
@@ -92,12 +92,12 @@ export default function GamesPage() {
   async function handleCancel(battleId: string) {
     setError(null);
     const res = await fetch(`/api/battles/${battleId}/cancel`, { method: "POST" });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({} as Record<string, unknown>));
     if (!res.ok) {
-      setError(data.error ?? "Failed to cancel challenge");
+      setError((data.error as string) ?? "Failed to cancel challenge");
       return;
     }
-    setPoints(data.remainingPoints);
+    setPoints(data.remainingPoints as number);
     await fetchBattles(page);
   }
 
