@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { CARDS_BY_ID } from "@/lib/cards";
+import { CARDS_BY_ID, CAP_COSTS, SALARY_CAP } from "@/lib/cards";
 import { MIN_WAGER } from "@/lib/battles";
 
 export async function GET(req: NextRequest) {
@@ -24,10 +24,14 @@ export async function GET(req: NextRequest) {
     prisma.cardBattle.count({ where: { status: "PENDING" } }),
   ]);
 
+  // Challenger's cards are intentionally omitted — blind wager mechanic
   const battles = rows.map((b) => ({
-    ...b,
+    id: b.id,
+    challengerId: b.challengerId,
+    challenger: b.challenger,
+    wager: b.wager,
     createdAt: b.createdAt.toISOString(),
-    challengerCard: CARDS_BY_ID[b.challengerCardId] ?? null,
+    status: b.status,
   }));
 
   return NextResponse.json({ battles, total, page, totalPages: Math.ceil(total / limit) });
@@ -41,16 +45,26 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { cardId, wager } = body as { cardId?: string; wager?: number };
+    const { cardIds, wager } = body as { cardIds?: string[]; wager?: number };
 
-    if (!cardId || typeof wager !== "number") {
-      return NextResponse.json({ error: "cardId and wager are required" }, { status: 400 });
+    if (!Array.isArray(cardIds) || cardIds.length !== 3) {
+      return NextResponse.json({ error: "Exactly 3 cardIds required" }, { status: 400 });
     }
-    if (wager < MIN_WAGER) {
+    if (typeof wager !== "number" || wager < MIN_WAGER) {
       return NextResponse.json({ error: `Minimum wager is ${MIN_WAGER} points` }, { status: 400 });
     }
-    if (!CARDS_BY_ID[cardId]) {
-      return NextResponse.json({ error: "Invalid card" }, { status: 400 });
+
+    const cards = cardIds.map((id) => CARDS_BY_ID[id]);
+    if (cards.some((c) => !c)) {
+      return NextResponse.json({ error: "One or more invalid cardIds" }, { status: 400 });
+    }
+
+    const capCost = cards.reduce((sum, c) => sum + CAP_COSTS[c.rarity], 0);
+    if (capCost > SALARY_CAP) {
+      return NextResponse.json(
+        { error: `Squad exceeds salary cap (${capCost}/${SALARY_CAP})` },
+        { status: 400 }
+      );
     }
 
     const user = await prisma.user.findUnique({ where: { id: session.user.id } });
@@ -58,18 +72,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Insufficient points" }, { status: 400 });
     }
 
-    const owns = await prisma.userCard.findFirst({
-      where: { userId: session.user.id, cardId },
-    });
-    if (!owns) {
-      return NextResponse.json({ error: "You don't own this card" }, { status: 400 });
+    for (const cardId of cardIds) {
+      const owns = await prisma.userCard.findFirst({
+        where: { userId: session.user.id, cardId },
+      });
+      if (!owns) {
+        return NextResponse.json({ error: `You don't own card: ${cardId}` }, { status: 400 });
+      }
     }
 
     const activeBattle = await prisma.cardBattle.findFirst({
-      where: { challengerCardId: cardId, challengerId: session.user.id, status: "PENDING" },
+      where: {
+        challengerId: session.user.id,
+        status: "PENDING",
+        challengerCardIds: { hasSome: cardIds },
+      },
     });
     if (activeBattle) {
-      return NextResponse.json({ error: "This card is already in an active challenge" }, { status: 400 });
+      return NextResponse.json(
+        { error: "One or more cards are already in an active challenge" },
+        { status: 400 }
+      );
     }
 
     const [, battle] = await prisma.$transaction([
@@ -78,7 +101,7 @@ export async function POST(req: NextRequest) {
         data: { points: { decrement: wager } },
       }),
       prisma.cardBattle.create({
-        data: { challengerId: session.user.id, challengerCardId: cardId, wager },
+        data: { challengerId: session.user.id, challengerCardIds: cardIds, wager },
       }),
     ]);
 
