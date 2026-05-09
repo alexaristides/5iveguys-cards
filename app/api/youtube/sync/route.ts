@@ -91,7 +91,7 @@ async function getChannelVideoMap(accessToken: string): Promise<Map<string, Date
       }
     }
     pageToken = data.nextPageToken;
-  } while (pageToken && videoMap.size < 100);
+  } while (pageToken);
   return videoMap;
 }
 
