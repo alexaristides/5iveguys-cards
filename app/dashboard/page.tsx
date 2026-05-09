@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import Navbar from "@/components/Navbar";
@@ -56,10 +56,12 @@ export default function DashboardPage() {
           fetchUser();
         }
       } else if (data.error === "reauth_required") {
-        setSyncMessage("⚠️ Please sign out and sign back in to grant YouTube access.");
+        signIn("google", { callbackUrl: "/dashboard" });
       } else {
         setSyncMessage("Sync failed — please try again.");
       }
+    } catch {
+      setSyncMessage("Sync failed — check your connection and try again.");
     } finally {
       setSyncing(false);
     }
