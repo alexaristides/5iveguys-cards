@@ -78,7 +78,13 @@ async function getChannelVideoMap(accessToken: string): Promise<Map<string, Date
   let pageToken: string | undefined;
   do {
     const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ""}`;
-    const data = await fetchYouTube(url, accessToken);
+    // Retry each page up to 3 times — a transient failure would otherwise cut off all older videos
+    let data = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 500));
+      data = await fetchYouTube(url, accessToken);
+      if (data?.items) break;
+    }
     if (!data?.items) break;
     type Item = { contentDetails?: { videoId?: string; videoPublishedAt?: string } };
     for (const item of data.items as Item[]) {
@@ -157,20 +163,16 @@ export async function POST() {
     });
   }
 
-  // ── Liked videos — parallel batch calls ──────────────────────────────────
+  // ── Liked videos — sequential batch calls (parallel bursts trigger per-second rate limits) ──
   let likedVideoIds: string[] = [];
   if (videoIds.length > 0) {
     const chunks: string[][] = [];
     for (let i = 0; i < videoIds.length; i += 50) chunks.push(videoIds.slice(i, i + 50));
-    const ratingResults = await Promise.all(
-      chunks.map((chunk) =>
-        fetchYouTube(
-          `https://www.googleapis.com/youtube/v3/videos/getRating?id=${chunk.join(",")}`,
-          accessToken
-        )
-      )
-    );
-    for (const ratingData of ratingResults) {
+    for (const chunk of chunks) {
+      const ratingData = await fetchYouTube(
+        `https://www.googleapis.com/youtube/v3/videos/getRating?id=${chunk.join(",")}`,
+        accessToken
+      );
       if (ratingData?.items) {
         const liked = ratingData.items
           .filter((item: { rating: string }) => item.rating === "like")
@@ -252,6 +254,7 @@ export async function POST() {
     isSubscribed,
     likedCount: likedVideoIds.length,
     earlyLikedCount: updatedEarlyLikedVideoIds.length,
+    videosChecked: videoIds.length,
     cooldown: false,
   });
 }
