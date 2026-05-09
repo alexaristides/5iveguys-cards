@@ -14,10 +14,13 @@ export async function GET() {
     include: {
       cards: { orderBy: { obtainedAt: "desc" } },
       youtubeSync: true,
+      accounts: { where: { provider: "google" } },
     },
   });
 
   if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const hasYoutubeScope = (user.accounts[0]?.scope ?? "").includes("youtube");
 
   return NextResponse.json({
     points: user.points,
@@ -25,5 +28,6 @@ export async function GET() {
     cardCount: user.cards.length,
     cards: user.cards,
     youtubeSync: user.youtubeSync,
+    hasYoutubeScope,
   });
 }

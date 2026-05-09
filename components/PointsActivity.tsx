@@ -1,5 +1,6 @@
 "use client";
 
+import { signIn } from "next-auth/react";
 import { POINTS_CONFIG } from "@/lib/cards";
 
 interface SyncData {
@@ -12,6 +13,7 @@ interface PointsActivityProps {
   sync: SyncData | null;
   onSync: () => Promise<void>;
   syncing: boolean;
+  hasYoutubeScope: boolean;
 }
 
 const activities = [
@@ -41,7 +43,7 @@ const activities = [
   },
 ];
 
-export default function PointsActivity({ sync, onSync, syncing }: PointsActivityProps) {
+export default function PointsActivity({ sync, onSync, syncing, hasYoutubeScope }: PointsActivityProps) {
   const likedCount = sync ? JSON.parse(sync.likedVideoIds ?? "[]").length : 0;
   const earlyLikedCount = sync ? JSON.parse(sync.earlyLikedVideoIds ?? "[]").length : 0;
 
@@ -69,6 +71,22 @@ export default function PointsActivity({ sync, onSync, syncing }: PointsActivity
           {syncing ? "Syncing..." : "Sync YouTube"}
         </button>
       </div>
+
+      {!hasYoutubeScope && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 p-3">
+          <span className="text-yellow-400 mt-0.5 shrink-0">⚠️</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-yellow-300 text-sm font-medium">YouTube not connected</p>
+            <p className="text-yellow-400/70 text-xs mt-0.5">Grant access so your likes and subscription can be tracked.</p>
+          </div>
+          <button
+            onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+            className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30 border border-yellow-500/40 transition-colors"
+          >
+            Connect
+          </button>
+        </div>
+      )}
 
       <div className="space-y-3">
         {activities.map((activity) => (

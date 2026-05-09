@@ -19,6 +19,7 @@ interface UserData {
     likedVideoIds: string;
     earlyLikedVideoIds: string;
   } | null;
+  hasYoutubeScope: boolean;
 }
 
 export default function DashboardPage() {
@@ -168,6 +169,7 @@ export default function DashboardPage() {
               sync={userData.youtubeSync}
               onSync={handleSync}
               syncing={syncing}
+              hasYoutubeScope={userData.hasYoutubeScope}
             />
           </div>
         </div>
