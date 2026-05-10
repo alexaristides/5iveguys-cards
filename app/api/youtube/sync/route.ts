@@ -163,16 +163,21 @@ export async function POST() {
     });
   }
 
-  // ── Liked videos — sequential batch calls (parallel bursts trigger per-second rate limits) ──
+  // ── Liked videos — sequential batch calls with retry ──────────────────────
   let likedVideoIds: string[] = [];
   if (videoIds.length > 0) {
     const chunks: string[][] = [];
     for (let i = 0; i < videoIds.length; i += 50) chunks.push(videoIds.slice(i, i + 50));
     for (const chunk of chunks) {
-      const ratingData = await fetchYouTube(
-        `https://www.googleapis.com/youtube/v3/videos/getRating?id=${chunk.join(",")}`,
-        accessToken
-      );
+      let ratingData = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 300));
+        ratingData = await fetchYouTube(
+          `https://www.googleapis.com/youtube/v3/videos/getRating?id=${chunk.join(",")}`,
+          accessToken
+        );
+        if (ratingData?.items) break;
+      }
       if (ratingData?.items) {
         const liked = ratingData.items
           .filter((item: { rating: string }) => item.rating === "like")
@@ -181,6 +186,7 @@ export async function POST() {
       }
     }
   }
+  console.log(`[sync] uid=${userId.slice(0, 8)} videosChecked=${videoIds.length} liked=${likedVideoIds.length}`);
 
   // ── Tiered like points ────────────────────────────────────────────────────
   const newLikes = likedVideoIds.filter((id) => !prevLiked.includes(id));
