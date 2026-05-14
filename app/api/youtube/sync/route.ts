@@ -91,7 +91,7 @@ async function getChannelVideoMap(accessToken: string): Promise<Map<string, Date
       }
     }
     pageToken = data.nextPageToken;
-  } while (pageToken && videoMap.size < 100);
+  } while (pageToken);
   return videoMap;
 }
 
@@ -180,6 +180,11 @@ export async function POST() {
     }
   }
 
+  // Preserve likes for videos not checked in this batch (e.g. API failure on a page)
+  const checkedVideoIds = new Set(videoIds);
+  const preservedLikes = prevLiked.filter((id) => !checkedVideoIds.has(id));
+  const finalLikedVideoIds = [...likedVideoIds, ...preservedLikes];
+
   // ── Tiered like points ────────────────────────────────────────────────────
   const newLikes = likedVideoIds.filter((id) => !prevLiked.includes(id));
   const earlyLikeWindowMs = POINTS_CONFIG.earlyLikeWindowHours * 60 * 60 * 1000;
@@ -221,14 +226,14 @@ export async function POST() {
       userId,
       youtubeChannelId,
       isSubscribed,
-      likedVideoIds: JSON.stringify(likedVideoIds),
+      likedVideoIds: JSON.stringify(finalLikedVideoIds),
       earlyLikedVideoIds: JSON.stringify(updatedEarlyLikedVideoIds),
       lastSynced: new Date(),
     },
     update: {
       youtubeChannelId,
       isSubscribed,
-      likedVideoIds: JSON.stringify(likedVideoIds),
+      likedVideoIds: JSON.stringify(finalLikedVideoIds),
       earlyLikedVideoIds: JSON.stringify(updatedEarlyLikedVideoIds),
       lastSynced: new Date(),
     },
@@ -250,7 +255,7 @@ export async function POST() {
     pointsEarned: pointsDelta,
     points: user?.points ?? 0,
     isSubscribed,
-    likedCount: likedVideoIds.length,
+    likedCount: finalLikedVideoIds.length,
     earlyLikedCount: updatedEarlyLikedVideoIds.length,
     cooldown: false,
   });

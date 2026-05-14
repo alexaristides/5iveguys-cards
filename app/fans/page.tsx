@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 
 interface LeaderboardEntry {
@@ -99,9 +100,10 @@ export default function FansPage() {
                   if (!entry) return null;
                   const isFirst = entry.rank === 1;
                   return (
-                    <div
+                    <Link
                       key={entry.id}
-                      className={`flex flex-col items-center rounded-2xl border p-3 flex-1 max-w-[140px] transition-all
+                      href={`/players/${entry.id}`}
+                      className={`flex flex-col items-center rounded-2xl border p-3 flex-1 max-w-[140px] transition-all hover:opacity-80
                         ${isFirst
                           ? "border-purple-600/50 bg-purple-900/20 pb-4 -mb-0"
                           : "border-zinc-800 bg-zinc-900/60 mb-3"}
@@ -148,7 +150,7 @@ export default function FansPage() {
                           <span className="text-zinc-400 text-[10px] font-medium">{entry.earlyLikedCount}</span>
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
@@ -159,9 +161,10 @@ export default function FansPage() {
               <div className="space-y-2">
                 <p className="text-zinc-600 text-xs font-medium px-1 mb-3">All fans</p>
                 {rest.map((entry) => (
-                  <div
+                  <Link
                     key={entry.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all
+                    href={`/players/${entry.id}`}
+                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all hover:opacity-80
                       ${entry.isCurrentUser
                         ? "bg-purple-900/20 border-purple-700/40"
                         : "bg-zinc-900/60 border-zinc-800"
@@ -196,7 +199,7 @@ export default function FansPage() {
                     <p className="text-purple-400 font-bold text-sm shrink-0">
                       {entry.totalEarned.toLocaleString()} <span className="text-zinc-600 font-normal text-xs">pts</span>
                     </p>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
