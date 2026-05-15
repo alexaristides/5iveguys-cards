@@ -49,6 +49,8 @@ model User {
   cards      UserCard[]
   packOpens  PackOpen[]
   youtubeSync YoutubeSync?
+  pointsEvents  PointsEvent[]
+  rankSnapshots RankSnapshot[]
 
   challengedBattles CardBattle[] @relation("ChallengerBattles")
   acceptedBattles   CardBattle[] @relation("AcceptorBattles")
@@ -70,6 +72,7 @@ model YoutubeSync {
   isSubscribed        Boolean  @default(false)
   likedVideoIds       String   @default("[]")
   earlyLikedVideoIds  String   @default("[]")
+  subscribedAt        DateTime?
   lastSynced          DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -102,6 +105,33 @@ model PackOpen {
   openedAt  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PointsEvent {
+  id         String   @id @default(cuid())
+  userId     String
+  type       String
+  points     Int
+  videoCount Int      @default(0)
+  earnedAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, earnedAt])
+  @@index([earnedAt])
+}
+
+model RankSnapshot {
+  id          String   @id @default(cuid())
+  userId      String
+  rank        Int
+  totalEarned Int
+  snapshotAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotAt])
+  @@index([userId, snapshotAt])
 }
 
 enum BattleStatus {
