@@ -3,6 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import BattleBoard from "@/components/battles/BattleBoard";
 import SquadBuilderModal from "@/components/battles/SquadBuilderModal";
@@ -167,13 +168,22 @@ export default function GamesPage() {
             <span className="text-white font-bold text-sm">{points.toLocaleString()}</span>
             <span className="text-zinc-500 text-xs">pts</span>
           </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-700 hover:bg-purple-600 text-white text-sm font-medium transition-colors shadow-lg shadow-purple-900/30"
-          >
-            <span>⚔</span>
-            Challenge
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/players/${userId}?tab=history`}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium transition-colors border border-zinc-700"
+            >
+              <span>📋</span>
+              My History
+            </Link>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-700 hover:bg-purple-600 text-white text-sm font-medium transition-colors shadow-lg shadow-purple-900/30"
+            >
+              <span>⚔</span>
+              Challenge
+            </button>
+          </div>
         </div>
 
         {/* Error banner */}
