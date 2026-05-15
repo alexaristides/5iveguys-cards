@@ -2,10 +2,26 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+
+type Period = "day" | "week" | "month" | "alltime";
+
+const PERIODS: { key: Period; label: string }[] = [
+  { key: "day", label: "Today" },
+  { key: "week", label: "Week" },
+  { key: "month", label: "Month" },
+  { key: "alltime", label: "All Time" },
+];
+
+const EMPTY_LABELS: Record<Period, string> = {
+  day: "No activity today yet",
+  week: "No activity this week yet",
+  month: "No activity this month yet",
+  alltime: "No fans yet — be the first to sync!",
+};
 
 interface LeaderboardEntry {
   rank: number;
@@ -14,6 +30,7 @@ interface LeaderboardEntry {
   image: string | null;
   points: number;
   totalEarned: number;
+  score: number;
   cardCount: number;
   isSubscribed: boolean;
   likedCount: number;
@@ -43,35 +60,48 @@ export default function FansPage() {
   const [userPoints, setUserPoints] = useState(0);
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lbLoading, setLbLoading] = useState(false);
+  const [period, setPeriod] = useState<Period>("alltime");
+  const initialLoadDone = useRef(false);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/");
   }, [status, router]);
 
-  const fetchData = useCallback(async () => {
-    const [lbRes, userRes, statsRes] = await Promise.all([
-      fetch("/api/leaderboard"),
-      fetch("/api/user"),
-      fetch("/api/stats"),
-    ]);
-    if (lbRes.ok) {
-      const data = await lbRes.json();
+  const fetchLeaderboard = useCallback(async (p: Period) => {
+    setLbLoading(true);
+    const res = await fetch(`/api/leaderboard?period=${p}`);
+    if (res.ok) {
+      const data = await res.json();
       setLeaderboard(data.leaderboard);
       setCurrentUserRank(data.currentUserRank);
     }
-    if (userRes.ok) {
-      const data = await userRes.json();
-      setUserPoints(data.points);
-    }
-    if (statsRes.ok) {
-      setStats(await statsRes.json());
-    }
-    setLoading(false);
+    setLbLoading(false);
   }, []);
 
+  // Initial load: leaderboard + user points + stats
   useEffect(() => {
-    if (status === "authenticated") fetchData();
-  }, [status, fetchData]);
+    if (status !== "authenticated" || initialLoadDone.current) return;
+    initialLoadDone.current = true;
+    Promise.all([
+      fetchLeaderboard("alltime"),
+      fetch("/api/user").then((r) => r.ok ? r.json() : null),
+      fetch("/api/stats").then((r) => r.ok ? r.json() : null),
+    ]).then(([, userData, statsData]) => {
+      if (userData) setUserPoints(userData.points);
+      if (statsData) setStats(statsData);
+      setLoading(false);
+    });
+  }, [status, fetchLeaderboard]);
+
+  // Re-fetch leaderboard when period changes (skip initial mount)
+  const prevPeriod = useRef<Period | null>(null);
+  useEffect(() => {
+    if (prevPeriod.current === null) { prevPeriod.current = period; return; }
+    if (prevPeriod.current === period) return;
+    prevPeriod.current = period;
+    if (status === "authenticated") fetchLeaderboard(period);
+  }, [period, status, fetchLeaderboard]);
 
   if (status === "loading" || loading) {
     return (
@@ -106,7 +136,24 @@ export default function FansPage() {
           )}
         </div>
 
-        {/* Platform stats banner */}
+        {/* Period toggle */}
+        <div className="flex gap-1.5 justify-center mb-5">
+          {PERIODS.map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setPeriod(key)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all
+                ${period === key
+                  ? "bg-purple-600 text-white"
+                  : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700"
+                }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Platform stats banner (always shows weekly stats) */}
         {stats && (
           <div className="flex gap-3 mb-6">
             <div className="flex-1 rounded-xl bg-zinc-900/60 border border-zinc-800 px-4 py-3 text-center">
@@ -120,9 +167,13 @@ export default function FansPage() {
           </div>
         )}
 
-        {leaderboard.length === 0 ? (
+        {lbLoading ? (
+          <div className="flex justify-center py-16">
+            <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : leaderboard.length === 0 ? (
           <div className="text-center py-20 text-zinc-600">
-            <p className="text-lg">No fans yet — be the first to sync!</p>
+            <p className="text-lg">{EMPTY_LABELS[period]}</p>
           </div>
         ) : (
           <>
@@ -167,12 +218,12 @@ export default function FansPage() {
                         <span className="text-purple-400 text-[10px]">You</span>
                       )}
 
-                      {/* Points */}
+                      {/* Score */}
                       <div className="mt-1.5 px-2 py-0.5 rounded-full bg-purple-900/50 border border-purple-700/40">
-                        <span className="text-purple-300 font-bold text-xs">{entry.totalEarned.toLocaleString()} pts</span>
+                        <span className="text-purple-300 font-bold text-xs">{entry.score.toLocaleString()} pts</span>
                       </div>
 
-                      <RankChange change={entry.rankChange} />
+                      {period === "alltime" && <RankChange change={entry.rankChange} />}
 
                       {/* Stats */}
                       <div className="flex gap-1.5 mt-2">
@@ -233,9 +284,9 @@ export default function FansPage() {
 
                     <div className="flex flex-col items-end shrink-0">
                       <p className="text-purple-400 font-bold text-sm">
-                        {entry.totalEarned.toLocaleString()} <span className="text-zinc-600 font-normal text-xs">pts</span>
+                        {entry.score.toLocaleString()} <span className="text-zinc-600 font-normal text-xs">pts</span>
                       </p>
-                      <RankChange change={entry.rankChange} />
+                      {period === "alltime" && <RankChange change={entry.rankChange} />}
                     </div>
                   </Link>
                 ))}
