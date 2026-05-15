@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -45,13 +45,16 @@ export default function PlayerPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const { userId } = useParams<{ userId: string }>();
+  const searchParams = useSearchParams();
 
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [userPoints, setUserPoints] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterRarity>("all");
   const [showOwned, setShowOwned] = useState(false);
-  const [tab, setTab] = useState<Tab>("collection");
+  const [tab, setTab] = useState<Tab>(
+    searchParams.get("tab") === "history" ? "history" : "collection"
+  );
 
   const [battles, setBattles] = useState<BattleEntry[]>([]);
   const [record, setRecord] = useState<BattleRecord>({ wins: 0, losses: 0, ties: 0 });
