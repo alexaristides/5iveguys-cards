@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { POINTS_CONFIG } from "@/lib/cards";
 
 export const maxDuration = 30;
@@ -220,34 +221,65 @@ export async function POST() {
 
   const updatedEarlyLikedVideoIds = [...prevEarlyLiked, ...newEarlyLikes];
 
-  await prisma.youtubeSync.upsert({
-    where: { userId },
-    create: {
-      userId,
-      youtubeChannelId,
-      isSubscribed,
-      likedVideoIds: JSON.stringify(finalLikedVideoIds),
-      earlyLikedVideoIds: JSON.stringify(updatedEarlyLikedVideoIds),
-      lastSynced: new Date(),
-    },
-    update: {
-      youtubeChannelId,
-      isSubscribed,
-      likedVideoIds: JSON.stringify(finalLikedVideoIds),
-      earlyLikedVideoIds: JSON.stringify(updatedEarlyLikedVideoIds),
-      lastSynced: new Date(),
-    },
-  });
+  const syncFields = {
+    youtubeChannelId,
+    isSubscribed,
+    likedVideoIds: JSON.stringify(finalLikedVideoIds),
+    earlyLikedVideoIds: JSON.stringify(updatedEarlyLikedVideoIds),
+    lastSynced: new Date(),
+    ...(isSubscribed && !wasSubscribed ? { subscribedAt: new Date() } : {}),
+  };
+
+  const ops: Prisma.PrismaPromise<unknown>[] = [
+    prisma.youtubeSync.upsert({
+      where: { userId },
+      create: { userId, ...syncFields },
+      update: syncFields,
+    }),
+  ];
 
   if (pointsDelta > 0) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        points: { increment: pointsDelta },
-        totalEarned: { increment: pointsDelta },
-      },
-    });
+    ops.push(
+      prisma.user.update({
+        where: { id: userId },
+        data: { points: { increment: pointsDelta }, totalEarned: { increment: pointsDelta } },
+      })
+    );
+
+    if (isSubscribed && !wasSubscribed) {
+      ops.push(
+        prisma.pointsEvent.create({
+          data: { userId, type: "subscribe", points: POINTS_CONFIG.subscribe, videoCount: 0 },
+        })
+      );
+    }
+    if (newEarlyLikes.length > 0) {
+      ops.push(
+        prisma.pointsEvent.create({
+          data: {
+            userId,
+            type: "earlyLike",
+            points: newEarlyLikes.length * POINTS_CONFIG.earlyLike,
+            videoCount: newEarlyLikes.length,
+          },
+        })
+      );
+    }
+    if (newRegularLikes.length > 0) {
+      ops.push(
+        prisma.pointsEvent.create({
+          data: {
+            userId,
+            type: "like",
+            points: newRegularLikes.length * POINTS_CONFIG.like,
+            videoCount: newRegularLikes.length,
+          },
+        })
+      );
+    }
   }
+
+  await prisma.$transaction(ops);
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
 

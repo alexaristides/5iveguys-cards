@@ -19,6 +19,20 @@ interface LeaderboardEntry {
   likedCount: number;
   earlyLikedCount: number;
   isCurrentUser: boolean;
+  rankChange: number;
+}
+
+interface PlatformStats {
+  newSubsThisWeek: number;
+  totalLikesThisWeek: number;
+  likesByDay: { date: string; likeCount: number }[];
+  mostActiveUsers: { userId: string; name: string | null; image: string | null; pointsThisWeek: number }[];
+}
+
+function RankChange({ change }: { change: number }) {
+  if (change === 0) return <span className="text-zinc-600 text-[10px]">—</span>;
+  if (change > 0) return <span className="text-green-400 text-[10px] font-semibold">↑{change}</span>;
+  return <span className="text-red-400 text-[10px] font-semibold">↓{Math.abs(change)}</span>;
 }
 
 export default function FansPage() {
@@ -27,6 +41,7 @@ export default function FansPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
   const [userPoints, setUserPoints] = useState(0);
+  const [stats, setStats] = useState<PlatformStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,9 +49,10 @@ export default function FansPage() {
   }, [status, router]);
 
   const fetchData = useCallback(async () => {
-    const [lbRes, userRes] = await Promise.all([
+    const [lbRes, userRes, statsRes] = await Promise.all([
       fetch("/api/leaderboard"),
       fetch("/api/user"),
+      fetch("/api/stats"),
     ]);
     if (lbRes.ok) {
       const data = await lbRes.json();
@@ -46,6 +62,9 @@ export default function FansPage() {
     if (userRes.ok) {
       const data = await userRes.json();
       setUserPoints(data.points);
+    }
+    if (statsRes.ok) {
+      setStats(await statsRes.json());
     }
     setLoading(false);
   }, []);
@@ -86,6 +105,20 @@ export default function FansPage() {
             <p className="text-purple-400 text-sm mt-1.5 font-medium">You&apos;re ranked #{currentUserRank}</p>
           )}
         </div>
+
+        {/* Platform stats banner */}
+        {stats && (
+          <div className="flex gap-3 mb-6">
+            <div className="flex-1 rounded-xl bg-zinc-900/60 border border-zinc-800 px-4 py-3 text-center">
+              <p className="text-zinc-500 text-xs">New subs this week</p>
+              <p className="text-white font-bold text-lg mt-0.5">{stats.newSubsThisWeek}</p>
+            </div>
+            <div className="flex-1 rounded-xl bg-zinc-900/60 border border-zinc-800 px-4 py-3 text-center">
+              <p className="text-zinc-500 text-xs">Likes added this week</p>
+              <p className="text-white font-bold text-lg mt-0.5">{stats.totalLikesThisWeek}</p>
+            </div>
+          </div>
+        )}
 
         {leaderboard.length === 0 ? (
           <div className="text-center py-20 text-zinc-600">
@@ -138,6 +171,8 @@ export default function FansPage() {
                       <div className="mt-1.5 px-2 py-0.5 rounded-full bg-purple-900/50 border border-purple-700/40">
                         <span className="text-purple-300 font-bold text-xs">{entry.totalEarned.toLocaleString()} pts</span>
                       </div>
+
+                      <RankChange change={entry.rankChange} />
 
                       {/* Stats */}
                       <div className="flex gap-1.5 mt-2">
@@ -196,9 +231,12 @@ export default function FansPage() {
                       </div>
                     </div>
 
-                    <p className="text-purple-400 font-bold text-sm shrink-0">
-                      {entry.totalEarned.toLocaleString()} <span className="text-zinc-600 font-normal text-xs">pts</span>
-                    </p>
+                    <div className="flex flex-col items-end shrink-0">
+                      <p className="text-purple-400 font-bold text-sm">
+                        {entry.totalEarned.toLocaleString()} <span className="text-zinc-600 font-normal text-xs">pts</span>
+                      </p>
+                      <RankChange change={entry.rankChange} />
+                    </div>
                   </Link>
                 ))}
               </div>
