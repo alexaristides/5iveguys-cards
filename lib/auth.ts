@@ -40,6 +40,22 @@ export const authOptions: NextAuthOptions = {
         data: { points: 100, totalEarned: 100 },
       });
     },
+    async signIn({ user, account, isNewUser }) {
+      // On re-auth, NextAuth doesn't update the stored Account record, so the
+      // scope column stays stale (missing youtube) even after the user grants it.
+      // This handler keeps tokens and scope in sync for returning users.
+      if (!isNewUser && account?.provider === "google" && user.id) {
+        await prisma.account.updateMany({
+          where: { userId: user.id, provider: "google" },
+          data: {
+            access_token: account.access_token,
+            ...(account.refresh_token && { refresh_token: account.refresh_token }),
+            expires_at: account.expires_at ?? null,
+            scope: account.scope,
+          },
+        });
+      }
+    },
   },
   pages: {
     signIn: "/",
