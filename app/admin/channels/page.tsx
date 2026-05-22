@@ -22,7 +22,7 @@ export default function AdminChannelsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ slug: "", name: "", youtubeChannelId: "", description: "", thumbnailUrl: "" });
+  const [form, setForm] = useState({ slug: "", name: "", youtubeChannelId: "", description: "", thumbnailUrl: "", rewardTags: "" });
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async (s: string) => {
@@ -56,7 +56,7 @@ export default function AdminChannelsPage() {
     setSaving(false);
     if (!res.ok) { setError((data.error as string) ?? "Failed to create channel"); return; }
     setShowAdd(false);
-    setForm({ slug: "", name: "", youtubeChannelId: "", description: "", thumbnailUrl: "" });
+    setForm({ slug: "", name: "", youtubeChannelId: "", description: "", thumbnailUrl: "", rewardTags: "" });
     await load(secret);
   }
 
@@ -137,6 +137,7 @@ export default function AdminChannelsPage() {
                 { key: "youtubeChannelId", label: "YouTube Channel ID", placeholder: "UCxxxxxxxx" },
                 { key: "description", label: "Description", placeholder: "Optional" },
                 { key: "thumbnailUrl", label: "Thumbnail URL", placeholder: "https://..." },
+                { key: "rewardTags", label: "Reward Tags (comma-separated)", placeholder: "Trading Cards, Merch, Exclusive Content" },
               ].map(({ key, label, placeholder }) => (
                 <div key={key}>
                   <label className="text-zinc-400 text-xs mb-1 block">{label}</label>

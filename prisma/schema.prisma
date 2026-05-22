@@ -78,6 +78,7 @@ model Channel {
   description      String?
   thumbnailUrl     String?
   isActive         Boolean  @default(true)
+  rewardTags       String?  // comma-separated, e.g. "Trading Cards,Merch,Exclusive Content"
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

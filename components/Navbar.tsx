@@ -81,7 +81,7 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
                   <span className="text-white text-sm font-bold">5</span>
                 </div>
                 <span className="text-white font-semibold text-sm tracking-tight hidden sm:block">
-                  Fan Cards
+                  Fan Rewards
                 </span>
               </Link>
             )}

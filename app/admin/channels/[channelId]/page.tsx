@@ -11,6 +11,7 @@ interface Channel {
   youtubeChannelId: string;
   description: string | null;
   thumbnailUrl: string | null;
+  rewardTags: string | null;
   isActive: boolean;
 }
 
@@ -21,7 +22,7 @@ export default function AdminEditChannelPage() {
     typeof window !== "undefined" ? sessionStorage.getItem("adminSecret") ?? "" : ""
   );
   const [channel, setChannel] = useState<Channel | null>(null);
-  const [form, setForm] = useState({ slug: "", name: "", youtubeChannelId: "", description: "", thumbnailUrl: "", isActive: true });
+  const [form, setForm] = useState({ slug: "", name: "", youtubeChannelId: "", description: "", thumbnailUrl: "", rewardTags: "", isActive: true });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -40,6 +41,7 @@ export default function AdminEditChannelPage() {
       youtubeChannelId: ch.youtubeChannelId,
       description: ch.description ?? "",
       thumbnailUrl: ch.thumbnailUrl ?? "",
+      rewardTags: ch.rewardTags ?? "",
       isActive: ch.isActive,
     });
     sessionStorage.setItem("adminSecret", s);
@@ -126,6 +128,7 @@ export default function AdminEditChannelPage() {
                 { key: "youtubeChannelId", label: "YouTube Channel ID", placeholder: "UCxxxxxxxx" },
                 { key: "description", label: "Description", placeholder: "Optional" },
                 { key: "thumbnailUrl", label: "Thumbnail URL", placeholder: "https://..." },
+                { key: "rewardTags", label: "Reward Tags (comma-separated)", placeholder: "Trading Cards, Merch, Exclusive Content" },
               ].map(({ key, label, placeholder }) => (
                 <div key={key}>
                   <label className="text-zinc-400 text-xs mb-1 block">{label}</label>

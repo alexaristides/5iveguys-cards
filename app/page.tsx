@@ -11,7 +11,8 @@ interface Channel {
   name: string;
   description: string | null;
   thumbnailUrl: string | null;
-  _count: { userStats: number; cards: number };
+  rewardTags: string | null;
+  _count: { userStats: number };
 }
 
 export default function HomePage() {
@@ -39,7 +40,7 @@ export default function HomePage() {
             <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center">
               <span className="text-white text-sm font-bold">F</span>
             </div>
-            <span className="text-white font-semibold text-sm">Fan Cards</span>
+            <span className="text-white font-semibold text-sm">Fan Rewards</span>
           </div>
           <div>
             {status === "authenticated" ? (
@@ -73,10 +74,10 @@ export default function HomePage() {
         {/* Hero */}
         <div className="text-center mb-14">
           <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">
-            Fan Trading Cards
+            Fan Rewards
           </h1>
           <p className="text-zinc-400 text-lg max-w-lg mx-auto">
-            Choose a channel, earn points by engaging on YouTube, and collect exclusive digital cards.
+            Earn points by engaging with your favourite YouTube channels and unlock exclusive rewards.
           </p>
         </div>
 
@@ -120,14 +121,19 @@ export default function HomePage() {
                   {channel.description && (
                     <p className="text-zinc-500 text-sm mt-1 line-clamp-2">{channel.description}</p>
                   )}
-                  <div className="flex items-center gap-4 mt-4">
-                    <div className="text-center">
-                      <p className="text-white font-bold text-sm">{channel._count.cards}</p>
-                      <p className="text-zinc-600 text-xs">Cards</p>
+                  {channel.rewardTags && (
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      {channel.rewardTags.split(",").map((tag) => (
+                        <span key={tag} className="px-2 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-400 text-[11px]">
+                          {tag.trim()}
+                        </span>
+                      ))}
                     </div>
-                    <div className="text-center">
-                      <p className="text-white font-bold text-sm">{channel._count.userStats}</p>
-                      <p className="text-zinc-600 text-xs">Fans</p>
+                  )}
+                  <div className="flex items-center gap-4 mt-4">
+                    <div className="flex items-center gap-1.5 text-zinc-500 text-xs">
+                      <span>👥</span>
+                      <span>{channel._count.userStats.toLocaleString()} fans</span>
                     </div>
                     <div className="ml-auto">
                       <span className="px-3 py-1.5 rounded-full bg-purple-900/40 border border-purple-700/40 text-purple-300 text-xs font-medium group-hover:bg-purple-800/50 transition-all">
