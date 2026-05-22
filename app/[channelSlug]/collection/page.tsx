@@ -1,60 +1,78 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import Navbar from "@/components/Navbar";
 import CardDisplay from "@/components/CardDisplay";
-import { CARDS, CARDS_BY_ID, Card, Rarity } from "@/lib/cards";
+import { dbCardToCard, Rarity } from "@/lib/cards";
 
 type FilterRarity = "all" | Rarity;
-
 const RARITY_ORDER: Rarity[] = ["legendary", "epic", "rare", "common"];
 
+interface DbCard {
+  id: string;
+  name: string;
+  kit: string | null;
+  rarity: string;
+  imageUrl: string;
+  backImageUrl: string | null;
+  attribute: string | null;
+  description: string | null;
+}
+
+function MiniStat({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div>
+      <p className="text-zinc-600 text-xs">{label}</p>
+      <p className={`font-bold text-sm ${color}`}>{value}</p>
+    </div>
+  );
+}
+
 export default function CollectionPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
+  const { status } = useSession();
+  const params = useParams<{ channelSlug: string }>();
+  const channelSlug = params.channelSlug;
+
+  const [allCards, setAllCards] = useState<DbCard[]>([]);
   const [ownedIds, setOwnedIds] = useState<string[]>([]);
-  const [points, setPoints] = useState(0);
   const [filter, setFilter] = useState<FilterRarity>("all");
   const [showOwned, setShowOwned] = useState(false);
 
-  useEffect(() => {
-    if (status === "unauthenticated") router.push("/");
-  }, [status, router]);
-
-  const fetchUser = useCallback(async () => {
-    const res = await fetch("/api/user");
-    if (res.ok) {
-      const data = await res.json();
-      setPoints(data.points);
+  const fetchData = useCallback(async () => {
+    const [cardsRes, userRes] = await Promise.all([
+      fetch(`/api/channels/${channelSlug}/cards`),
+      fetch(`/api/user?channelSlug=${channelSlug}`),
+    ]);
+    if (cardsRes.ok) setAllCards((await cardsRes.json()).cards ?? []);
+    if (userRes.ok) {
+      const data = await userRes.json();
       setOwnedIds(data.cards.map((c: { cardId: string }) => c.cardId));
     }
-  }, []);
+  }, [channelSlug]);
 
   useEffect(() => {
-    if (status === "authenticated") fetchUser();
-  }, [status, fetchUser]);
+    if (status === "authenticated") fetchData();
+  }, [status, fetchData]);
 
   const ownedSet = new Set(ownedIds);
 
-  let displayCards: Card[] = [...CARDS].sort(
-    (a, b) => RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity)
+  let displayCards = [...allCards].sort(
+    (a, b) => RARITY_ORDER.indexOf(a.rarity as Rarity) - RARITY_ORDER.indexOf(b.rarity as Rarity)
   );
-
   if (filter !== "all") displayCards = displayCards.filter((c) => c.rarity === filter);
   if (showOwned) displayCards = displayCards.filter((c) => ownedSet.has(c.id));
 
   const stats = {
-    total: CARDS.length,
+    total: allCards.length,
     owned: new Set(ownedIds).size,
-    legendary: CARDS.filter((c) => c.rarity === "legendary" && ownedSet.has(c.id)).length,
-    epic: CARDS.filter((c) => c.rarity === "epic" && ownedSet.has(c.id)).length,
-    rare: CARDS.filter((c) => c.rarity === "rare" && ownedSet.has(c.id)).length,
-    common: CARDS.filter((c) => c.rarity === "common" && ownedSet.has(c.id)).length,
+    legendary: allCards.filter((c) => c.rarity === "legendary" && ownedSet.has(c.id)).length,
+    epic: allCards.filter((c) => c.rarity === "epic" && ownedSet.has(c.id)).length,
+    rare: allCards.filter((c) => c.rarity === "rare" && ownedSet.has(c.id)).length,
+    common: allCards.filter((c) => c.rarity === "common" && ownedSet.has(c.id)).length,
   };
 
-  const progress = Math.round((stats.owned / stats.total) * 100);
+  const progress = stats.total > 0 ? Math.round((stats.owned / stats.total) * 100) : 0;
 
   if (status === "loading") {
     return (
@@ -66,18 +84,12 @@ export default function CollectionPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
-      <Navbar user={session!.user} points={points} />
-
       <main className="max-w-6xl mx-auto px-6 pt-24 pb-20">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-1">Collection</h1>
-          <p className="text-zinc-500 text-sm">
-            {stats.owned} / {stats.total} cards collected
-          </p>
+          <p className="text-zinc-500 text-sm">{stats.owned} / {stats.total} cards collected</p>
         </div>
 
-        {/* Progress bar */}
         <div className="mb-8 rounded-2xl bg-zinc-900/80 border border-zinc-800 p-5">
           <div className="flex items-center justify-between mb-3">
             <span className="text-white text-sm font-medium">Collection Progress</span>
@@ -90,14 +102,13 @@ export default function CollectionPage() {
             />
           </div>
           <div className="flex gap-6 mt-4">
-            <MiniStat label="Legendary" value={`${stats.legendary}/${CARDS.filter(c => c.rarity === "legendary").length}`} color="text-amber-400" />
-            <MiniStat label="Epic" value={`${stats.epic}/${CARDS.filter(c => c.rarity === "epic").length}`} color="text-purple-400" />
-            <MiniStat label="Rare" value={`${stats.rare}/${CARDS.filter(c => c.rarity === "rare").length}`} color="text-blue-400" />
-            <MiniStat label="Common" value={`${stats.common}/${CARDS.filter(c => c.rarity === "common").length}`} color="text-zinc-400" />
+            <MiniStat label="Legendary" value={`${stats.legendary}/${allCards.filter(c => c.rarity === "legendary").length}`} color="text-amber-400" />
+            <MiniStat label="Epic" value={`${stats.epic}/${allCards.filter(c => c.rarity === "epic").length}`} color="text-purple-400" />
+            <MiniStat label="Rare" value={`${stats.rare}/${allCards.filter(c => c.rarity === "rare").length}`} color="text-blue-400" />
+            <MiniStat label="Common" value={`${stats.common}/${allCards.filter(c => c.rarity === "common").length}`} color="text-zinc-400" />
           </div>
         </div>
 
-        {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <div className="flex gap-2 flex-wrap">
             {(["all", "legendary", "epic", "rare", "common"] as const).map((r) => (
@@ -114,7 +125,6 @@ export default function CollectionPage() {
               </button>
             ))}
           </div>
-
           <button
             onClick={() => setShowOwned(!showOwned)}
             className={`ml-auto flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium border transition-all
@@ -128,13 +138,13 @@ export default function CollectionPage() {
           </button>
         </div>
 
-        {/* Card grid */}
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
-          {displayCards.map((card) => {
-            const owned = ownedSet.has(card.id);
-            const count = ownedIds.filter((id) => id === card.id).length;
+          {displayCards.map((dbCard) => {
+            const card = dbCardToCard(dbCard);
+            const owned = ownedSet.has(dbCard.id);
+            const count = ownedIds.filter((id) => id === dbCard.id).length;
             return (
-              <div key={card.id} className={`relative transition-all ${!owned ? "opacity-30 grayscale" : ""}`}>
+              <div key={dbCard.id} className={`relative transition-all ${!owned ? "opacity-30 grayscale" : ""}`}>
                 <CardDisplay card={card} size="sm" showDetails />
                 {owned && count > 1 && (
                   <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-purple-600 flex items-center justify-center">
@@ -152,15 +162,6 @@ export default function CollectionPage() {
           </div>
         )}
       </main>
-    </div>
-  );
-}
-
-function MiniStat({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div>
-      <p className="text-zinc-600 text-xs">{label}</p>
-      <p className={`font-bold text-sm ${color}`}>{value}</p>
     </div>
   );
 }

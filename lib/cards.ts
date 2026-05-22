@@ -200,3 +200,64 @@ export function openPack(pack: Pack): Card[] {
 
   return results;
 }
+
+// DB card shape returned from Prisma
+export interface DbCard {
+  id: string;
+  channelId?: string;
+  legacyId?: string | null;
+  name: string;
+  kit: string | null;
+  rarity: string;
+  imageUrl: string;
+  backImageUrl: string | null;
+  attribute: string | null;
+  description: string | null;
+}
+
+// Convert a DB card to the legacy Card shape used by UI components
+export function dbCardToCard(dbCard: DbCard): Card {
+  return {
+    id: dbCard.id,
+    name: dbCard.name,
+    kit: dbCard.kit ?? undefined,
+    image: dbCard.imageUrl,
+    backImage: dbCard.backImageUrl ?? undefined,
+    rarity: dbCard.rarity as Rarity,
+    attribute: (dbCard.attribute ?? "Skill") as Attribute,
+    description: dbCard.description ?? undefined,
+  };
+}
+
+// Draw cards from a pool of DB cards (used when channelCards are loaded from DB)
+export function openPackFromDb(pack: Pack, channelCards: DbCard[]): DbCard[] {
+  const byRarityDb = (rarity: Rarity) => channelCards.filter((c) => c.rarity === rarity);
+  const results: DbCard[] = [];
+
+  for (let i = 0; i < pack.cardCount; i++) {
+    const rarity = weightedRandom(pack.odds);
+    const pool = byRarityDb(rarity);
+    if (pool.length === 0) {
+      // Fallback to common if this rarity has no cards
+      const commons = byRarityDb("common");
+      if (commons.length > 0) results.push(commons[Math.floor(Math.random() * commons.length)]);
+      continue;
+    }
+    results.push(pool[Math.floor(Math.random() * pool.length)]);
+  }
+
+  // Legend pack guarantees at least one epic+
+  if (pack.id === "legend") {
+    const hasEpicOrBetter = results.some(
+      (c) => c.rarity === "epic" || c.rarity === "legendary"
+    );
+    if (!hasEpicOrBetter) {
+      const epics = byRarityDb("epic");
+      if (epics.length > 0) {
+        results[results.length - 1] = epics[Math.floor(Math.random() * epics.length)];
+      }
+    }
+  }
+
+  return results;
+}

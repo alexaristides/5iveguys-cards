@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 
 interface AppStats {
   userCount: number;
@@ -28,7 +29,12 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-[#0a0a0a] p-8">
       <div className="max-w-lg mx-auto space-y-6">
-        <h1 className="text-white text-2xl font-bold">Admin — Stats</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-white text-2xl font-bold">Admin — Stats</h1>
+          <Link href="/admin/channels" className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm transition-colors">
+            Channels →
+          </Link>
+        </div>
 
         <div className="flex gap-3">
           <input

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import Navbar from "@/components/Navbar";
 import PackOpening from "@/components/PackOpening";
@@ -9,21 +9,16 @@ import { PACKS, CardResult } from "@/lib/cards";
 
 export default function PacksPage() {
   const { data: session, status } = useSession();
-  const router = useRouter();
+  const params = useParams<{ channelSlug: string }>();
+  const channelSlug = params.channelSlug;
+
   const [points, setPoints] = useState(0);
   const [selectedPack, setSelectedPack] = useState(PACKS[0].id);
 
-  useEffect(() => {
-    if (status === "unauthenticated") router.push("/");
-  }, [status, router]);
-
   const fetchPoints = useCallback(async () => {
-    const res = await fetch("/api/user");
-    if (res.ok) {
-      const data = await res.json();
-      setPoints(data.points);
-    }
-  }, []);
+    const res = await fetch(`/api/user?channelSlug=${channelSlug}`);
+    if (res.ok) setPoints((await res.json()).points ?? 0);
+  }, [channelSlug]);
 
   useEffect(() => {
     if (status === "authenticated") fetchPoints();
@@ -33,7 +28,7 @@ export default function PacksPage() {
     const res = await fetch("/api/packs/open", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ packId }),
+      body: JSON.stringify({ packId, channelSlug }),
     });
     if (!res.ok) return null;
     return res.json();
@@ -55,15 +50,12 @@ export default function PacksPage() {
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[500px] rounded-full bg-purple-900/20 blur-3xl" />
       </div>
 
-      <Navbar user={session!.user} points={points} />
-
       <main className="relative max-w-4xl mx-auto px-6 pt-24 pb-20">
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-white mb-2">Open Packs</h1>
           <p className="text-zinc-500">Spend your points to reveal new cards</p>
         </div>
 
-        {/* Pack selector */}
         <div className="flex justify-center gap-3 mb-12">
           {PACKS.map((pack) => (
             <button
@@ -80,10 +72,8 @@ export default function PacksPage() {
           ))}
         </div>
 
-        {/* Pack description */}
         <p className="text-center text-zinc-500 text-sm mb-8">{activePack.description}</p>
 
-        {/* Pack opening */}
         <div className="flex justify-center">
           <PackOpening
             pack={activePack}

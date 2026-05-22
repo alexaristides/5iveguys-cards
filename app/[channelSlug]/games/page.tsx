@@ -1,10 +1,9 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import Navbar from "@/components/Navbar";
 import BattleBoard from "@/components/battles/BattleBoard";
 import SquadBuilderModal from "@/components/battles/SquadBuilderModal";
 import BattleReport from "@/components/battles/BattleReport";
@@ -14,7 +13,9 @@ const LIMIT = 10;
 
 export default function GamesPage() {
   const { data: session, status } = useSession();
-  const router = useRouter();
+  const params = useParams<{ channelSlug: string }>();
+  const channelSlug = params.channelSlug;
+  const userId = session?.user?.id ?? "";
 
   const [points, setPoints] = useState(0);
   const [ownedCardIds, setOwnedCardIds] = useState<string[]>([]);
@@ -26,18 +27,14 @@ export default function GamesPage() {
   const [result, setResult] = useState<(ResolvedBattle & { battleId: string; challengerId: string }) | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (status === "unauthenticated") router.push("/");
-  }, [status, router]);
-
   const fetchUser = useCallback(async () => {
-    const res = await fetch("/api/user");
+    const res = await fetch(`/api/user?channelSlug=${channelSlug}`);
     if (res.ok) {
       const data = await res.json();
       setPoints(data.points);
       setOwnedCardIds(data.cards.map((c: { cardId: string }) => c.cardId));
     }
-  }, []);
+  }, [channelSlug]);
 
   const fetchBattles = useCallback(async (p: number) => {
     setLoading(true);
@@ -82,16 +79,9 @@ export default function GamesPage() {
       body: JSON.stringify({ cardIds }),
     });
     const data = await res.json().catch(() => ({} as Record<string, unknown>));
-    if (!res.ok) {
-      setError((data.error as string) ?? "Failed to accept challenge");
-      return;
-    }
+    if (!res.ok) { setError((data.error as string) ?? "Failed to accept challenge"); return; }
     setPoints(data.remainingPoints as number);
-    setResult({
-      ...(data as ResolvedBattle),
-      battleId,
-      challengerId: battle?.challengerId ?? "",
-    });
+    setResult({ ...(data as ResolvedBattle), battleId, challengerId: battle?.challengerId ?? "" });
     await fetchBattles(page);
     await fetchUser();
   }
@@ -100,10 +90,7 @@ export default function GamesPage() {
     setError(null);
     const res = await fetch(`/api/battles/${battleId}/cancel`, { method: "POST" });
     const data = await res.json().catch(() => ({} as Record<string, unknown>));
-    if (!res.ok) {
-      setError((data.error as string) ?? "Failed to cancel challenge");
-      return;
-    }
+    if (!res.ok) { setError((data.error as string) ?? "Failed to cancel challenge"); return; }
     setPoints(data.remainingPoints as number);
     await fetchBattles(page);
   }
@@ -114,7 +101,6 @@ export default function GamesPage() {
   }
 
   const totalPages = Math.ceil(total / LIMIT);
-  const userId = session?.user?.id ?? "";
 
   if (status === "loading") {
     return (
@@ -126,18 +112,13 @@ export default function GamesPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
-      <Navbar user={session!.user} points={points} />
-
-      {/* Ambient glow */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[600px] h-64 bg-purple-900/10 blur-3xl pointer-events-none" />
 
       <main className="max-w-2xl mx-auto px-4 pt-24 pb-24">
-        {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-white">Card Wars ⚔</h1>
           <p className="text-zinc-500 text-sm mt-1">
-            Build a 3-card squad under the 100pt salary cap. Type advantages give a +50% roll boost.
-            Win 2-of-3 rounds to take the pot.
+            Build a 3-card squad under the 100pt salary cap. Win 2-of-3 rounds to take the pot.
           </p>
           <div className="flex items-center gap-1.5 mt-3 flex-wrap">
             <span className="text-zinc-500 text-xs">Cap costs:</span>
@@ -149,19 +130,8 @@ export default function GamesPage() {
             <span className="text-zinc-700 text-xs">·</span>
             <span className="text-amber-400 text-xs">Legend 60</span>
           </div>
-          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-            <span className="text-zinc-500 text-xs">Types:</span>
-            <span className="text-blue-400 text-xs">Pace</span>
-            <span className="text-zinc-600 text-xs">beats</span>
-            <span className="text-red-400 text-xs">Power</span>
-            <span className="text-zinc-600 text-xs">beats</span>
-            <span className="text-green-400 text-xs">Skill</span>
-            <span className="text-zinc-600 text-xs">beats</span>
-            <span className="text-blue-400 text-xs">Pace</span>
-          </div>
         </div>
 
-        {/* Action bar */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-1.5 bg-purple-900/30 border border-purple-700/30 rounded-full px-3 py-1.5">
             <span className="text-amber-400 text-sm">★</span>
@@ -170,7 +140,7 @@ export default function GamesPage() {
           </div>
           <div className="flex items-center gap-2">
             <Link
-              href={`/players/${userId}?tab=history`}
+              href={`/${channelSlug}/players/${userId}?tab=history`}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium transition-colors border border-zinc-700"
             >
               <span>📋</span>
@@ -178,7 +148,7 @@ export default function GamesPage() {
             </Link>
             <button
               onClick={() => setShowCreate(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-700 hover:bg-purple-600 text-white text-sm font-medium transition-colors shadow-lg shadow-purple-900/30"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-700 hover:bg-purple-600 text-white text-sm font-medium transition-colors"
             >
               <span>⚔</span>
               Challenge
@@ -186,7 +156,6 @@ export default function GamesPage() {
           </div>
         </div>
 
-        {/* Error banner */}
         {error && (
           <div className="mb-4 bg-red-900/30 border border-red-700/40 text-red-300 text-sm rounded-xl px-4 py-3 flex items-center justify-between">
             {error}
@@ -194,12 +163,9 @@ export default function GamesPage() {
           </div>
         )}
 
-        {/* Pending battles */}
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-zinc-400 text-sm font-medium">Open Challenges</h2>
-          {total > 0 && (
-            <span className="text-zinc-600 text-xs">{total} pending</span>
-          )}
+          {total > 0 && <span className="text-zinc-600 text-xs">{total} pending</span>}
         </div>
 
         <BattleBoard
@@ -212,26 +178,11 @@ export default function GamesPage() {
           loading={loading}
         />
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 mt-6">
-            <button
-              onClick={() => goToPage(page - 1)}
-              disabled={page <= 1}
-              className="px-4 py-2 rounded-xl border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-30 text-sm transition-colors"
-            >
-              ← Prev
-            </button>
-            <span className="text-zinc-600 text-sm">
-              {page} / {totalPages}
-            </span>
-            <button
-              onClick={() => goToPage(page + 1)}
-              disabled={page >= totalPages}
-              className="px-4 py-2 rounded-xl border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-30 text-sm transition-colors"
-            >
-              Next →
-            </button>
+            <button onClick={() => goToPage(page - 1)} disabled={page <= 1} className="px-4 py-2 rounded-xl border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-30 text-sm transition-colors">← Prev</button>
+            <span className="text-zinc-600 text-sm">{page} / {totalPages}</span>
+            <button onClick={() => goToPage(page + 1)} disabled={page >= totalPages} className="px-4 py-2 rounded-xl border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-30 text-sm transition-colors">Next →</button>
           </div>
         )}
       </main>

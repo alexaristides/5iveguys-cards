@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -6,8 +6,6 @@ import { Prisma } from "@prisma/client";
 import { POINTS_CONFIG } from "@/lib/cards";
 
 export const maxDuration = 30;
-
-const CHANNEL_ID = process.env.YOUTUBE_CHANNEL_ID!;
 
 async function fetchYouTube(url: string, accessToken: string) {
   const res = await fetch(url, {
@@ -61,18 +59,17 @@ async function getAccessToken(userId: string): Promise<{ token: string; hasYoutu
   return { token: account.access_token, hasYoutubeScope };
 }
 
-async function getUploadsPlaylistId(accessToken: string): Promise<string | null> {
+async function getUploadsPlaylistId(channelYtId: string, accessToken: string): Promise<string | null> {
   const data = await fetchYouTube(
-    `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${CHANNEL_ID}`,
+    `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelYtId}`,
     accessToken
   );
   return (data as { items?: { contentDetails?: { relatedPlaylists?: { uploads?: string } } }[] })
     ?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads ?? null;
 }
 
-// Returns videoId → publishedAt map. contentDetails.videoPublishedAt is free with part=contentDetails.
-async function getChannelVideoMap(accessToken: string): Promise<Map<string, Date>> {
-  const uploadsPlaylistId = await getUploadsPlaylistId(accessToken);
+async function getChannelVideoMap(channelYtId: string, accessToken: string): Promise<Map<string, Date>> {
+  const uploadsPlaylistId = await getUploadsPlaylistId(channelYtId, accessToken);
   if (!uploadsPlaylistId) return new Map();
 
   const videoMap = new Map<string, Date>();
@@ -104,17 +101,41 @@ async function getMyChannelId(accessToken: string): Promise<string | null> {
   return data?.items?.[0]?.id ?? null;
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const userId = session.user.id;
+  const body = await req.json().catch(() => ({})) as { channelSlug?: string };
+  const channelSlug = body.channelSlug ?? null;
 
-  const existing = await prisma.youtubeSync.findUnique({ where: { userId } });
+  // Resolve channel
+  let channel: { id: string; youtubeChannelId: string } | null = null;
+  if (channelSlug) {
+    channel = await prisma.channel.findUnique({
+      where: { slug: channelSlug },
+      select: { id: true, youtubeChannelId: true },
+    });
+    if (!channel) {
+      return NextResponse.json({ error: "Channel not found" }, { status: 404 });
+    }
+  } else {
+    // Legacy: use YOUTUBE_CHANNEL_ID env
+    const ytChannelId = process.env.YOUTUBE_CHANNEL_ID;
+    if (!ytChannelId) return NextResponse.json({ error: "No channel configured" }, { status: 400 });
+    channel = await prisma.channel.findFirst({
+      where: { youtubeChannelId: ytChannelId },
+      select: { id: true, youtubeChannelId: true },
+    });
+    if (!channel) return NextResponse.json({ error: "Channel not found" }, { status: 404 });
+  }
 
-  // ── Get access token ──────────────────────────────────────────────────────
+  const { id: channelId, youtubeChannelId: ytChannelId } = channel;
+
+  const existing = await prisma.youtubeSync.findFirst({ where: { userId, channelId } });
+
   const tokenResult = await getAccessToken(userId);
   if (!tokenResult) {
     return NextResponse.json({ error: "No YouTube access token" }, { status: 400 });
@@ -132,33 +153,37 @@ export async function POST() {
   const prevLiked: string[] = existing ? JSON.parse(existing.likedVideoIds) : [];
   const prevEarlyLiked: string[] = existing ? JSON.parse(existing.earlyLikedVideoIds) : [];
 
-  // ── Get user's YouTube channel ID (fetch once, then store) ────────────────
   let youtubeChannelId = existing?.youtubeChannelId ?? null;
   if (!youtubeChannelId) {
     youtubeChannelId = await getMyChannelId(accessToken);
   }
 
-  // ── Subscription + video map in parallel ─────────────────────────────────
   const [subData, videoMap] = await Promise.all([
     fetchYouTube(
-      `https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&forChannelId=${CHANNEL_ID}`,
+      `https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&forChannelId=${ytChannelId}`,
       accessToken
     ),
-    getChannelVideoMap(accessToken),
+    getChannelVideoMap(ytChannelId, accessToken),
   ]);
 
   const isSubscribed = (subData?.pageInfo?.totalResults ?? 0) > 0;
   const videoIds = [...videoMap.keys()];
 
-  // ── Persist video publish dates (skipDuplicates — only new videos cost a write) ──
   if (videoIds.length > 0) {
-    await prisma.videoMeta.createMany({
-      data: [...videoMap.entries()].map(([videoId, publishedAt]) => ({ videoId, publishedAt })),
-      skipDuplicates: true,
+    // Insert new video publish dates, skip duplicates per channel
+    const existing_videos = await prisma.videoMeta.findMany({
+      where: { videoId: { in: videoIds }, channelId },
+      select: { videoId: true },
     });
+    const existingVideoIds = new Set(existing_videos.map((v) => v.videoId));
+    const newVideos = [...videoMap.entries()]
+      .filter(([videoId]) => !existingVideoIds.has(videoId))
+      .map(([videoId, publishedAt]) => ({ videoId, publishedAt, channelId }));
+    if (newVideos.length > 0) {
+      await prisma.videoMeta.createMany({ data: newVideos, skipDuplicates: true });
+    }
   }
 
-  // ── Liked videos — parallel batch calls ──────────────────────────────────
   let likedVideoIds: string[] = [];
   if (videoIds.length > 0) {
     const chunks: string[][] = [];
@@ -181,19 +206,16 @@ export async function POST() {
     }
   }
 
-  // Preserve likes for videos not checked in this batch (e.g. API failure on a page)
   const checkedVideoIds = new Set(videoIds);
   const preservedLikes = prevLiked.filter((id) => !checkedVideoIds.has(id));
   const finalLikedVideoIds = [...likedVideoIds, ...preservedLikes];
 
-  // ── Tiered like points ────────────────────────────────────────────────────
   const newLikes = likedVideoIds.filter((id) => !prevLiked.includes(id));
   const earlyLikeWindowMs = POINTS_CONFIG.earlyLikeWindowHours * 60 * 60 * 1000;
   const now = Date.now();
 
-  // Look up publish dates for new likes (may not all be in videoMap if edge cases)
   const metaRecords = await prisma.videoMeta.findMany({
-    where: { videoId: { in: newLikes } },
+    where: { videoId: { in: newLikes }, channelId },
   });
   const metaByVideoId = new Map(metaRecords.map((m) => [m.videoId, m.publishedAt]));
 
@@ -208,7 +230,6 @@ export async function POST() {
     }
   }
 
-  // ── Points delta ──────────────────────────────────────────────────────────
   let pointsDelta = 0;
 
   const wasSubscribed = existing?.isSubscribed ?? false;
@@ -231,25 +252,25 @@ export async function POST() {
   };
 
   const ops: Prisma.PrismaPromise<unknown>[] = [
-    prisma.youtubeSync.upsert({
-      where: { userId },
-      create: { userId, ...syncFields },
-      update: syncFields,
-    }),
+    existing
+      ? prisma.youtubeSync.update({ where: { id: existing.id }, data: syncFields })
+      : prisma.youtubeSync.create({ data: { userId, channelId, ...syncFields } }),
   ];
 
   if (pointsDelta > 0) {
+    // Update per-channel stats (upsert in case it doesn't exist yet)
     ops.push(
-      prisma.user.update({
-        where: { id: userId },
-        data: { points: { increment: pointsDelta }, totalEarned: { increment: pointsDelta } },
+      prisma.userChannelStats.upsert({
+        where: { userId_channelId: { userId, channelId } },
+        create: { userId, channelId, points: pointsDelta, totalEarned: pointsDelta },
+        update: { points: { increment: pointsDelta }, totalEarned: { increment: pointsDelta } },
       })
     );
 
     if (isSubscribed && !wasSubscribed) {
       ops.push(
         prisma.pointsEvent.create({
-          data: { userId, type: "subscribe", points: POINTS_CONFIG.subscribe, videoCount: 0 },
+          data: { userId, channelId, type: "subscribe", points: POINTS_CONFIG.subscribe, videoCount: 0 },
         })
       );
     }
@@ -258,6 +279,7 @@ export async function POST() {
         prisma.pointsEvent.create({
           data: {
             userId,
+            channelId,
             type: "earlyLike",
             points: newEarlyLikes.length * POINTS_CONFIG.earlyLike,
             videoCount: newEarlyLikes.length,
@@ -270,6 +292,7 @@ export async function POST() {
         prisma.pointsEvent.create({
           data: {
             userId,
+            channelId,
             type: "like",
             points: newRegularLikes.length * POINTS_CONFIG.like,
             videoCount: newRegularLikes.length,
@@ -281,11 +304,13 @@ export async function POST() {
 
   await prisma.$transaction(ops);
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const channelStats = await prisma.userChannelStats.findUnique({
+    where: { userId_channelId: { userId, channelId } },
+  });
 
   return NextResponse.json({
     pointsEarned: pointsDelta,
-    points: user?.points ?? 0,
+    points: channelStats?.points ?? 0,
     isSubscribed,
     likedCount: finalLikedVideoIds.length,
     earlyLikedCount: updatedEarlyLikedVideoIds.length,

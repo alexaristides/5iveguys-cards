@@ -1,11 +1,10 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import Navbar from "@/components/Navbar";
 
 type Period = "day" | "week" | "month" | "alltime";
 
@@ -28,8 +27,6 @@ interface LeaderboardEntry {
   id: string;
   name: string | null;
   image: string | null;
-  points: number;
-  totalEarned: number;
   score: number;
   cardCount: number;
   isSubscribed: boolean;
@@ -42,8 +39,6 @@ interface LeaderboardEntry {
 interface PlatformStats {
   newSubsThisWeek: number;
   totalLikesThisWeek: number;
-  likesByDay: { date: string; likeCount: number }[];
-  mostActiveUsers: { userId: string; name: string | null; image: string | null; pointsThisWeek: number }[];
 }
 
 function RankChange({ change }: { change: number }) {
@@ -53,48 +48,41 @@ function RankChange({ change }: { change: number }) {
 }
 
 export default function FansPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
+  const { status } = useSession();
+  const params = useParams<{ channelSlug: string }>();
+  const channelSlug = params.channelSlug;
+
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
-  const [userPoints, setUserPoints] = useState(0);
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [lbLoading, setLbLoading] = useState(false);
   const [period, setPeriod] = useState<Period>("alltime");
   const initialLoadDone = useRef(false);
 
-  useEffect(() => {
-    if (status === "unauthenticated") router.push("/");
-  }, [status, router]);
-
   const fetchLeaderboard = useCallback(async (p: Period) => {
     setLbLoading(true);
-    const res = await fetch(`/api/leaderboard?period=${p}`);
+    const res = await fetch(`/api/leaderboard?period=${p}&channelSlug=${channelSlug}`);
     if (res.ok) {
       const data = await res.json();
       setLeaderboard(data.leaderboard);
       setCurrentUserRank(data.currentUserRank);
     }
     setLbLoading(false);
-  }, []);
+  }, [channelSlug]);
 
-  // Initial load: leaderboard + user points + stats
   useEffect(() => {
     if (status !== "authenticated" || initialLoadDone.current) return;
     initialLoadDone.current = true;
     Promise.all([
       fetchLeaderboard("alltime"),
-      fetch("/api/user").then((r) => r.ok ? r.json() : null),
-      fetch("/api/stats").then((r) => r.ok ? r.json() : null),
-    ]).then(([, userData, statsData]) => {
-      if (userData) setUserPoints(userData.points);
+      fetch(`/api/stats?channelSlug=${channelSlug}`).then((r) => r.ok ? r.json() : null),
+    ]).then(([, statsData]) => {
       if (statsData) setStats(statsData);
       setLoading(false);
     });
-  }, [status, fetchLeaderboard]);
+  }, [status, channelSlug, fetchLeaderboard]);
 
-  // Re-fetch leaderboard when period changes (skip initial mount)
   const prevPeriod = useRef<Period | null>(null);
   useEffect(() => {
     if (prevPeriod.current === null) { prevPeriod.current = period; return; }
@@ -113,8 +101,6 @@ export default function FansPage() {
 
   const top3 = leaderboard.slice(0, 3);
   const rest = leaderboard.slice(3);
-
-  // Podium order: 2nd, 1st, 3rd
   const podiumOrder = [top3[1], top3[0], top3[2]].filter(Boolean);
 
   return (
@@ -123,20 +109,15 @@ export default function FansPage() {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full bg-purple-900/15 blur-3xl" />
       </div>
 
-      <Navbar user={session!.user} points={userPoints} />
-
       <main className="relative max-w-2xl mx-auto px-4 pt-20 pb-24">
-
-        {/* Header */}
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-white">Fan Leaderboard</h1>
-          <p className="text-zinc-500 text-sm mt-1">The most dedicated 5iveguysfc supporters</p>
+          <p className="text-zinc-500 text-sm mt-1">The most dedicated supporters</p>
           {currentUserRank && (
             <p className="text-purple-400 text-sm mt-1.5 font-medium">You&apos;re ranked #{currentUserRank}</p>
           )}
         </div>
 
-        {/* Period toggle */}
         <div className="flex gap-1.5 justify-center mb-5">
           {PERIODS.map(({ key, label }) => (
             <button
@@ -153,7 +134,6 @@ export default function FansPage() {
           ))}
         </div>
 
-        {/* Platform stats banner (always shows weekly stats) */}
         {stats && (
           <div className="flex gap-3 mb-6">
             <div className="flex-1 rounded-xl bg-zinc-900/60 border border-zinc-800 px-4 py-3 text-center">
@@ -177,7 +157,6 @@ export default function FansPage() {
           </div>
         ) : (
           <>
-            {/* ── Top 3 podium ── */}
             {top3.length > 0 && (
               <div className="flex items-end justify-center gap-3 mb-6">
                 {podiumOrder.map((entry) => {
@@ -186,20 +165,13 @@ export default function FansPage() {
                   return (
                     <Link
                       key={entry.id}
-                      href={`/players/${entry.id}`}
+                      href={`/${channelSlug}/players/${entry.id}`}
                       className={`flex flex-col items-center rounded-2xl border p-3 flex-1 max-w-[140px] transition-all hover:opacity-80
-                        ${isFirst
-                          ? "border-purple-600/50 bg-purple-900/20 pb-4 -mb-0"
-                          : "border-zinc-800 bg-zinc-900/60 mb-3"}
+                        ${isFirst ? "border-purple-600/50 bg-purple-900/20 pb-4" : "border-zinc-800 bg-zinc-900/60 mb-3"}
                         ${entry.isCurrentUser ? "ring-2 ring-purple-500" : ""}
                       `}
                     >
-                      {/* Medal */}
-                      <span className="text-lg mb-1.5">
-                        {entry.rank === 1 ? "👑" : entry.rank === 2 ? "🥈" : "🥉"}
-                      </span>
-
-                      {/* Avatar */}
+                      <span className="text-lg mb-1.5">{entry.rank === 1 ? "👑" : entry.rank === 2 ? "🥈" : "🥉"}</span>
                       <div className={`relative rounded-full overflow-hidden shrink-0 ${isFirst ? "w-14 h-14" : "w-11 h-11"}`}>
                         {entry.image ? (
                           <Image src={entry.image} alt={entry.name ?? "Fan"} fill className="object-cover" />
@@ -209,23 +181,14 @@ export default function FansPage() {
                           </div>
                         )}
                       </div>
-
-                      {/* Name */}
                       <p className="text-white font-semibold text-xs text-center mt-1.5 leading-tight truncate w-full px-1">
                         {entry.name?.split(" ")[0] ?? "Fan"}
                       </p>
-                      {entry.isCurrentUser && (
-                        <span className="text-purple-400 text-[10px]">You</span>
-                      )}
-
-                      {/* Score */}
+                      {entry.isCurrentUser && <span className="text-purple-400 text-[10px]">You</span>}
                       <div className="mt-1.5 px-2 py-0.5 rounded-full bg-purple-900/50 border border-purple-700/40">
                         <span className="text-purple-300 font-bold text-xs">{entry.score.toLocaleString()} pts</span>
                       </div>
-
                       {period === "alltime" && <RankChange change={entry.rankChange} />}
-
-                      {/* Stats */}
                       <div className="flex gap-1.5 mt-2">
                         <div className="flex items-center gap-0.5 bg-zinc-800/60 rounded-md px-1.5 py-0.5">
                           <span className="text-[10px]">👍</span>
@@ -242,24 +205,17 @@ export default function FansPage() {
               </div>
             )}
 
-            {/* ── Rest of leaderboard ── */}
             {rest.length > 0 && (
               <div className="space-y-2">
                 <p className="text-zinc-600 text-xs font-medium px-1 mb-3">All fans</p>
                 {rest.map((entry) => (
                   <Link
                     key={entry.id}
-                    href={`/players/${entry.id}`}
+                    href={`/${channelSlug}/players/${entry.id}`}
                     className={`flex items-center gap-3 p-3 rounded-xl border transition-all hover:opacity-80
-                      ${entry.isCurrentUser
-                        ? "bg-purple-900/20 border-purple-700/40"
-                        : "bg-zinc-900/60 border-zinc-800"
-                      }`}
+                      ${entry.isCurrentUser ? "bg-purple-900/20 border-purple-700/40" : "bg-zinc-900/60 border-zinc-800"}`}
                   >
-                    <span className="text-zinc-500 font-bold text-xs w-5 text-center shrink-0">
-                      {entry.rank}
-                    </span>
-
+                    <span className="text-zinc-500 font-bold text-xs w-5 text-center shrink-0">{entry.rank}</span>
                     <div className="relative w-8 h-8 shrink-0">
                       {entry.image ? (
                         <Image src={entry.image} alt={entry.name ?? "Fan"} fill className="rounded-full object-cover" />
@@ -269,7 +225,6 @@ export default function FansPage() {
                         </div>
                       )}
                     </div>
-
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-medium text-sm truncate">
                         {entry.name ?? "Fan"}
@@ -281,7 +236,6 @@ export default function FansPage() {
                         <span className="text-zinc-600 text-[10px]">⚡ {entry.earlyLikedCount}</span>
                       </div>
                     </div>
-
                     <div className="flex flex-col items-end shrink-0">
                       <p className="text-purple-400 font-bold text-sm">
                         {entry.score.toLocaleString()} <span className="text-zinc-600 font-normal text-xs">pts</span>
@@ -295,6 +249,7 @@ export default function FansPage() {
           </>
         )}
       </main>
+
     </div>
   );
 }

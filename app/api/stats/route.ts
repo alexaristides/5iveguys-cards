@@ -1,32 +1,48 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const channelSlug = req.nextUrl.searchParams.get("channelSlug");
+  const channel = channelSlug
+    ? await prisma.channel.findUnique({ where: { slug: channelSlug } })
+    : null;
+  const channelId = channel?.id ?? null;
+
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   const [newSubCount, weeklyEvents, topActive] = await Promise.all([
-    prisma.youtubeSync.count({ where: { subscribedAt: { gte: sevenDaysAgo } } }),
+    prisma.youtubeSync.count({
+      where: {
+        subscribedAt: { gte: sevenDaysAgo },
+        ...(channelId ? { channelId } : {}),
+      },
+    }),
     prisma.pointsEvent.findMany({
-      where: { earnedAt: { gte: sevenDaysAgo } },
+      where: {
+        earnedAt: { gte: sevenDaysAgo },
+        ...(channelId ? { channelId } : {}),
+      },
       select: { earnedAt: true, type: true, videoCount: true, points: true },
     }),
     prisma.pointsEvent.groupBy({
       by: ["userId"],
-      where: { earnedAt: { gte: sevenDaysAgo } },
+      where: {
+        earnedAt: { gte: sevenDaysAgo },
+        ...(channelId ? { channelId } : {}),
+      },
       _sum: { points: true },
       orderBy: { _sum: { points: "desc" } },
       take: 5,
     }),
   ]);
 
-  // Aggregate likes by day
   const likesByDayMap: Record<string, number> = {};
   let totalLikesThisWeek = 0;
   for (const event of weeklyEvents) {
@@ -40,7 +56,6 @@ export async function GET() {
     .map(([date, likeCount]) => ({ date, likeCount }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  // Enrich top active users with name/avatar
   const topUserIds = topActive.map((g) => g.userId);
   const topUserDetails = await prisma.user.findMany({
     where: { id: { in: topUserIds } },

@@ -7,6 +7,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------- NextAuth ----------
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -44,13 +46,14 @@ model User {
   totalEarned   Int       @default(0)
   createdAt     DateTime  @default(now())
 
-  accounts   Account[]
-  sessions   Session[]
-  cards      UserCard[]
-  packOpens  PackOpen[]
-  youtubeSync YoutubeSync?
+  accounts      Account[]
+  sessions      Session[]
+  cards         UserCard[]
+  packOpens     PackOpen[]
+  youtubeSync   YoutubeSync[]
   pointsEvents  PointsEvent[]
   rankSnapshots RankSnapshot[]
+  channelStats  UserChannelStats[]
 
   challengedBattles CardBattle[] @relation("ChallengerBattles")
   acceptedBattles   CardBattle[] @relation("AcceptorBattles")
@@ -65,65 +68,152 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+// ---------- Channels ----------
+
+model Channel {
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  name             String
+  youtubeChannelId String   @unique
+  description      String?
+  thumbnailUrl     String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  cards        Card[]
+  youtubeSync  YoutubeSync[]
+  videoMeta    VideoMeta[]
+  pointsEvents PointsEvent[]
+  packOpens    PackOpen[]
+  userCards    UserCard[]
+  userStats    UserChannelStats[]
+}
+
+enum Rarity {
+  common
+  rare
+  epic
+  legendary
+}
+
+model Card {
+  id           String   @id @default(cuid())
+  channelId    String
+  channel      Channel  @relation(fields: [channelId], references: [id])
+  legacyId     String?
+  name         String
+  kit          String?
+  rarity       Rarity
+  imageUrl     String
+  backImageUrl String?
+  attribute    String?
+  description  String?
+  createdAt    DateTime @default(now())
+
+  @@index([channelId])
+  @@index([legacyId])
+}
+
+model UserChannelStats {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channelId   String
+  channel     Channel  @relation(fields: [channelId], references: [id])
+  points      Int      @default(0)
+  totalEarned Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, channelId])
+}
+
+// ---------- YouTube sync ----------
+
 model YoutubeSync {
-  id                  String   @id @default(cuid())
-  userId              String   @unique
-  youtubeChannelId    String?
-  isSubscribed        Boolean  @default(false)
-  likedVideoIds       String   @default("[]")
-  earlyLikedVideoIds  String   @default("[]")
-  subscribedAt        DateTime?
-  lastSynced          DateTime @default(now())
+  id                 String    @id @default(cuid())
+  userId             String
+  channelId          String?
+  youtubeChannelId   String?
+  isSubscribed       Boolean   @default(false)
+  likedVideoIds      String    @default("[]")
+  earlyLikedVideoIds String    @default("[]")
+  subscribedAt       DateTime?
+  lastSynced         DateTime  @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel? @relation(fields: [channelId], references: [id])
+
+  @@unique([userId, channelId])
 }
 
-// Publish dates for channel videos — populated as a side effect of user syncs
+// Publish dates for channel videos
 model VideoMeta {
-  videoId     String   @id
+  id          String   @id @default(cuid())
+  videoId     String
+  channelId   String?
   publishedAt DateTime
+
+  channel Channel? @relation(fields: [channelId], references: [id])
+
+  @@unique([videoId, channelId])
+  @@index([channelId])
 }
+
+// ---------- Cards & packs ----------
 
 model UserCard {
   id         String   @id @default(cuid())
   userId     String
+  channelId  String?
   cardId     String
   obtainedAt DateTime @default(now())
   isFavorite Boolean  @default(false)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel? @relation(fields: [channelId], references: [id])
 
+  @@index([userId, channelId])
   @@index([userId, cardId])
 }
 
 model PackOpen {
   id        String   @id @default(cuid())
   userId    String
+  channelId String?
   packType  String
   cardIds   String
   pointCost Int
   openedAt  DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel? @relation(fields: [channelId], references: [id])
 }
+
+// ---------- Points & leaderboard ----------
 
 model PointsEvent {
   id         String   @id @default(cuid())
   userId     String
+  channelId  String?
   type       String
   points     Int
   videoCount Int      @default(0)
   earnedAt   DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel? @relation(fields: [channelId], references: [id])
 
   @@index([userId, earnedAt])
   @@index([earnedAt])
+  @@index([channelId, earnedAt])
 }
 
 model RankSnapshot {
   id          String   @id @default(cuid())
   userId      String
+  channelId   String?
   rank        Int
   totalEarned Int
   snapshotAt  DateTime @default(now())
@@ -132,7 +222,10 @@ model RankSnapshot {
 
   @@index([snapshotAt])
   @@index([userId, snapshotAt])
+  @@index([channelId, snapshotAt])
 }
+
+// ---------- Battles ----------
 
 enum BattleStatus {
   PENDING
@@ -141,20 +234,20 @@ enum BattleStatus {
 }
 
 model CardBattle {
-  id               String       @id @default(cuid())
-  challengerId     String
-  challenger       User         @relation("ChallengerBattles", fields: [challengerId], references: [id])
-  acceptorId       String?
-  acceptor         User?        @relation("AcceptorBattles", fields: [acceptorId], references: [id])
+  id                String       @id @default(cuid())
+  challengerId      String
+  challenger        User         @relation("ChallengerBattles", fields: [challengerId], references: [id])
+  acceptorId        String?
+  acceptor          User?        @relation("AcceptorBattles", fields: [acceptorId], references: [id])
   challengerCardIds String[]
   acceptorCardIds   String[]
   wager             Int
   status            BattleStatus @default(PENDING)
   winnerId          String?
-  winner            User?    @relation("WonBattles", fields: [winnerId], references: [id])
+  winner            User?        @relation("WonBattles", fields: [winnerId], references: [id])
   matchResults      Json?
-  createdAt        DateTime @default(now())
-  resolvedAt       DateTime?
+  createdAt         DateTime     @default(now())
+  resolvedAt        DateTime?
 
   @@index([status, createdAt])
   @@index([challengerId])

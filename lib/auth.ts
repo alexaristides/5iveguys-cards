@@ -33,13 +33,6 @@ export const authOptions: NextAuthOptions = {
     },
   },
   events: {
-    async createUser({ user }) {
-      // Give every new user 100 free points so they can open a pack immediately
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { points: 100, totalEarned: 100 },
-      });
-    },
     async signIn({ user, account, isNewUser }) {
       // On re-auth, NextAuth doesn't update the stored Account record, so the
       // scope column stays stale (missing youtube) even after the user grants it.

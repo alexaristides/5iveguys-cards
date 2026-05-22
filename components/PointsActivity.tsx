@@ -12,36 +12,37 @@ interface PointsActivityProps {
   sync: SyncData | null;
   onSync: () => Promise<void>;
   syncing: boolean;
+  channelSlug?: string;
 }
 
-const activities = [
-  {
-    icon: "🔔",
-    label: "Subscribe to 5iveguysfc",
-    points: POINTS_CONFIG.subscribe,
-    suffix: "one-time",
-    key: "subscribe" as const,
-    href: "https://www.youtube.com/@5iveguysfc?sub_confirmation=1",
-  },
-  {
-    icon: "⚡",
-    label: `Like within ${POINTS_CONFIG.earlyLikeWindowHours}h of upload`,
-    points: POINTS_CONFIG.earlyLike,
-    suffix: "per early like",
-    key: "earlyLike" as const,
-    href: "https://www.youtube.com/@5iveguysfc/videos",
-  },
-  {
-    icon: "👍",
-    label: "Like a video",
-    points: POINTS_CONFIG.like,
-    suffix: "per like",
-    key: "like" as const,
-    href: "https://www.youtube.com/@5iveguysfc/videos",
-  },
-];
+export default function PointsActivity({ sync, onSync, syncing, channelSlug }: PointsActivityProps) {
+  const channelHandle = channelSlug ? `@${channelSlug}` : "@5iveguysfc";
+  const youtubeBase = `https://www.youtube.com/${channelHandle}`;
 
-export default function PointsActivity({ sync, onSync, syncing }: PointsActivityProps) {
+  const activities = [
+    {
+      icon: "🔔",
+      label: `Subscribe to ${channelSlug ?? "5iveguysfc"}`,
+      points: POINTS_CONFIG.subscribe,
+      suffix: "one-time",
+      href: `${youtubeBase}?sub_confirmation=1`,
+    },
+    {
+      icon: "⚡",
+      label: `Like within ${POINTS_CONFIG.earlyLikeWindowHours}h of upload`,
+      points: POINTS_CONFIG.earlyLike,
+      suffix: "per early like",
+      href: `${youtubeBase}/videos`,
+    },
+    {
+      icon: "👍",
+      label: "Like a video",
+      points: POINTS_CONFIG.like,
+      suffix: "per like",
+      href: `${youtubeBase}/videos`,
+    },
+  ];
+
   const likedCount = sync ? JSON.parse(sync.likedVideoIds ?? "[]").length : 0;
   const earlyLikedCount = sync ? JSON.parse(sync.earlyLikedVideoIds ?? "[]").length : 0;
 
@@ -73,7 +74,7 @@ export default function PointsActivity({ sync, onSync, syncing }: PointsActivity
       <div className="space-y-3">
         {activities.map((activity) => (
           <a
-            key={activity.key}
+            key={activity.href}
             href={activity.href}
             target="_blank"
             rel="noopener noreferrer"
@@ -96,11 +97,7 @@ export default function PointsActivity({ sync, onSync, syncing }: PointsActivity
 
       {sync && (
         <div className="mt-4 pt-4 border-t border-zinc-800 grid grid-cols-3 gap-3">
-          <Stat
-            label="Subscribed"
-            value={sync.isSubscribed ? "✓ Yes" : "Not yet"}
-            highlight={sync.isSubscribed}
-          />
+          <Stat label="Subscribed" value={sync.isSubscribed ? "✓ Yes" : "Not yet"} highlight={sync.isSubscribed} />
           <Stat label="Liked videos" value={String(likedCount)} />
           <Stat label="Early likes" value={String(earlyLikedCount)} />
         </div>
@@ -109,21 +106,11 @@ export default function PointsActivity({ sync, onSync, syncing }: PointsActivity
   );
 }
 
-function Stat({
-  label,
-  value,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  highlight?: boolean;
-}) {
+function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div className="bg-zinc-800/60 rounded-xl p-3">
       <p className="text-zinc-500 text-xs">{label}</p>
-      <p className={`text-sm font-semibold mt-0.5 ${highlight ? "text-green-400" : "text-white"}`}>
-        {value}
-      </p>
+      <p className={`text-sm font-semibold mt-0.5 ${highlight ? "text-green-400" : "text-white"}`}>{value}</p>
     </div>
   );
 }
