@@ -6,6 +6,15 @@ import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
+type Sort = "newest" | "oldest" | "popular" | "replies";
+
+const SORTS: { key: Sort; label: string }[] = [
+  { key: "newest", label: "Newest" },
+  { key: "popular", label: "Most Liked" },
+  { key: "replies", label: "Most Replies" },
+  { key: "oldest", label: "Oldest" },
+];
+
 interface Author {
   id: string;
   name: string | null;
@@ -19,7 +28,8 @@ interface Post {
   isPinned: boolean;
   createdAt: string;
   author: Author;
-  _count: { replies: number };
+  likedByMe: boolean;
+  _count: { replies: number; likes: number };
 }
 
 function timeAgo(dateStr: string) {
@@ -32,14 +42,12 @@ function timeAgo(dateStr: string) {
 }
 
 function Avatar({ user, size = 8 }: { user: Author; size?: number }) {
-  const cls = `w-${size} h-${size} rounded-full shrink-0 overflow-hidden bg-zinc-700 flex items-center justify-center`;
   return (
-    <div className={cls}>
-      {user.image ? (
-        <Image src={user.image} alt={user.name ?? "User"} width={size * 4} height={size * 4} className="object-cover w-full h-full" />
-      ) : (
-        <span className="text-white text-xs font-bold">{user.name?.[0] ?? "?"}</span>
-      )}
+    <div className={`w-${size} h-${size} rounded-full shrink-0 overflow-hidden bg-zinc-700 flex items-center justify-center`}>
+      {user.image
+        ? <Image src={user.image} alt={user.name ?? "User"} width={32} height={32} className="object-cover w-full h-full" />
+        : <span className="text-white text-xs font-bold">{user.name?.[0] ?? "?"}</span>
+      }
     </div>
   );
 }
@@ -53,15 +61,17 @@ export default function ForumPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<Sort>("newest");
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({ title: "", body: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [likingId, setLikingId] = useState<string | null>(null);
 
-  const fetchPosts = useCallback(async (p: number) => {
+  const fetchPosts = useCallback(async (p: number, s: Sort) => {
     setLoading(true);
-    const res = await fetch(`/api/channels/${channelSlug}/forum?page=${p}`);
+    const res = await fetch(`/api/channels/${channelSlug}/forum?page=${p}&sort=${s}`);
     if (res.ok) {
       const data = await res.json();
       setPosts(data.posts);
@@ -71,8 +81,29 @@ export default function ForumPage() {
   }, [channelSlug]);
 
   useEffect(() => {
-    if (status === "authenticated") fetchPosts(1);
-  }, [status, fetchPosts]);
+    if (status === "authenticated") fetchPosts(1, sort);
+  }, [status, fetchPosts, sort]);
+
+  function changeSort(s: Sort) {
+    setSort(s);
+    setPage(1);
+    fetchPosts(1, s);
+  }
+
+  async function handleLike(e: React.MouseEvent, postId: string) {
+    e.preventDefault();
+    if (likingId) return;
+    setLikingId(postId);
+    const res = await fetch(`/api/channels/${channelSlug}/forum/${postId}/like`, { method: "POST" });
+    if (res.ok) {
+      const { liked, count } = await res.json();
+      setPosts((prev) => prev.map((p) => p.id === postId
+        ? { ...p, likedByMe: liked, _count: { ...p._count, likes: count } }
+        : p
+      ));
+    }
+    setLikingId(null);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -92,7 +123,6 @@ export default function ForumPage() {
   }
 
   const totalPages = Math.ceil(total / 20);
-  const userId = session?.user?.id;
 
   if (status === "loading") {
     return (
@@ -104,9 +134,9 @@ export default function ForumPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
-      <main className="max-w-2xl mx-auto px-4 pt-24 pb-24">
+      <main className="max-w-2xl mx-auto px-4 pt-24 pb-28">
 
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-5">
           <div>
             <h1 className="text-2xl font-bold text-white">Forum</h1>
             <p className="text-zinc-500 text-sm mt-0.5">{total} {total === 1 ? "post" : "posts"}</p>
@@ -117,6 +147,23 @@ export default function ForumPage() {
           >
             + New Post
           </button>
+        </div>
+
+        {/* Sort tabs */}
+        <div className="flex gap-1.5 mb-5 flex-wrap">
+          {SORTS.map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => changeSort(key)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all
+                ${sort === key
+                  ? "bg-purple-600 text-white"
+                  : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700"
+                }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {loading ? (
@@ -131,61 +178,68 @@ export default function ForumPage() {
         ) : (
           <div className="space-y-2">
             {posts.map((post) => (
-              <Link
-                key={post.id}
-                href={`/${channelSlug}/forum/${post.id}`}
-                className="block p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-zinc-700 transition-all group"
-              >
-                <div className="flex items-start gap-3">
-                  <Avatar user={post.author} size={8} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      {post.isPinned && (
-                        <span className="text-[10px] font-semibold text-purple-400 border border-purple-700/50 rounded px-1.5 py-0.5">
-                          📌 Pinned
-                        </span>
-                      )}
-                      <h2 className="text-white font-semibold text-sm group-hover:text-purple-300 transition-colors leading-snug">
-                        {post.title}
-                      </h2>
-                    </div>
-                    <p className="text-zinc-500 text-xs line-clamp-2 mb-2">{post.body}</p>
-                    <div className="flex items-center gap-3 text-zinc-600 text-[11px]">
-                      <span>{post.author.name?.split(" ")[0] ?? "Fan"}</span>
-                      <span>·</span>
-                      <span>{timeAgo(post.createdAt)}</span>
-                      <span>·</span>
-                      <span>💬 {post._count.replies} {post._count.replies === 1 ? "reply" : "replies"}</span>
+              <div key={post.id} className="relative rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-zinc-700 transition-all group">
+                <Link href={`/${channelSlug}/forum/${post.id}`} className="block p-4">
+                  <div className="flex items-start gap-3">
+                    <Avatar user={post.author} size={8} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        {post.isPinned && (
+                          <span className="text-[10px] font-semibold text-purple-400 border border-purple-700/50 rounded px-1.5 py-0.5">
+                            📌 Pinned
+                          </span>
+                        )}
+                        <h2 className="text-white font-semibold text-sm group-hover:text-purple-300 transition-colors leading-snug">
+                          {post.title}
+                        </h2>
+                      </div>
+                      <p className="text-zinc-500 text-xs line-clamp-2 mb-3">{post.body}</p>
+                      <div className="flex items-center gap-3 text-zinc-600 text-[11px]">
+                        <span>{post.author.name?.split(" ")[0] ?? "Fan"}</span>
+                        <span>·</span>
+                        <span>{timeAgo(post.createdAt)}</span>
+                        <span>·</span>
+                        <span>💬 {post._count.replies}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Link>
+                </Link>
+
+                {/* Like button — outside the Link so it doesn't navigate */}
+                <button
+                  onClick={(e) => handleLike(e, post.id)}
+                  disabled={likingId === post.id}
+                  className={`absolute bottom-4 right-4 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all
+                    ${post.likedByMe
+                      ? "bg-red-900/40 border border-red-700/50 text-red-400 hover:bg-red-900/60"
+                      : "bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-red-400 hover:border-red-800"
+                    }`}
+                >
+                  <span>{post.likedByMe ? "♥" : "♡"}</span>
+                  <span>{post._count.likes}</span>
+                </button>
+              </div>
             ))}
           </div>
         )}
 
         {totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 mt-6">
-            <button onClick={() => { setPage(page - 1); fetchPosts(page - 1); }} disabled={page <= 1} className="px-4 py-2 rounded-xl border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-30 text-sm">← Prev</button>
+            <button onClick={() => { setPage(page - 1); fetchPosts(page - 1, sort); }} disabled={page <= 1} className="px-4 py-2 rounded-xl border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-30 text-sm">← Prev</button>
             <span className="text-zinc-600 text-sm">{page} / {totalPages}</span>
-            <button onClick={() => { setPage(page + 1); fetchPosts(page + 1); }} disabled={page >= totalPages} className="px-4 py-2 rounded-xl border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-30 text-sm">Next →</button>
+            <button onClick={() => { setPage(page + 1); fetchPosts(page + 1, sort); }} disabled={page >= totalPages} className="px-4 py-2 rounded-xl border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-30 text-sm">Next →</button>
           </div>
         )}
       </main>
 
       {showNew && (
         <div className="fixed inset-0 bg-black/70 flex items-start justify-center z-50 p-4 pt-20 overflow-y-auto">
-          <form
-            onSubmit={handleSubmit}
-            className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-lg space-y-4 mb-4"
-          >
+          <form onSubmit={handleSubmit} className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-lg space-y-4 mb-4">
             <div className="flex items-center justify-between">
               <h2 className="text-white font-bold text-lg">New Post</h2>
-              <button type="button" onClick={() => { setShowNew(false); setError(null); }} className="text-zinc-500 hover:text-white transition-colors">✕</button>
+              <button type="button" onClick={() => { setShowNew(false); setError(null); }} className="text-zinc-500 hover:text-white transition-colors text-lg">✕</button>
             </div>
-
             {error && <p className="text-red-300 text-sm bg-red-900/30 rounded-lg p-3">{error}</p>}
-
             <div>
               <label className="text-zinc-400 text-xs mb-1 block">Title</label>
               <input
@@ -198,7 +252,6 @@ export default function ForumPage() {
                 className="w-full px-3 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500 placeholder:text-zinc-600"
               />
             </div>
-
             <div>
               <label className="text-zinc-400 text-xs mb-1 block">Body</label>
               <textarea
@@ -210,13 +263,10 @@ export default function ForumPage() {
                 maxLength={10000}
                 className="w-full px-3 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500 placeholder:text-zinc-600 resize-none"
               />
-              <p className="text-zinc-700 text-[11px] mt-1 text-right">{form.body.length} / 10000</p>
+              <p className="text-zinc-700 text-[11px] mt-1 text-right">{form.body.length} / 10,000</p>
             </div>
-
             <div className="flex gap-3">
-              <button type="button" onClick={() => { setShowNew(false); setError(null); }} className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-400 text-sm hover:bg-zinc-700 transition-colors">
-                Cancel
-              </button>
+              <button type="button" onClick={() => { setShowNew(false); setError(null); }} className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-400 text-sm hover:bg-zinc-700 transition-colors">Cancel</button>
               <button type="submit" disabled={submitting || !form.title.trim() || !form.body.trim()} className="flex-1 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white text-sm font-medium transition-colors">
                 {submitting ? "Posting..." : "Post"}
               </button>

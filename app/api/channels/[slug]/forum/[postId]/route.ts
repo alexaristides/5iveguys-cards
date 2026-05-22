@@ -7,12 +7,16 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ slug: string; postId: string }> }
 ) {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
   const { postId } = await params;
 
   const post = await prisma.forumPost.findUnique({
     where: { id: postId },
     include: {
       author: { select: { id: true, name: true, image: true } },
+      _count: { select: { likes: true, replies: true } },
+      ...(userId ? { likes: { where: { userId }, select: { userId: true } } } : {}),
       replies: {
         orderBy: { createdAt: "asc" },
         include: { author: { select: { id: true, name: true, image: true } } },
@@ -21,7 +25,14 @@ export async function GET(
   });
 
   if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ post });
+
+  const enriched = {
+    ...post,
+    likedByMe: userId ? ((post.likes as { userId: string }[] | undefined)?.length ?? 0) > 0 : false,
+    likes: undefined,
+  };
+
+  return NextResponse.json({ post: enriched });
 }
 
 export async function DELETE(

@@ -60,6 +60,7 @@ model User {
   wonBattles        CardBattle[] @relation("WonBattles")
   forumPosts        ForumPost[]
   forumReplies      ForumReply[]
+  forumLikes        ForumLike[]
 }
 
 model VerificationToken {
@@ -273,6 +274,7 @@ model ForumPost {
   updatedAt DateTime     @updatedAt
 
   replies   ForumReply[]
+  likes     ForumLike[]
 
   @@index([channelId, createdAt(sort: Desc)])
 }
@@ -287,4 +289,16 @@ model ForumReply {
   createdAt DateTime  @default(now())
 
   @@index([postId, createdAt])
+}
+
+model ForumLike {
+  id        String    @id @default(cuid())
+  postId    String
+  post      ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@unique([postId, userId])
+  @@index([postId])
 }
