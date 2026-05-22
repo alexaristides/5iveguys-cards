@@ -107,17 +107,6 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
                   </Link>
                 );
               })}
-              <a
-                href="https://www.fantasy5ive.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 px-4 py-1.5 rounded-full text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
-              >
-                Fantasy
-                <svg className="w-3 h-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
             </div>
           )}
 
@@ -172,16 +161,6 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
                           {link.label}
                         </Link>
                       ))}
-                      <a
-                        href="https://www.fantasy5ive.com/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => setMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
-                      >
-                        <span>⚽</span>
-                        Fantasy ↗
-                      </a>
                       <div className="border-t border-zinc-800 mt-1" />
                     </div>
                   )}
@@ -245,15 +224,6 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
                 </Link>
               );
             })}
-            <a
-              href="https://www.fantasy5ive.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl"
-            >
-              <span className="text-xl opacity-50">⚽</span>
-              <span className="text-[10px] font-medium text-zinc-600">Fantasy</span>
-            </a>
           </div>
         </div>
       )}
