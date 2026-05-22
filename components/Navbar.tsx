@@ -34,6 +34,7 @@ function buildNavLinks(channelSlug?: string | null) {
 export default function Navbar({ user, points, channel }: NavbarProps) {
   const path = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const NAV_LINKS = buildNavLinks(channel?.slug);
@@ -48,17 +49,34 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  // Close sidebar on route change
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [path]);
+
   return (
     <>
       {/* ── Top bar ── */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-white/5">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
 
-          {/* Logo / channel branding */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Left: hamburger (mobile) + logo */}
+          <div className="flex items-center gap-3 shrink-0">
+            {NAV_LINKS.length > 0 && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden flex flex-col gap-1.5 p-1 text-zinc-400 hover:text-white transition-colors"
+                aria-label="Open menu"
+              >
+                <span className="block w-5 h-0.5 bg-current rounded-full" />
+                <span className="block w-5 h-0.5 bg-current rounded-full" />
+                <span className="block w-5 h-0.5 bg-current rounded-full" />
+              </button>
+            )}
+
             {channel ? (
               <>
-                <Link href="/" className="text-zinc-500 hover:text-white text-xs mr-1 transition-colors hidden sm:block">
+                <Link href="/" className="text-zinc-500 hover:text-white text-xs transition-colors hidden sm:block">
                   ← Channels
                 </Link>
                 <Link href={`/${channel.slug}`} className="flex items-center gap-2">
@@ -145,26 +163,6 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
                     )}
                   </div>
 
-                  {/* Mobile nav links */}
-                  {NAV_LINKS.length > 0 && (
-                    <div className="md:hidden py-1">
-                      {NAV_LINKS.map((link) => (
-                        <Link
-                          key={link.href}
-                          href={link.href}
-                          onClick={() => setMenuOpen(false)}
-                          className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                            path === link.href ? "text-white bg-white/5" : "text-zinc-400 hover:text-white hover:bg-white/5"
-                          }`}
-                        >
-                          <span>{link.icon}</span>
-                          {link.label}
-                        </Link>
-                      ))}
-                      <div className="border-t border-zinc-800 mt-1" />
-                    </div>
-                  )}
-
                   {channel && (
                     <Link
                       href="/"
@@ -203,29 +201,88 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
         </div>
       </nav>
 
-      {/* ── Mobile bottom tab bar (only when inside a channel) ── */}
+      {/* ── Mobile sidebar ── */}
       {NAV_LINKS.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#0f0f0f]/95 backdrop-blur-md border-t border-white/5">
-          <div className="flex items-center justify-around px-2 py-2 pb-safe">
-            {NAV_LINKS.map((link) => {
-              const active = path === link.href || (link.href !== `/${channel?.slug}` && path.startsWith(link.href));
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all"
-                >
-                  <span className={`text-xl transition-transform ${active ? "scale-110" : "opacity-50"}`}>
-                    {link.icon}
-                  </span>
-                  <span className={`text-[10px] font-medium transition-colors ${active ? "text-purple-400" : "text-zinc-600"}`}>
+        <>
+          {/* Backdrop */}
+          <div
+            className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden transition-opacity duration-300 ${
+              sidebarOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+            }`}
+            onClick={() => setSidebarOpen(false)}
+          />
+
+          {/* Drawer */}
+          <div
+            className={`fixed top-0 left-0 bottom-0 z-50 w-64 bg-[#0f0f0f] border-r border-white/5 md:hidden flex flex-col transition-transform duration-300 ease-in-out ${
+              sidebarOpen ? "translate-x-0" : "-translate-x-full"
+            }`}
+          >
+            {/* Drawer header */}
+            <div className="flex items-center justify-between px-4 h-14 border-b border-white/5 shrink-0">
+              {channel ? (
+                <div className="flex items-center gap-2">
+                  {channel.thumbnailUrl ? (
+                    <div className="w-7 h-7 rounded-full overflow-hidden relative">
+                      <Image src={channel.thumbnailUrl} alt={channel.name} fill className="object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">{channel.name[0]}</span>
+                    </div>
+                  )}
+                  <span className="text-white text-sm font-semibold truncate">{channel.name}</span>
+                </div>
+              ) : (
+                <span className="text-white text-sm font-semibold">Menu</span>
+              )}
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="text-zinc-500 hover:text-white transition-colors p-1"
+                aria-label="Close menu"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Nav links */}
+            <nav className="flex-1 overflow-y-auto py-3">
+              {NAV_LINKS.map((link) => {
+                const active = path === link.href || (link.href !== `/${channel?.slug}` && path.startsWith(link.href));
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors ${
+                      active
+                        ? "text-white bg-white/8"
+                        : "text-zinc-400 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    <span className="text-lg">{link.icon}</span>
                     {link.label}
-                  </span>
+                    {active && <span className="ml-auto w-1 h-4 rounded-full bg-purple-500" />}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* Drawer footer */}
+            <div className="border-t border-white/5 py-3 shrink-0">
+              {channel && (
+                <Link
+                  href="/"
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+                >
+                  <span className="text-lg">🏠</span>
+                  All Channels
                 </Link>
-              );
-            })}
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </>
   );
