@@ -148,7 +148,12 @@ export default function HomePage() {
         )}
 
         {/* Footer */}
-        <div className="mt-20 text-center">
+        <div className="mt-20 text-center space-y-3">
+          <div>
+            <Link href="/artist" className="text-zinc-500 text-sm hover:text-purple-400 transition-colors font-medium">
+              🎨 Card artwork by Merle
+            </Link>
+          </div>
           <p className="text-zinc-700 text-xs">
             By signing in you agree to our{" "}
             <a href="/terms" className="underline hover:text-zinc-500">Terms of Service</a>
