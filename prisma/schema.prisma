@@ -58,6 +58,8 @@ model User {
   challengedBattles CardBattle[] @relation("ChallengerBattles")
   acceptedBattles   CardBattle[] @relation("AcceptorBattles")
   wonBattles        CardBattle[] @relation("WonBattles")
+  forumPosts        ForumPost[]
+  forumReplies      ForumReply[]
 }
 
 model VerificationToken {
@@ -89,6 +91,7 @@ model Channel {
   packOpens    PackOpen[]
   userCards    UserCard[]
   userStats    UserChannelStats[]
+  forumPosts   ForumPost[]
 }
 
 enum Rarity {
@@ -253,4 +256,35 @@ model CardBattle {
   @@index([status, createdAt])
   @@index([challengerId])
   @@index([acceptorId])
+}
+
+// ---------- Forum ----------
+
+model ForumPost {
+  id        String       @id @default(cuid())
+  channelId String
+  channel   Channel      @relation(fields: [channelId], references: [id])
+  authorId  String
+  author    User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  isPinned  Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  replies   ForumReply[]
+
+  @@index([channelId, createdAt(sort: Desc)])
+}
+
+model ForumReply {
+  id        String    @id @default(cuid())
+  postId    String
+  post      ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime  @default(now())
+
+  @@index([postId, createdAt])
 }
