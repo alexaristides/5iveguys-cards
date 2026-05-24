@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 interface AppStats {
   userCount: number;
@@ -10,25 +11,110 @@ interface AppStats {
   totalEarlyLikes: number;
 }
 
+interface AdminUser {
+  id: string;
+  name: string | null;
+  email: string | null;
+  image: string | null;
+  points: number;
+  totalEarned: number;
+}
+
 export default function AdminPage() {
   const [secret, setSecret] = useState("");
   const [stats, setStats] = useState<AppStats | null>(null);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const loadStats = useCallback(async (s: string) => {
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pointsInput, setPointsInput] = useState("");
+  const [reason, setReason] = useState("");
+  const [granting, setGranting] = useState(false);
+  const [grantMsg, setGrantMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const loadData = useCallback(async (s: string) => {
     if (!s) return;
     setError(null);
-    const res = await fetch("/api/admin/stats", { headers: { "x-admin-secret": s } });
-    if (res.ok) {
-      setStats(await res.json());
+    const [statsRes, usersRes] = await Promise.all([
+      fetch("/api/admin/stats", { headers: { "x-admin-secret": s } }),
+      fetch("/api/admin/users", { headers: { "x-admin-secret": s } }),
+    ]);
+    if (statsRes.ok && usersRes.ok) {
+      setStats(await statsRes.json());
+      setUsers(await usersRes.json());
     } else {
       setError("Invalid secret or server error.");
     }
   }, []);
 
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return users;
+    return users.filter(
+      (u) =>
+        u.name?.toLowerCase().includes(q) ||
+        u.email?.toLowerCase().includes(q)
+    );
+  }, [users, search]);
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((u) => selected.has(u.id));
+
+  function toggleSelectAll() {
+    if (allFilteredSelected) {
+      const next = new Set(selected);
+      filtered.forEach((u) => next.delete(u.id));
+      setSelected(next);
+    } else {
+      const next = new Set(selected);
+      filtered.forEach((u) => next.add(u.id));
+      setSelected(next);
+    }
+  }
+
+  function toggleUser(id: string) {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelected(next);
+  }
+
+  async function grantPoints() {
+    const pts = parseInt(pointsInput, 10);
+    if (!pts || isNaN(pts)) return;
+    if (selected.size === 0) return;
+
+    setGranting(true);
+    setGrantMsg(null);
+    try {
+      const res = await fetch("/api/admin/grant-points", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-secret": secret },
+        body: JSON.stringify({ userIds: Array.from(selected), points: pts, reason }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setGrantMsg({ ok: true, text: `Granted ${pts > 0 ? "+" : ""}${pts} pts to ${data.granted} user${data.granted !== 1 ? "s" : ""}.` });
+        setPointsInput("");
+        setReason("");
+        setSelected(new Set());
+        await loadData(secret);
+      } else {
+        setGrantMsg({ ok: false, text: data.error ?? "Failed to grant points." });
+      }
+    } catch {
+      setGrantMsg({ ok: false, text: "Network error." });
+    } finally {
+      setGranting(false);
+    }
+  }
+
+  const pts = parseInt(pointsInput, 10);
+  const canGrant = !isNaN(pts) && pts !== 0 && selected.size > 0 && !granting;
+
   return (
     <main className="min-h-screen bg-[#0a0a0a] p-8">
-      <div className="max-w-lg mx-auto space-y-6">
+      <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-white text-2xl font-bold">Admin — Stats</h1>
           <Link href="/admin/channels" className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm transition-colors">
@@ -42,11 +128,11 @@ export default function AdminPage() {
             placeholder="Admin secret"
             value={secret}
             onChange={(e) => setSecret(e.target.value)}
-            onBlur={() => loadStats(secret)}
+            onBlur={() => loadData(secret)}
             className="flex-1 px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500"
           />
           <button
-            onClick={() => loadStats(secret)}
+            onClick={() => loadData(secret)}
             disabled={!secret}
             className="px-4 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-white text-sm transition-all"
           >
@@ -67,6 +153,104 @@ export default function AdminPage() {
               <Stat label="Total likes" value={stats.totalLikes.toLocaleString()} />
               <Stat label="Early likes" value={stats.totalEarlyLikes.toLocaleString()} />
             </div>
+          </div>
+        )}
+
+        {users.length > 0 && (
+          <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-5 space-y-4">
+            <h2 className="text-white font-semibold text-sm">Grant Points</h2>
+
+            {/* Search + select-all */}
+            <div className="flex gap-3">
+              <input
+                type="text"
+                placeholder="Search by name or email…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="flex-1 px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500 placeholder:text-zinc-500"
+              />
+              <button
+                onClick={toggleSelectAll}
+                className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm whitespace-nowrap transition-colors"
+              >
+                {allFilteredSelected ? "Deselect all" : "Select all"}
+              </button>
+            </div>
+
+            {/* User list */}
+            <div className="overflow-y-auto max-h-72 space-y-1 pr-1">
+              {filtered.length === 0 && (
+                <p className="text-zinc-500 text-sm text-center py-4">No users match.</p>
+              )}
+              {filtered.map((u) => (
+                <label
+                  key={u.id}
+                  className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-zinc-800 cursor-pointer transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(u.id)}
+                    onChange={() => toggleUser(u.id)}
+                    className="w-4 h-4 accent-purple-500 shrink-0"
+                  />
+                  {u.image ? (
+                    <Image src={u.image} alt="" width={28} height={28} className="rounded-full shrink-0" />
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-zinc-700 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm truncate">{u.name ?? "(no name)"}</p>
+                    <p className="text-zinc-500 text-xs truncate">{u.email ?? ""}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-purple-400 text-sm font-medium">{u.points.toLocaleString()} pts</p>
+                    <p className="text-zinc-600 text-xs">{u.totalEarned.toLocaleString()} earned</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            {/* Selection summary */}
+            <p className="text-zinc-500 text-xs">
+              {selected.size} user{selected.size !== 1 ? "s" : ""} selected
+              {search && ` (showing ${filtered.length} of ${users.length})`}
+            </p>
+
+            {/* Points + reason inputs */}
+            <div className="flex gap-3">
+              <input
+                type="number"
+                placeholder="Points (negative to deduct)"
+                value={pointsInput}
+                onChange={(e) => setPointsInput(e.target.value)}
+                className="w-52 px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500 placeholder:text-zinc-500"
+              />
+              <input
+                type="text"
+                placeholder="Reason / event label (optional)"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="flex-1 px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500 placeholder:text-zinc-500"
+              />
+            </div>
+
+            <button
+              onClick={grantPoints}
+              disabled={!canGrant}
+              className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-sm font-medium transition-all"
+            >
+              {granting
+                ? "Granting…"
+                : canGrant
+                  ? `${pts > 0 ? "Grant +" : "Deduct "}${Math.abs(pts)} pts to ${selected.size} user${selected.size !== 1 ? "s" : ""}`
+                  : "Select users and enter points"}
+            </button>
+
+            {grantMsg && (
+              <p className={`text-sm rounded-xl p-3 ${grantMsg.ok ? "bg-green-900/40 text-green-300" : "bg-red-900/40 text-red-300"}`}>
+                {grantMsg.text}
+              </p>
+            )}
           </div>
         )}
       </div>
