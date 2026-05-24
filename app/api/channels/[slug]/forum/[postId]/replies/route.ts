@@ -14,12 +14,20 @@ export async function POST(
   const post = await prisma.forumPost.findUnique({ where: { id: postId } });
   if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const { body } = await req.json();
+  const { body, parentId } = await req.json();
   if (!body?.trim()) return NextResponse.json({ error: "Reply body is required" }, { status: 400 });
   if (body.length > 5000) return NextResponse.json({ error: "Reply too long (max 5000)" }, { status: 400 });
 
+  // Validate parentId belongs to same post
+  if (parentId) {
+    const parent = await prisma.forumReply.findUnique({ where: { id: parentId } });
+    if (!parent || parent.postId !== postId) {
+      return NextResponse.json({ error: "Invalid parent reply" }, { status: 400 });
+    }
+  }
+
   const reply = await prisma.forumReply.create({
-    data: { postId, authorId: session.user.id, body: body.trim() },
+    data: { postId, authorId: session.user.id, body: body.trim(), parentId: parentId ?? null },
     include: { author: { select: { id: true, name: true, image: true } } },
   });
 

@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -18,7 +18,12 @@ interface Reply {
   createdAt: string;
   author: Author;
   likedByMe: boolean;
+  parentId: string | null;
   _count: { likes: number };
+}
+
+interface ReplyNode extends Reply {
+  children: ReplyNode[];
 }
 
 interface Post {
@@ -31,6 +36,21 @@ interface Post {
   likedByMe: boolean;
   replies: Reply[];
   _count: { likes: number; replies: number };
+}
+
+function buildTree(replies: Reply[]): ReplyNode[] {
+  const map = new Map<string, ReplyNode>();
+  for (const r of replies) map.set(r.id, { ...r, children: [] });
+  const roots: ReplyNode[] = [];
+  for (const r of replies) {
+    const node = map.get(r.id)!;
+    if (r.parentId && map.has(r.parentId)) {
+      map.get(r.parentId)!.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+  return roots;
 }
 
 function timeAgo(dateStr: string) {
@@ -53,6 +73,167 @@ function Avatar({ user, size = 8 }: { user: Author; size?: number }) {
   );
 }
 
+interface ReplyThreadProps {
+  node: ReplyNode;
+  depth: number;
+  userId: string | undefined;
+  session: ReturnType<typeof useSession>["data"];
+  channelSlug: string;
+  postId: string;
+  likingReply: string | null;
+  replyingToId: string | null;
+  setReplyingToId: (id: string | null) => void;
+  onLike: (replyId: string) => void;
+  onDelete: (replyId: string) => void;
+  onSubmitReply: (body: string, parentId: string) => Promise<boolean>;
+}
+
+function ReplyThread({
+  node,
+  depth,
+  userId,
+  session,
+  channelSlug,
+  postId,
+  likingReply,
+  replyingToId,
+  setReplyingToId,
+  onLike,
+  onDelete,
+  onSubmitReply,
+}: ReplyThreadProps) {
+  const [body, setBody] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const isActive = replyingToId === node.id;
+  // Cap visual indent at 4 levels to avoid squishing on mobile
+  const indent = Math.min(depth, 4);
+
+  useEffect(() => {
+    if (isActive) textareaRef.current?.focus();
+  }, [isActive]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!body.trim()) return;
+    setSubmitting(true);
+    const ok = await onSubmitReply(body.trim(), node.id);
+    setSubmitting(false);
+    if (ok) {
+      setBody("");
+      setReplyingToId(null);
+    }
+  }
+
+  return (
+    <div
+      className={indent > 0 ? "border-l border-zinc-800 pl-3 ml-2" : ""}
+    >
+      {/* Reply card */}
+      <div className="flex gap-2.5 py-3">
+        <Avatar user={node.author} size={7} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <span className="text-white text-xs font-semibold">{node.author.name?.split(" ")[0] ?? "Fan"}</span>
+            <span className="text-zinc-600 text-[11px]">{timeAgo(node.createdAt)}</span>
+            {userId === node.author.id && (
+              <button
+                onClick={() => onDelete(node.id)}
+                className="ml-auto text-zinc-600 hover:text-red-400 text-[11px] transition-colors"
+              >
+                Delete
+              </button>
+            )}
+          </div>
+          <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap mb-2">{node.body}</p>
+          <div className="flex items-center gap-3">
+            {/* Like button */}
+            <button
+              onClick={() => onLike(node.id)}
+              disabled={likingReply === node.id || !session}
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all disabled:opacity-40
+                ${node.likedByMe
+                  ? "bg-red-900/40 border border-red-700/50 text-red-400 hover:bg-red-900/60"
+                  : "bg-zinc-800 border border-zinc-700 text-zinc-500 hover:text-red-400 hover:border-red-800"
+                }`}
+            >
+              <span>{node.likedByMe ? "♥" : "♡"}</span>
+              {node._count.likes > 0 && <span>{node._count.likes}</span>}
+            </button>
+            {/* Reply button */}
+            {session && (
+              <button
+                onClick={() => setReplyingToId(isActive ? null : node.id)}
+                className="text-zinc-500 hover:text-purple-400 text-[11px] font-medium transition-colors"
+              >
+                {isActive ? "Cancel" : "↩ Reply"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Inline reply compose */}
+      {isActive && (
+        <form onSubmit={handleSubmit} className="mb-2 ml-9">
+          <textarea
+            ref={textareaRef}
+            placeholder={`Reply to ${node.author.name?.split(" ")[0] ?? "Fan"}…`}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={2}
+            maxLength={5000}
+            className="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500 placeholder:text-zinc-600 resize-none"
+          />
+          <div className="flex items-center justify-between mt-1.5">
+            <span className="text-zinc-700 text-[11px]">{body.length} / 5,000</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setReplyingToId(null); setBody(""); }}
+                className="px-3 py-1.5 rounded-xl text-zinc-500 hover:text-white text-xs transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || !body.trim()}
+                className="px-3 py-1.5 rounded-xl bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white text-xs font-medium transition-colors"
+              >
+                {submitting ? "Posting…" : "Post"}
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
+
+      {/* Children */}
+      {node.children.length > 0 && (
+        <div>
+          {node.children.map((child) => (
+            <ReplyThread
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              userId={userId}
+              session={session}
+              channelSlug={channelSlug}
+              postId={postId}
+              likingReply={likingReply}
+              replyingToId={replyingToId}
+              setReplyingToId={setReplyingToId}
+              onLike={onLike}
+              onDelete={onDelete}
+              onSubmitReply={onSubmitReply}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ForumPostPage() {
   const { data: session, status } = useSession();
   const params = useParams<{ channelSlug: string; postId: string }>();
@@ -66,6 +247,7 @@ export default function ForumPostPage() {
   const [error, setError] = useState<string | null>(null);
   const [liking, setLiking] = useState(false);
   const [likingReply, setLikingReply] = useState<string | null>(null);
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
 
   const fetchPost = useCallback(async () => {
     const res = await fetch(`/api/channels/${channelSlug}/forum/${postId}`);
@@ -87,7 +269,26 @@ export default function ForumPostPage() {
     setLiking(false);
   }
 
-  async function handleReply(e: React.FormEvent) {
+  async function handleLikeReply(replyId: string) {
+    if (likingReply === replyId) return;
+    setLikingReply(replyId);
+    const res = await fetch(`/api/channels/${channelSlug}/forum/${postId}/replies/${replyId}/like`, { method: "POST" });
+    if (res.ok) {
+      const { liked, count } = await res.json();
+      setPost((p) =>
+        p ? {
+          ...p,
+          replies: p.replies.map((r) =>
+            r.id === replyId ? { ...r, likedByMe: liked, _count: { likes: count } } : r
+          ),
+        } : p
+      );
+    }
+    setLikingReply(null);
+  }
+
+  // Top-level reply submit
+  async function handleTopLevelReply(e: React.FormEvent) {
     e.preventDefault();
     if (!replyBody.trim()) return;
     setSubmitting(true);
@@ -104,6 +305,18 @@ export default function ForumPostPage() {
     await fetchPost();
   }
 
+  // Nested reply submit — returns true on success so the inline form can close
+  async function handleNestedReply(body: string, parentId: string): Promise<boolean> {
+    const res = await fetch(`/api/channels/${channelSlug}/forum/${postId}/replies`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body, parentId }),
+    });
+    if (!res.ok) return false;
+    await fetchPost();
+    return true;
+  }
+
   async function handleDeletePost() {
     if (!confirm("Delete this post and all its replies?")) return;
     await fetch(`/api/channels/${channelSlug}/forum/${postId}`, { method: "DELETE" });
@@ -114,26 +327,6 @@ export default function ForumPostPage() {
     if (!confirm("Delete this reply?")) return;
     await fetch(`/api/channels/${channelSlug}/forum/${postId}/replies?replyId=${replyId}`, { method: "DELETE" });
     await fetchPost();
-  }
-
-  async function handleLikeReply(replyId: string) {
-    if (likingReply === replyId) return;
-    setLikingReply(replyId);
-    const res = await fetch(`/api/channels/${channelSlug}/forum/${postId}/replies/${replyId}/like`, { method: "POST" });
-    if (res.ok) {
-      const { liked, count } = await res.json();
-      setPost((p) =>
-        p
-          ? {
-              ...p,
-              replies: p.replies.map((r) =>
-                r.id === replyId ? { ...r, likedByMe: liked, _count: { likes: count } } : r
-              ),
-            }
-          : p
-      );
-    }
-    setLikingReply(null);
   }
 
   const userId = session?.user?.id;
@@ -147,6 +340,8 @@ export default function ForumPostPage() {
   }
 
   if (!post) return null;
+
+  const tree = buildTree(post.replies);
 
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
@@ -200,52 +395,32 @@ export default function ForumPostPage() {
           </div>
         </div>
 
-        {/* Replies */}
-        {post.replies.length > 0 && (
-          <>
-            <p className="text-zinc-500 text-xs font-medium mb-3 px-1">
-              {post.replies.length} {post.replies.length === 1 ? "reply" : "replies"}
-            </p>
-            <div className="space-y-3 mb-6">
-              {post.replies.map((reply) => (
-                <div key={reply.id} className="flex gap-3 p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800">
-                  <Avatar user={reply.author} size={7} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-white text-xs font-semibold">{reply.author.name?.split(" ")[0] ?? "Fan"}</span>
-                      <span className="text-zinc-600 text-[11px]">{timeAgo(reply.createdAt)}</span>
-                      {userId === reply.author.id && (
-                        <button
-                          onClick={() => handleDeleteReply(reply.id)}
-                          className="ml-auto text-zinc-600 hover:text-red-400 text-[11px] transition-colors"
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap mb-2">{reply.body}</p>
-                    <button
-                      onClick={() => handleLikeReply(reply.id)}
-                      disabled={likingReply === reply.id || !session}
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all disabled:opacity-40
-                        ${reply.likedByMe
-                          ? "bg-red-900/40 border border-red-700/50 text-red-400 hover:bg-red-900/60"
-                          : "bg-zinc-800 border border-zinc-700 text-zinc-500 hover:text-red-400 hover:border-red-800"
-                        }`}
-                    >
-                      <span>{reply.likedByMe ? "♥" : "♡"}</span>
-                      {reply._count.likes > 0 && <span>{reply._count.likes}</span>}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
+        {/* Threaded replies */}
+        {tree.length > 0 && (
+          <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800 px-4 mb-6 divide-y divide-zinc-800/60">
+            {tree.map((node) => (
+              <ReplyThread
+                key={node.id}
+                node={node}
+                depth={0}
+                userId={userId}
+                session={session}
+                channelSlug={channelSlug}
+                postId={postId}
+                likingReply={likingReply}
+                replyingToId={replyingToId}
+                setReplyingToId={setReplyingToId}
+                onLike={handleLikeReply}
+                onDelete={handleDeleteReply}
+                onSubmitReply={handleNestedReply}
+              />
+            ))}
+          </div>
         )}
 
-        {/* Reply form */}
+        {/* Top-level reply form */}
         {status === "authenticated" ? (
-          <form onSubmit={handleReply} className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-4">
+          <form onSubmit={handleTopLevelReply} className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-4">
             <div className="flex gap-3 items-start">
               <Avatar
                 user={{ id: userId ?? "", name: session?.user?.name ?? null, image: session?.user?.image ?? null }}
@@ -254,7 +429,7 @@ export default function ForumPostPage() {
               <div className="flex-1">
                 {error && <p className="text-red-300 text-xs bg-red-900/30 rounded-lg p-2 mb-2">{error}</p>}
                 <textarea
-                  placeholder="Write a reply..."
+                  placeholder="Write a reply…"
                   value={replyBody}
                   onChange={(e) => setReplyBody(e.target.value)}
                   rows={3}
@@ -268,7 +443,7 @@ export default function ForumPostPage() {
                     disabled={submitting || !replyBody.trim()}
                     className="px-4 py-2 rounded-xl bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white text-sm font-medium transition-colors"
                   >
-                    {submitting ? "Posting..." : "Reply"}
+                    {submitting ? "Posting…" : "Reply"}
                   </button>
                 </div>
               </div>

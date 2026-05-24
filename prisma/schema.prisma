@@ -289,9 +289,14 @@ model ForumReply {
   body      String
   createdAt DateTime         @default(now())
 
+  parentId  String?
+  parent    ForumReply?      @relation("ReplyThread", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children  ForumReply[]     @relation("ReplyThread")
+
   likes     ForumReplyLike[]
 
   @@index([postId, createdAt])
+  @@index([parentId])
 }
 
 model ForumReplyLike {
