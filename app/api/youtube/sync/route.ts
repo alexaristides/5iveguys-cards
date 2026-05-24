@@ -173,17 +173,18 @@ export async function POST(req: NextRequest) {
     // Insert new video publish dates, skip duplicates per channel
     const existing_videos = await prisma.videoMeta.findMany({
       where: { videoId: { in: videoIds }, channelId },
-      select: { videoId: true },
+      select: { videoId: true, title: true },
     });
     const existingVideoIds = new Set(existing_videos.map((v) => v.videoId));
+    const untitledVideoIds = existing_videos.filter((v) => !v.title).map((v) => v.videoId);
     const newVideoEntries = [...videoMap.entries()].filter(([videoId]) => !existingVideoIds.has(videoId));
 
-    // Fetch titles + thumbnails for new videos via snippets (chunks of 50)
+    // Fetch snippets for: (a) new videos, and (b) existing rows still missing a title
+    const needsSnippet = [...newVideoEntries.map(([id]) => id), ...untitledVideoIds];
     const snippetMap = new Map<string, { title: string; thumbnailUrl: string }>();
-    if (newVideoEntries.length > 0) {
-      const newIds = newVideoEntries.map(([id]) => id);
+    if (needsSnippet.length > 0) {
       const snippetChunks: string[][] = [];
-      for (let i = 0; i < newIds.length; i += 50) snippetChunks.push(newIds.slice(i, i + 50));
+      for (let i = 0; i < needsSnippet.length; i += 50) snippetChunks.push(needsSnippet.slice(i, i + 50));
       const snippetResults = await Promise.all(
         snippetChunks.map((chunk) =>
           fetchYouTube(
@@ -205,6 +206,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Create new rows
     const newVideos = newVideoEntries.map(([videoId, publishedAt]) => ({
       videoId,
       publishedAt,
@@ -213,6 +215,20 @@ export async function POST(req: NextRequest) {
     }));
     if (newVideos.length > 0) {
       await prisma.videoMeta.createMany({ data: newVideos, skipDuplicates: true });
+    }
+
+    // Backfill titles on existing untitled rows
+    if (untitledVideoIds.length > 0) {
+      await Promise.all(
+        untitledVideoIds
+          .filter((id) => snippetMap.has(id))
+          .map((id) =>
+            prisma.videoMeta.updateMany({
+              where: { videoId: id, channelId },
+              data: snippetMap.get(id),
+            })
+          )
+      );
     }
   }
 
