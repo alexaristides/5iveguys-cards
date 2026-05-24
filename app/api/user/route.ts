@@ -64,5 +64,6 @@ export async function GET(req: NextRequest) {
     cardCount: userCards.length,
     cards,
     youtubeSync,
+    youtubeChannelId: channel.youtubeChannelId,
   });
 }

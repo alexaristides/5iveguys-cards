@@ -13,11 +13,15 @@ interface PointsActivityProps {
   onSync: () => Promise<void>;
   syncing: boolean;
   channelSlug?: string;
+  youtubeChannelId?: string;
 }
 
-export default function PointsActivity({ sync, onSync, syncing, channelSlug }: PointsActivityProps) {
-  const channelHandle = channelSlug ? `@${channelSlug}` : "@5iveguysfc";
-  const youtubeBase = `https://www.youtube.com/${channelHandle}`;
+export default function PointsActivity({ sync, onSync, syncing, channelSlug, youtubeChannelId }: PointsActivityProps) {
+  // Prefer the real YouTube channel ID URL — avoids slug/handle mismatch bugs.
+  // Fall back to @handle guess only when channel ID isn't available.
+  const youtubeBase = youtubeChannelId
+    ? `https://www.youtube.com/channel/${youtubeChannelId}`
+    : `https://www.youtube.com/@${channelSlug ?? "5iveguysfc"}`;
 
   const activities = [
     {

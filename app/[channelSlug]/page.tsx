@@ -36,6 +36,7 @@ interface UserData {
     likedVideoIds: string;
     earlyLikedVideoIds: string;
   } | null;
+  youtubeChannelId?: string;
 }
 
 function StatCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
@@ -182,6 +183,7 @@ export default function ChannelDashboard() {
               onSync={handleSync}
               syncing={syncing}
               channelSlug={channelSlug}
+              youtubeChannelId={userData.youtubeChannelId}
             />
           </div>
         </div>
