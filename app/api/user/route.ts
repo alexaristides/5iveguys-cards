@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     points: stats?.points ?? 0,
     totalEarned: stats?.totalEarned ?? 0,
+    watchTimeSeconds: stats?.watchTimeSeconds ?? 0,
     cardCount: userCards.length,
     cards,
     youtubeSync,

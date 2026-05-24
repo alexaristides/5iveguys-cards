@@ -176,9 +176,41 @@ export async function POST(req: NextRequest) {
       select: { videoId: true },
     });
     const existingVideoIds = new Set(existing_videos.map((v) => v.videoId));
-    const newVideos = [...videoMap.entries()]
-      .filter(([videoId]) => !existingVideoIds.has(videoId))
-      .map(([videoId, publishedAt]) => ({ videoId, publishedAt, channelId }));
+    const newVideoEntries = [...videoMap.entries()].filter(([videoId]) => !existingVideoIds.has(videoId));
+
+    // Fetch titles + thumbnails for new videos via snippets (chunks of 50)
+    const snippetMap = new Map<string, { title: string; thumbnailUrl: string }>();
+    if (newVideoEntries.length > 0) {
+      const newIds = newVideoEntries.map(([id]) => id);
+      const snippetChunks: string[][] = [];
+      for (let i = 0; i < newIds.length; i += 50) snippetChunks.push(newIds.slice(i, i + 50));
+      const snippetResults = await Promise.all(
+        snippetChunks.map((chunk) =>
+          fetchYouTube(
+            `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${chunk.join(",")}`,
+            accessToken
+          )
+        )
+      );
+      type SnippetItem = { id: string; snippet?: { title?: string; thumbnails?: { medium?: { url?: string } } } };
+      for (const result of snippetResults) {
+        for (const item of (result?.items ?? []) as SnippetItem[]) {
+          if (item.id && item.snippet) {
+            snippetMap.set(item.id, {
+              title: item.snippet.title ?? "",
+              thumbnailUrl: item.snippet.thumbnails?.medium?.url ?? "",
+            });
+          }
+        }
+      }
+    }
+
+    const newVideos = newVideoEntries.map(([videoId, publishedAt]) => ({
+      videoId,
+      publishedAt,
+      channelId,
+      ...(snippetMap.get(videoId) ?? {}),
+    }));
     if (newVideos.length > 0) {
       await prisma.videoMeta.createMany({ data: newVideos, skipDuplicates: true });
     }

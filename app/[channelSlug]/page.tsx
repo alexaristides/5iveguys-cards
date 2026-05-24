@@ -29,6 +29,7 @@ interface UserCard {
 interface UserData {
   points: number;
   totalEarned: number;
+  watchTimeSeconds: number;
   cardCount: number;
   cards: UserCard[];
   youtubeSync: {
@@ -37,6 +38,15 @@ interface UserData {
     earlyLikedVideoIds: string;
   } | null;
   youtubeChannelId?: string;
+}
+
+function formatWatchTime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const mins = Math.floor(seconds / 60);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return rem > 0 ? `${hrs}h ${rem}m` : `${hrs}h`;
 }
 
 function StatCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
@@ -130,6 +140,7 @@ export default function ChannelDashboard() {
               <StatCard label="Points" value={userData.points.toLocaleString()} accent />
               <StatCard label="Cards" value={String(userData.cardCount)} />
               <StatCard label="Unique" value={String(uniqueCards)} />
+              <StatCard label="Watch Time" value={userData.watchTimeSeconds > 0 ? formatWatchTime(userData.watchTimeSeconds) : "—"} />
             </div>
 
             <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-6 backdrop-blur">

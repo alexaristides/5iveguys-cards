@@ -164,7 +164,7 @@ export const POINTS_CONFIG = {
   earlyLike: 50,
   like: 10,
   earlyLikeWindowHours: 24,
-  watchMinute: 1,
+  watchMinute: 2,
 } as const;
 
 function weightedRandom(
