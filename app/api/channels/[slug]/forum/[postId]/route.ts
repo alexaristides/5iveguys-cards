@@ -19,17 +19,28 @@ export async function GET(
       ...(userId ? { likes: { where: { userId }, select: { userId: true } } } : {}),
       replies: {
         orderBy: { createdAt: "asc" },
-        include: { author: { select: { id: true, name: true, image: true } } },
+        include: {
+          author: { select: { id: true, name: true, image: true } },
+          _count: { select: { likes: true } },
+          ...(userId ? { likes: { where: { userId }, select: { userId: true } } } : {}),
+        },
       },
     },
   });
 
   if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const enrichedReplies = post.replies.map((reply) => ({
+    ...reply,
+    likedByMe: userId ? ((reply.likes as { userId: string }[] | undefined)?.length ?? 0) > 0 : false,
+    likes: undefined,
+  }));
+
   const enriched = {
     ...post,
     likedByMe: userId ? ((post.likes as { userId: string }[] | undefined)?.length ?? 0) > 0 : false,
     likes: undefined,
+    replies: enrichedReplies,
   };
 
   return NextResponse.json({ post: enriched });

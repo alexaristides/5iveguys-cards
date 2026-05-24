@@ -17,6 +17,8 @@ interface Reply {
   body: string;
   createdAt: string;
   author: Author;
+  likedByMe: boolean;
+  _count: { likes: number };
 }
 
 interface Post {
@@ -63,6 +65,7 @@ export default function ForumPostPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [liking, setLiking] = useState(false);
+  const [likingReply, setLikingReply] = useState<string | null>(null);
 
   const fetchPost = useCallback(async () => {
     const res = await fetch(`/api/channels/${channelSlug}/forum/${postId}`);
@@ -113,6 +116,26 @@ export default function ForumPostPage() {
     await fetchPost();
   }
 
+  async function handleLikeReply(replyId: string) {
+    if (likingReply === replyId) return;
+    setLikingReply(replyId);
+    const res = await fetch(`/api/channels/${channelSlug}/forum/${postId}/replies/${replyId}/like`, { method: "POST" });
+    if (res.ok) {
+      const { liked, count } = await res.json();
+      setPost((p) =>
+        p
+          ? {
+              ...p,
+              replies: p.replies.map((r) =>
+                r.id === replyId ? { ...r, likedByMe: liked, _count: { likes: count } } : r
+              ),
+            }
+          : p
+      );
+    }
+    setLikingReply(null);
+  }
+
   const userId = session?.user?.id;
 
   if (loading || status === "loading") {
@@ -130,7 +153,7 @@ export default function ForumPostPage() {
       <main className="max-w-2xl mx-auto px-4 pt-24 pb-32">
 
         <Link href={`/${channelSlug}/forum`} className="inline-flex items-center gap-1.5 text-zinc-500 hover:text-white text-sm transition-colors mb-6">
-          ← Forum
+          ← Chat
         </Link>
 
         {/* Post card */}
@@ -200,7 +223,19 @@ export default function ForumPostPage() {
                         </button>
                       )}
                     </div>
-                    <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap">{reply.body}</p>
+                    <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap mb-2">{reply.body}</p>
+                    <button
+                      onClick={() => handleLikeReply(reply.id)}
+                      disabled={likingReply === reply.id || !session}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all disabled:opacity-40
+                        ${reply.likedByMe
+                          ? "bg-red-900/40 border border-red-700/50 text-red-400 hover:bg-red-900/60"
+                          : "bg-zinc-800 border border-zinc-700 text-zinc-500 hover:text-red-400 hover:border-red-800"
+                        }`}
+                    >
+                      <span>{reply.likedByMe ? "♥" : "♡"}</span>
+                      {reply._count.likes > 0 && <span>{reply._count.likes}</span>}
+                    </button>
                   </div>
                 </div>
               ))}

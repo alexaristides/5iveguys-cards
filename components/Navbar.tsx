@@ -26,7 +26,7 @@ function buildNavLinks(channelSlug?: string | null) {
     { href: `${base}/packs`, label: "Packs", icon: "📦" },
     { href: `${base}/collection`, label: "Collection", icon: "🃏" },
     { href: `${base}/fans`, label: "Fans", icon: "🏆" },
-    { href: `${base}/forum`, label: "Forum", icon: "💬" },
+    { href: `${base}/forum`, label: "Chat", icon: "💬" },
     { href: `${base}/games`, label: "Games", icon: "⚔️" },
   ];
 }

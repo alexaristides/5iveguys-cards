@@ -138,7 +138,7 @@ export default function ForumPage() {
 
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h1 className="text-2xl font-bold text-white">Forum</h1>
+            <h1 className="text-2xl font-bold text-white">Chat</h1>
             <p className="text-zinc-500 text-sm mt-0.5">{total} {total === 1 ? "post" : "posts"}</p>
           </div>
           <button
