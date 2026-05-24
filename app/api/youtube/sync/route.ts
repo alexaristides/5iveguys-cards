@@ -225,7 +225,7 @@ export async function POST(req: NextRequest) {
           .map((id) =>
             prisma.videoMeta.updateMany({
               where: { videoId: id, channelId },
-              data: snippetMap.get(id),
+              data: snippetMap.get(id)!,
             })
           )
       );
