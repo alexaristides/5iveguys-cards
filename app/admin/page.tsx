@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -42,25 +42,40 @@ export default function AdminPage() {
   const [granting, setGranting] = useState(false);
   const [grantMsg, setGrantMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // Initial load: stats + channels list (users come separately per channel)
   const loadData = useCallback(async (s: string) => {
     if (!s) return;
     setError(null);
-    const [statsRes, usersRes, channelsRes] = await Promise.all([
+    const [statsRes, channelsRes] = await Promise.all([
       fetch("/api/admin/stats", { headers: { "x-admin-secret": s } }),
-      fetch("/api/admin/users", { headers: { "x-admin-secret": s } }),
       fetch("/api/admin/channels", { headers: { "x-admin-secret": s } }),
     ]);
-    if (statsRes.ok && usersRes.ok && channelsRes.ok) {
+    if (statsRes.ok && channelsRes.ok) {
       setStats(await statsRes.json());
-      setUsers(await usersRes.json());
       const chData = await channelsRes.json();
       const chList: AdminChannel[] = chData.channels ?? [];
       setChannels(chList);
-      if (!channelSlug && chList.length > 0) setChannelSlug(chList[0].slug);
+      if (chList.length > 0) setChannelSlug(chList[0].slug);
     } else {
       setError("Invalid secret or server error.");
     }
-  }, [channelSlug]);
+  }, []);
+
+  // Re-fetch users whenever the selected channel changes
+  const loadChannelUsers = useCallback(async (s: string, slug: string) => {
+    if (!s || !slug) return;
+    setUsers([]);
+    setSelected(new Set());
+    setSearch("");
+    const res = await fetch(`/api/admin/users?channelSlug=${slug}`, {
+      headers: { "x-admin-secret": s },
+    });
+    if (res.ok) setUsers(await res.json());
+  }, []);
+
+  useEffect(() => {
+    if (secret && channelSlug) loadChannelUsers(secret, channelSlug);
+  }, [channelSlug, secret, loadChannelUsers]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -122,7 +137,7 @@ export default function AdminPage() {
         setPointsInput("");
         setReason("");
         setSelected(new Set());
-        await loadData(secret);
+        await loadChannelUsers(secret, channelSlug);
       } else {
         setGrantMsg({ ok: false, text: data.error ?? "Failed to grant points." });
       }
@@ -207,6 +222,11 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* User count for selected channel */}
+            <p className="text-zinc-500 text-xs -mt-1">
+              {users.length} member{users.length !== 1 ? "s" : ""} in this channel
+            </p>
+
             {/* Search + select-all */}
             <div className="flex gap-3">
               <input
@@ -248,6 +268,10 @@ export default function AdminPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-sm truncate">{u.name ?? "(no name)"}</p>
                     <p className="text-zinc-500 text-xs truncate">{u.email ?? ""}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-purple-400 text-sm font-medium">{u.points.toLocaleString()} pts</p>
+                    <p className="text-zinc-600 text-xs">{u.totalEarned.toLocaleString()} earned</p>
                   </div>
                 </label>
               ))}
