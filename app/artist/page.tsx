@@ -66,7 +66,7 @@ export default function ArtistPage() {
 
           {/* Footer strip */}
           <div className="bg-zinc-800/50 border-t border-zinc-800 px-8 py-4 text-center">
-            <p className="text-zinc-600 text-xs">All card artwork is original and created exclusively for 5iveguysfc Fan Rewards.</p>
+            <p className="text-zinc-600 text-xs">All card artwork is original and created exclusively for 5iveG.</p>
           </div>
         </div>
       </div>

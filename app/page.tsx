@@ -38,9 +38,9 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center">
-              <span className="text-white text-sm font-bold">F</span>
+              <span className="text-white text-sm font-bold">5</span>
             </div>
-            <span className="text-white font-semibold text-sm">Fan Rewards</span>
+            <span className="text-white font-semibold text-sm">5iveG</span>
           </div>
           <div>
             {status === "authenticated" ? (
@@ -74,7 +74,7 @@ export default function HomePage() {
         {/* Hero */}
         <div className="text-center mb-14">
           <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">
-            Fan Rewards
+            5iveG
           </h1>
           <p className="text-zinc-400 text-lg max-w-lg mx-auto">
             Earn points by engaging with your favourite YouTube channels and unlock exclusive rewards.
