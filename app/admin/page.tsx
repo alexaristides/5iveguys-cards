@@ -20,14 +20,23 @@ interface AdminUser {
   totalEarned: number;
 }
 
+interface AdminChannel {
+  id: string;
+  slug: string;
+  name: string;
+  thumbnailUrl: string | null;
+}
+
 export default function AdminPage() {
   const [secret, setSecret] = useState("");
   const [stats, setStats] = useState<AppStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [channels, setChannels] = useState<AdminChannel[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [channelSlug, setChannelSlug] = useState("");
   const [pointsInput, setPointsInput] = useState("");
   const [reason, setReason] = useState("");
   const [granting, setGranting] = useState(false);
@@ -36,17 +45,22 @@ export default function AdminPage() {
   const loadData = useCallback(async (s: string) => {
     if (!s) return;
     setError(null);
-    const [statsRes, usersRes] = await Promise.all([
+    const [statsRes, usersRes, channelsRes] = await Promise.all([
       fetch("/api/admin/stats", { headers: { "x-admin-secret": s } }),
       fetch("/api/admin/users", { headers: { "x-admin-secret": s } }),
+      fetch("/api/admin/channels", { headers: { "x-admin-secret": s } }),
     ]);
-    if (statsRes.ok && usersRes.ok) {
+    if (statsRes.ok && usersRes.ok && channelsRes.ok) {
       setStats(await statsRes.json());
       setUsers(await usersRes.json());
+      const chData = await channelsRes.json();
+      const chList: AdminChannel[] = chData.channels ?? [];
+      setChannels(chList);
+      if (!channelSlug && chList.length > 0) setChannelSlug(chList[0].slug);
     } else {
       setError("Invalid secret or server error.");
     }
-  }, []);
+  }, [channelSlug]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -83,6 +97,7 @@ export default function AdminPage() {
     const pts = parseInt(pointsInput, 10);
     if (!pts || isNaN(pts)) return;
     if (selected.size === 0) return;
+    if (!channelSlug) return;
 
     setGranting(true);
     setGrantMsg(null);
@@ -90,11 +105,20 @@ export default function AdminPage() {
       const res = await fetch("/api/admin/grant-points", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-admin-secret": secret },
-        body: JSON.stringify({ userIds: Array.from(selected), points: pts, reason }),
+        body: JSON.stringify({
+          userIds: Array.from(selected),
+          points: pts,
+          reason,
+          channelSlug,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
-        setGrantMsg({ ok: true, text: `Granted ${pts > 0 ? "+" : ""}${pts} pts to ${data.granted} user${data.granted !== 1 ? "s" : ""}.` });
+        const ch = channels.find((c) => c.slug === channelSlug);
+        setGrantMsg({
+          ok: true,
+          text: `Granted ${pts > 0 ? "+" : ""}${pts} pts to ${data.granted} user${data.granted !== 1 ? "s" : ""} in ${ch?.name ?? channelSlug}.`,
+        });
         setPointsInput("");
         setReason("");
         setSelected(new Set());
@@ -110,7 +134,7 @@ export default function AdminPage() {
   }
 
   const pts = parseInt(pointsInput, 10);
-  const canGrant = !isNaN(pts) && pts !== 0 && selected.size > 0 && !granting;
+  const canGrant = !isNaN(pts) && pts !== 0 && selected.size > 0 && !!channelSlug && !granting;
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] p-8">
@@ -160,6 +184,29 @@ export default function AdminPage() {
           <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-5 space-y-4">
             <h2 className="text-white font-semibold text-sm">Grant Points</h2>
 
+            {/* Channel selector */}
+            <div>
+              <label className="text-zinc-500 text-xs mb-1.5 block">Target channel</label>
+              <div className="flex flex-wrap gap-2">
+                {channels.map((ch) => (
+                  <button
+                    key={ch.slug}
+                    onClick={() => setChannelSlug(ch.slug)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-sm transition-all ${
+                      channelSlug === ch.slug
+                        ? "bg-purple-900/50 border-purple-600 text-white"
+                        : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    {ch.thumbnailUrl && (
+                      <Image src={ch.thumbnailUrl} alt="" width={18} height={18} className="rounded-full" />
+                    )}
+                    {ch.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Search + select-all */}
             <div className="flex gap-3">
               <input
@@ -202,15 +249,10 @@ export default function AdminPage() {
                     <p className="text-white text-sm truncate">{u.name ?? "(no name)"}</p>
                     <p className="text-zinc-500 text-xs truncate">{u.email ?? ""}</p>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-purple-400 text-sm font-medium">{u.points.toLocaleString()} pts</p>
-                    <p className="text-zinc-600 text-xs">{u.totalEarned.toLocaleString()} earned</p>
-                  </div>
                 </label>
               ))}
             </div>
 
-            {/* Selection summary */}
             <p className="text-zinc-500 text-xs">
               {selected.size} user{selected.size !== 1 ? "s" : ""} selected
               {search && ` (showing ${filtered.length} of ${users.length})`}
@@ -243,7 +285,7 @@ export default function AdminPage() {
                 ? "Granting…"
                 : canGrant
                   ? `${pts > 0 ? "Grant +" : "Deduct "}${Math.abs(pts)} pts to ${selected.size} user${selected.size !== 1 ? "s" : ""}`
-                  : "Select users and enter points"}
+                  : "Select a channel, users, and points amount"}
             </button>
 
             {grantMsg && (

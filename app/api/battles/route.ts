@@ -10,10 +10,21 @@ export async function GET(req: NextRequest) {
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
   const limit = Math.min(20, Math.max(1, parseInt(searchParams.get("limit") ?? "10", 10)));
   const skip = (page - 1) * limit;
+  const channelSlug = searchParams.get("channelSlug");
+
+  // Resolve channel filter
+  const channel = channelSlug
+    ? await prisma.channel.findUnique({ where: { slug: channelSlug }, select: { id: true } })
+    : null;
+
+  const whereClause = {
+    status: "PENDING" as const,
+    ...(channel ? { channelId: channel.id } : {}),
+  };
 
   const [rows, total] = await Promise.all([
     prisma.cardBattle.findMany({
-      where: { status: "PENDING" },
+      where: whereClause,
       orderBy: { createdAt: "desc" },
       skip,
       take: limit,
@@ -21,12 +32,12 @@ export async function GET(req: NextRequest) {
         challenger: { select: { id: true, name: true, image: true } },
       },
     }),
-    prisma.cardBattle.count({ where: { status: "PENDING" } }),
+    prisma.cardBattle.count({ where: whereClause }),
   ]);
 
-  // Challenger's cards are intentionally omitted — blind wager mechanic
   const battles = rows.map((b) => ({
     id: b.id,
+    channelId: b.channelId,
     challengerId: b.challengerId,
     challenger: b.challenger,
     wager: b.wager,
@@ -45,7 +56,11 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { cardIds, wager } = body as { cardIds?: string[]; wager?: number };
+    const { cardIds, wager, channelSlug } = body as {
+      cardIds?: string[];
+      wager?: number;
+      channelSlug?: string;
+    };
 
     if (!Array.isArray(cardIds) || cardIds.length !== 3) {
       return NextResponse.json({ error: "Exactly 3 cardIds required" }, { status: 400 });
@@ -67,14 +82,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = await prisma.user.findUnique({ where: { id: session.user.id } });
-    if (!user || user.points < wager) {
+    const userId = session.user.id;
+
+    // Resolve channel
+    const channel = channelSlug
+      ? await prisma.channel.findUnique({ where: { slug: channelSlug }, select: { id: true } })
+      : null;
+    const channelId = channel?.id ?? null;
+
+    // Check points from per-channel stats (or global fallback)
+    const currentPoints = await getPoints(userId, channelId);
+    if (currentPoints < wager) {
       return NextResponse.json({ error: "Insufficient points" }, { status: 400 });
     }
 
+    // Verify card ownership (channel-scoped when possible)
     for (const cardId of cardIds) {
       const owns = await prisma.userCard.findFirst({
-        where: { userId: session.user.id, cardId },
+        where: {
+          userId,
+          cardId,
+          ...(channelId ? { channelId } : {}),
+        },
       });
       if (!owns) {
         return NextResponse.json({ error: `You don't own card: ${cardId}` }, { status: 400 });
@@ -83,7 +112,7 @@ export async function POST(req: NextRequest) {
 
     const activeBattle = await prisma.cardBattle.findFirst({
       where: {
-        challengerId: session.user.id,
+        challengerId: userId,
         status: "PENDING",
         challengerCardIds: { hasSome: cardIds },
       },
@@ -95,21 +124,46 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Deduct wager from channel stats
+    const deductOp = channelId
+      ? prisma.userChannelStats.upsert({
+          where: { userId_channelId: { userId, channelId } },
+          create: { userId, channelId, points: -wager, totalEarned: 0 },
+          update: { points: { decrement: wager } },
+        })
+      : prisma.user.update({ where: { id: userId }, data: { points: { decrement: wager } } });
+
     const [, battle] = await prisma.$transaction([
-      prisma.user.update({
-        where: { id: session.user.id },
-        data: { points: { decrement: wager } },
-      }),
+      deductOp,
       prisma.cardBattle.create({
-        data: { challengerId: session.user.id, challengerCardIds: cardIds, wager },
+        data: {
+          challengerId: userId,
+          challengerCardIds: cardIds,
+          wager,
+          ...(channelId ? { channelId } : {}),
+        },
       }),
     ]);
 
-    const updatedUser = await prisma.user.findUnique({ where: { id: session.user.id } });
+    const remainingPoints = await getPoints(userId, channelId);
 
-    return NextResponse.json({ battle, remainingPoints: updatedUser?.points ?? 0 });
+    return NextResponse.json({ battle, remainingPoints });
   } catch (err) {
     console.error("[POST /api/battles]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+async function getPoints(userId: string, channelId: string | null): Promise<number> {
+  if (channelId) {
+    const stats = await prisma.userChannelStats.findUnique({
+      where: { userId_channelId: { userId, channelId } },
+      select: { points: true },
+    });
+    return stats?.points ?? 0;
+  }
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { points: true } });
+  return user?.points ?? 0;
 }

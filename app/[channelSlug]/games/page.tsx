@@ -39,7 +39,7 @@ export default function GamesPage() {
   const fetchBattles = useCallback(async (p: number) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/battles?page=${p}&limit=${LIMIT}`);
+      const res = await fetch(`/api/battles?page=${p}&limit=${LIMIT}&channelSlug=${channelSlug}`);
       if (res.ok) {
         const data = await res.json();
         setBattles(data.battles);
@@ -48,7 +48,7 @@ export default function GamesPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [channelSlug]);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -61,7 +61,7 @@ export default function GamesPage() {
     const res = await fetch("/api/battles", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cardIds, wager }),
+      body: JSON.stringify({ cardIds, wager, channelSlug }),
     });
     const data = await res.json().catch(() => ({} as Record<string, unknown>));
     if (!res.ok) throw new Error((data.error as string) ?? "Failed to create challenge");

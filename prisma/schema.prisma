@@ -96,6 +96,7 @@ model Channel {
   userStats    UserChannelStats[]
   forumPosts   ForumPost[]
   videoWatches VideoWatch[]
+  battles      CardBattle[] @relation("ChannelBattles")
 }
 
 enum Rarity {
@@ -262,6 +263,8 @@ enum BattleStatus {
 
 model CardBattle {
   id                String       @id @default(cuid())
+  channelId         String?
+  channel           Channel?     @relation("ChannelBattles", fields: [channelId], references: [id])
   challengerId      String
   challenger        User         @relation("ChallengerBattles", fields: [challengerId], references: [id])
   acceptorId        String?
@@ -277,6 +280,7 @@ model CardBattle {
   resolvedAt        DateTime?
 
   @@index([status, createdAt])
+  @@index([channelId, status, createdAt])
   @@index([challengerId])
   @@index([acceptorId])
 }

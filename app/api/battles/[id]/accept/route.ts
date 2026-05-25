@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Exactly 3 cardIds required" }, { status: 400 });
     }
 
-    const acceptorCards = cardIds.map((id) => CARDS_BY_ID[id]);
+    const acceptorCards = cardIds.map((cid) => CARDS_BY_ID[cid]);
     if (acceptorCards.some((c) => !c)) {
       return NextResponse.json({ error: "One or more invalid cardIds" }, { status: 400 });
     }
@@ -45,24 +45,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       );
     }
 
-    const acceptor = await prisma.user.findUnique({ where: { id: session.user.id } });
-    if (!acceptor || acceptor.points < battle.wager) {
+    const userId = session.user.id;
+    const channelId = battle.channelId ?? null;
+
+    // Check acceptor has enough points (channel-scoped when possible)
+    const acceptorPoints = await getPoints(userId, channelId);
+    if (acceptorPoints < battle.wager) {
       return NextResponse.json({ error: "Insufficient points" }, { status: 400 });
     }
 
+    // Verify acceptor owns the cards (channel-scoped when possible)
     for (const cardId of cardIds) {
       const owns = await prisma.userCard.findFirst({
-        where: { userId: session.user.id, cardId },
+        where: { userId, cardId, ...(channelId ? { channelId } : {}) },
       });
       if (!owns) {
         return NextResponse.json({ error: `You don't own card: ${cardId}` }, { status: 400 });
       }
     }
 
-    // Guard: acceptor can't use cards they've already committed to their own pending challenges
+    // Guard: acceptor can't reuse cards already committed to a pending challenge
     const lockedBattle = await prisma.cardBattle.findFirst({
       where: {
-        challengerId: session.user.id,
+        challengerId: userId,
         status: "PENDING",
         challengerCardIds: { hasSome: cardIds },
       },
@@ -82,18 +87,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       ? null
       : overallWinner === "challenger"
       ? battle.challengerId
-      : session.user.id;
+      : userId;
 
-    const deductAcceptor = prisma.user.update({
-      where: { id: session.user.id },
-      data: { points: { decrement: battle.wager } },
-    });
+    // Build atomic ops — channel-scoped if channelId present, else global User.points
+    const deductAcceptor = channelId
+      ? prisma.userChannelStats.upsert({
+          where: { userId_channelId: { userId, channelId } },
+          create: { userId, channelId, points: -battle.wager, totalEarned: 0 },
+          update: { points: { decrement: battle.wager } },
+        })
+      : prisma.user.update({ where: { id: userId }, data: { points: { decrement: battle.wager } } });
 
     // updateMany guards against race condition — count === 0 means already resolved
     const resolveBattle = prisma.cardBattle.updateMany({
       where: { id, status: "PENDING" },
       data: {
-        acceptorId: session.user.id,
+        acceptorId: userId,
         acceptorCardIds: cardIds,
         status: "RESOLVED",
         matchResults: matchResults as object,
@@ -103,12 +112,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     const awardOps = tie
-      ? [
-          prisma.user.update({ where: { id: battle.challengerId }, data: { points: { increment: battle.wager } } }),
-          prisma.user.update({ where: { id: session.user.id }, data: { points: { increment: battle.wager } } }),
-        ]
+      ? buildAward(battle.challengerId, userId, battle.wager, channelId) // refund both
       : winnerId
-      ? [prisma.user.update({ where: { id: winnerId }, data: { points: { increment: pot } } })]
+      ? buildAward(winnerId, null, pot, channelId) // winner takes pot
       : [];
 
     const results = await prisma.$transaction([deductAcceptor, resolveBattle, ...awardOps]);
@@ -117,17 +123,49 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Battle was just accepted by someone else" }, { status: 409 });
     }
 
-    const updatedAcceptor = await prisma.user.findUnique({ where: { id: session.user.id } });
+    const remainingPoints = await getPoints(userId, channelId);
 
     return NextResponse.json({
       winnerId,
       matchResults,
       pot,
       tie,
-      remainingPoints: updatedAcceptor?.points ?? 0,
+      remainingPoints,
     });
   } catch (err) {
     console.error("[POST /api/battles/[id]/accept]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+async function getPoints(userId: string, channelId: string | null): Promise<number> {
+  if (channelId) {
+    const stats = await prisma.userChannelStats.findUnique({
+      where: { userId_channelId: { userId, channelId } },
+      select: { points: true },
+    });
+    return stats?.points ?? 0;
+  }
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { points: true } });
+  return user?.points ?? 0;
+}
+
+function buildAward(
+  primaryId: string,
+  secondaryId: string | null,
+  amount: number,
+  channelId: string | null
+) {
+  const award = (uid: string) =>
+    channelId
+      ? prisma.userChannelStats.upsert({
+          where: { userId_channelId: { userId: uid, channelId } },
+          create: { userId: uid, channelId, points: amount, totalEarned: 0 },
+          update: { points: { increment: amount } },
+        })
+      : prisma.user.update({ where: { id: uid }, data: { points: { increment: amount } } });
+
+  return secondaryId ? [award(primaryId), award(secondaryId)] : [award(primaryId)];
 }
