@@ -14,12 +14,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   if (!checkAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { slug, name, youtubeChannelId, description, thumbnailUrl } = await req.json();
+  const { slug, name, youtubeChannelId, description, thumbnailUrl, rewardTags } = await req.json();
   if (!slug || !name || !youtubeChannelId) {
     return NextResponse.json({ error: "slug, name, and youtubeChannelId are required" }, { status: 400 });
   }
   const channel = await prisma.channel.create({
-    data: { slug, name, youtubeChannelId, description, thumbnailUrl },
+    data: { slug, name, youtubeChannelId, description, thumbnailUrl, rewardTags },
   });
   return NextResponse.json({ channel }, { status: 201 });
 }

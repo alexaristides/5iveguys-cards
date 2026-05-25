@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 
 interface Channel {
@@ -14,6 +14,17 @@ interface Channel {
   _count?: { cards: number; userStats: number };
 }
 
+interface YTResult {
+  channelId: string;
+  name: string;
+  description: string;
+  thumbnailUrl: string | null;
+}
+
+function slugify(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
 export default function AdminChannelsPage() {
   const [secret, setSecret] = useState(() =>
     typeof window !== "undefined" ? sessionStorage.getItem("adminSecret") ?? "" : ""
@@ -24,6 +35,14 @@ export default function AdminChannelsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ slug: "", name: "", youtubeChannelId: "", description: "", thumbnailUrl: "", rewardTags: "" });
   const [saving, setSaving] = useState(false);
+
+  // YouTube search state
+  const [ytQuery, setYtQuery] = useState("");
+  const [ytResults, setYtResults] = useState<YTResult[]>([]);
+  const [ytLoading, setYtLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (s: string) => {
     if (!s) return;
@@ -43,6 +62,50 @@ export default function AdminChannelsPage() {
     if (secret) load(secret);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Dismiss dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function handleYtQueryChange(value: string) {
+    setYtQuery(value);
+    setShowDropdown(false);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (value.length < 2) { setYtResults([]); return; }
+    debounceRef.current = setTimeout(async () => {
+      setYtLoading(true);
+      const res = await fetch(`/api/admin/youtube/search?q=${encodeURIComponent(value)}`, {
+        headers: { "x-admin-secret": secret },
+      });
+      setYtLoading(false);
+      if (res.ok) {
+        const data = await res.json();
+        setYtResults(data.results ?? []);
+        setShowDropdown(true);
+      }
+    }, 320);
+  }
+
+  function selectYtChannel(result: YTResult) {
+    setForm({
+      slug: slugify(result.name),
+      name: result.name,
+      youtubeChannelId: result.channelId,
+      description: result.description,
+      thumbnailUrl: result.thumbnailUrl ?? "",
+      rewardTags: "",
+    });
+    setYtQuery(result.name);
+    setShowDropdown(false);
+    setYtResults([]);
+  }
+
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -57,7 +120,16 @@ export default function AdminChannelsPage() {
     if (!res.ok) { setError((data.error as string) ?? "Failed to create channel"); return; }
     setShowAdd(false);
     setForm({ slug: "", name: "", youtubeChannelId: "", description: "", thumbnailUrl: "", rewardTags: "" });
+    setYtQuery("");
     await load(secret);
+  }
+
+  function openAdd() {
+    setForm({ slug: "", name: "", youtubeChannelId: "", description: "", thumbnailUrl: "", rewardTags: "" });
+    setYtQuery("");
+    setYtResults([]);
+    setShowDropdown(false);
+    setShowAdd(true);
   }
 
   return (
@@ -69,7 +141,7 @@ export default function AdminChannelsPage() {
             <h1 className="text-white text-2xl font-bold mt-1">Channels</h1>
           </div>
           <button
-            onClick={() => setShowAdd(true)}
+            onClick={openAdd}
             className="px-4 py-2 rounded-xl bg-purple-700 hover:bg-purple-600 text-white text-sm font-medium transition-colors"
           >
             + Add Channel
@@ -129,28 +201,69 @@ export default function AdminChannelsPage() {
 
         {showAdd && (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-            <form onSubmit={handleAdd} className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-md space-y-4">
+            <form onSubmit={handleAdd} className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto">
               <h2 className="text-white font-bold text-lg">New Channel</h2>
-              {[
-                { key: "slug", label: "Slug (URL key)", placeholder: "e.g. 5iveguysfc" },
-                { key: "name", label: "Display Name", placeholder: "e.g. 5iveguysfc" },
-                { key: "youtubeChannelId", label: "YouTube Channel ID", placeholder: "UCxxxxxxxx" },
-                { key: "description", label: "Description", placeholder: "Optional" },
-                { key: "thumbnailUrl", label: "Thumbnail URL", placeholder: "https://..." },
-                { key: "rewardTags", label: "Reward Tags (comma-separated)", placeholder: "Trading Cards, Merch, Exclusive Content" },
-              ].map(({ key, label, placeholder }) => (
-                <div key={key}>
-                  <label className="text-zinc-400 text-xs mb-1 block">{label}</label>
+
+              {/* YouTube search */}
+              <div ref={dropdownRef} className="relative">
+                <label className="text-zinc-400 text-xs mb-1 block">Search YouTube Channel</label>
+                <div className="relative">
                   <input
                     type="text"
-                    placeholder={placeholder}
-                    value={form[key as keyof typeof form]}
-                    onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                    required={key === "slug" || key === "name" || key === "youtubeChannelId"}
-                    className="w-full px-3 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500"
+                    placeholder="Type a channel name..."
+                    value={ytQuery}
+                    onChange={(e) => handleYtQueryChange(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500 pr-8"
                   />
+                  {ytLoading && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">...</span>
+                  )}
                 </div>
-              ))}
+                {showDropdown && ytResults.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-zinc-800 border border-zinc-600 rounded-xl overflow-hidden shadow-xl">
+                    {ytResults.map((r) => (
+                      <button
+                        key={r.channelId}
+                        type="button"
+                        onClick={() => selectYtChannel(r)}
+                        className="flex items-center gap-3 w-full px-3 py-2.5 hover:bg-zinc-700 transition-colors text-left"
+                      >
+                        {r.thumbnailUrl && (
+                          <img src={r.thumbnailUrl} alt={r.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-white text-sm font-medium truncate">{r.name}</p>
+                          <p className="text-zinc-400 text-xs truncate">{r.channelId}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-zinc-700/50 pt-3 space-y-4">
+                {[
+                  { key: "slug", label: "Slug (URL key)", placeholder: "e.g. 5iveguysfc" },
+                  { key: "name", label: "Display Name", placeholder: "e.g. 5iveguysfc" },
+                  { key: "youtubeChannelId", label: "YouTube Channel ID", placeholder: "UCxxxxxxxx" },
+                  { key: "description", label: "Description", placeholder: "Optional" },
+                  { key: "thumbnailUrl", label: "Thumbnail URL", placeholder: "https://..." },
+                  { key: "rewardTags", label: "Reward Tags (comma-separated)", placeholder: "Trading Cards, Merch, Exclusive Content" },
+                ].map(({ key, label, placeholder }) => (
+                  <div key={key}>
+                    <label className="text-zinc-400 text-xs mb-1 block">{label}</label>
+                    <input
+                      type="text"
+                      placeholder={placeholder}
+                      value={form[key as keyof typeof form]}
+                      onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                      required={key === "slug" || key === "name" || key === "youtubeChannelId"}
+                      className="w-full px-3 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500"
+                    />
+                  </div>
+                ))}
+              </div>
+
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => setShowAdd(false)} className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-400 text-sm hover:bg-zinc-700 transition-colors">
                   Cancel

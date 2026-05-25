@@ -12,7 +12,7 @@ export async function PATCH(
   if (!checkAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { channelId } = await params;
   const data = await req.json();
-  const allowed = ["name", "description", "thumbnailUrl", "isActive", "youtubeChannelId"];
+  const allowed = ["name", "description", "thumbnailUrl", "isActive", "youtubeChannelId", "rewardTags"];
   const update = Object.fromEntries(Object.entries(data).filter(([k]) => allowed.includes(k)));
   const channel = await prisma.channel.update({ where: { id: channelId }, data: update });
   return NextResponse.json({ channel });
