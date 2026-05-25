@@ -13,6 +13,15 @@ type FilterRarity = "all" | Rarity;
 type Tab = "collection" | "history";
 const RARITY_ORDER: Rarity[] = ["legendary", "epic", "rare", "common"];
 
+function formatWatchTime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const mins = Math.floor(seconds / 60);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return rem > 0 ? `${hrs}h ${rem}m` : `${hrs}h`;
+}
+
 interface DbCard {
   id: string;
   name: string;
@@ -31,6 +40,10 @@ interface PlayerProfile {
   totalEarned: number;
   cardCount: number;
   ownedCardIds: string[];
+  watchTimeSeconds: number;
+  isSubscribed: boolean;
+  likedCount: number;
+  earlyLikedCount: number;
 }
 
 interface BattleRecord { wins: number; losses: number; ties: number }
@@ -44,6 +57,16 @@ interface BattleEntry {
   resolvedAt: string | null;
   matchResults: MatchResults | null;
   wasChallenger: boolean;
+}
+
+function StatCard({ label, value, accent, sub }: { label: string; value: string; accent?: boolean; sub?: string }) {
+  return (
+    <div className={`rounded-2xl p-4 border ${accent ? "bg-purple-900/20 border-purple-700/40" : "bg-zinc-900/80 border-zinc-800"}`}>
+      <p className="text-zinc-500 text-xs mb-1">{label}</p>
+      <p className={`text-xl font-bold ${accent ? "text-purple-300" : "text-white"}`}>{value}</p>
+      {sub && <p className="text-zinc-600 text-xs mt-0.5">{sub}</p>}
+    </div>
+  );
 }
 
 function RecordStat({ label, value, color }: { label: string; value: number; color: string }) {
@@ -74,7 +97,7 @@ export default function PlayerPage() {
 
   const fetchData = useCallback(async () => {
     const [profileRes, cardsRes] = await Promise.all([
-      fetch(`/api/players/${userId}`),
+      fetch(`/api/players/${userId}?channelSlug=${channelSlug}`),
       fetch(`/api/channels/${channelSlug}/cards`),
     ]);
     if (profileRes.ok) setProfile(await profileRes.json());
@@ -125,13 +148,15 @@ export default function PlayerPage() {
   const isCurrentUser = profile.id === session?.user?.id;
   const totalBattles = record.wins + record.losses + record.ties;
   const winRate = totalBattles > 0 ? Math.round((record.wins / totalBattles) * 100) : null;
-
-  // Build cardId → card map for battle history
   const cardMap = new Map(allCards.map((c) => [c.id, c]));
 
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
-      <main className="max-w-6xl mx-auto px-6 pt-24 pb-20">
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 right-1/4 w-96 h-96 rounded-full bg-purple-900/15 blur-3xl" />
+      </div>
+
+      <main className="relative max-w-6xl mx-auto px-6 pt-24 pb-20">
         <Link
           href={`/${channelSlug}/fans`}
           className="inline-flex items-center gap-1.5 text-zinc-500 hover:text-white text-sm mb-6 transition-colors"
@@ -142,6 +167,7 @@ export default function PlayerPage() {
           Leaderboard
         </Link>
 
+        {/* ── Header card ── */}
         <div className="flex items-center gap-4 mb-6 p-5 rounded-2xl bg-zinc-900/80 border border-zinc-800">
           <div className="relative w-16 h-16 shrink-0">
             {profile.image ? (
@@ -158,7 +184,7 @@ export default function PlayerPage() {
               {isCurrentUser && <span className="text-purple-400 text-sm font-normal ml-2">(You)</span>}
             </h1>
             <p className="text-zinc-500 text-sm mt-0.5">
-              {uniqueOwned} / {allCards.length} cards &middot; {profile.totalEarned.toLocaleString()} pts earned
+              {profile.totalEarned.toLocaleString()} pts earned
             </p>
             {totalBattles > 0 && (
               <p className="text-zinc-600 text-xs mt-0.5">
@@ -166,12 +192,45 @@ export default function PlayerPage() {
               </p>
             )}
           </div>
-          <div className="text-right shrink-0">
-            <p className="text-purple-400 font-bold text-lg">{progress}%</p>
-            <p className="text-zinc-600 text-xs">complete</p>
+
+          {/* Engagement badges */}
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            {profile.isSubscribed && (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-900/40 border border-green-700/40 text-green-400 text-xs font-medium">
+                ✓ Subscribed
+              </span>
+            )}
+            <div className="flex items-center gap-2">
+              {profile.likedCount > 0 && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-400 text-xs">
+                  👍 {profile.likedCount}
+                </span>
+              )}
+              {profile.earlyLikedCount > 0 && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-900/30 border border-yellow-700/30 text-yellow-500 text-xs">
+                  ⚡ {profile.earlyLikedCount}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
+        {/* ── Stats grid (mirrors dashboard) ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <StatCard label="Points Earned" value={profile.totalEarned.toLocaleString()} accent />
+          <StatCard label="Cards" value={profile.cardCount.toLocaleString()} sub={`${uniqueOwned} unique`} />
+          <StatCard
+            label="Watch Time"
+            value={profile.watchTimeSeconds > 0 ? formatWatchTime(profile.watchTimeSeconds) : "—"}
+          />
+          <StatCard
+            label="Collection"
+            value={`${progress}%`}
+            sub={`${uniqueOwned} / ${allCards.length}`}
+          />
+        </div>
+
+        {/* ── Tabs ── */}
         <div className="flex gap-1 mb-6 p-1 rounded-xl bg-zinc-900/60 border border-zinc-800 w-fit">
           <button
             onClick={() => setTab("collection")}
@@ -187,11 +246,16 @@ export default function PlayerPage() {
           </button>
         </div>
 
+        {/* ── Collection tab ── */}
         {tab === "collection" && (
           <>
             <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden mb-6">
-              <div className="h-full rounded-full bg-gradient-to-r from-purple-600 to-purple-400 transition-all duration-500" style={{ width: `${progress}%` }} />
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-purple-600 to-purple-400 transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              />
             </div>
+
             <div className="flex flex-wrap items-center gap-3 mb-6">
               <div className="flex gap-2 flex-wrap">
                 {(["all", "legendary", "epic", "rare", "common"] as const).map((r) => (
@@ -212,6 +276,7 @@ export default function PlayerPage() {
                 Owned only
               </button>
             </div>
+
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
               {displayCards.map((dbCard) => {
                 const card = dbCardToCard(dbCard);
@@ -229,16 +294,25 @@ export default function PlayerPage() {
                 );
               })}
             </div>
-            {displayCards.length === 0 && <div className="text-center py-20 text-zinc-600"><p className="text-lg">No cards match this filter</p></div>}
+            {displayCards.length === 0 && (
+              <div className="text-center py-20 text-zinc-600">
+                <p className="text-lg">No cards match this filter</p>
+              </div>
+            )}
           </>
         )}
 
+        {/* ── Match History tab ── */}
         {tab === "history" && (
           <>
             {battlesLoading ? (
-              <div className="flex justify-center py-20"><div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>
+              <div className="flex justify-center py-20">
+                <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+              </div>
             ) : battles.length === 0 ? (
-              <div className="text-center py-20 text-zinc-600"><p className="text-lg">No battles yet</p></div>
+              <div className="text-center py-20 text-zinc-600">
+                <p className="text-lg">No battles yet</p>
+              </div>
             ) : (
               <>
                 <div className="grid grid-cols-3 gap-3 mb-6">
@@ -268,7 +342,11 @@ export default function PlayerPage() {
                           </div>
                           <div className="min-w-0">
                             <p className="text-white text-sm font-medium truncate">vs {battle.opponent?.name ?? "Unknown"}</p>
-                            <p className="text-zinc-600 text-xs">{battle.resolvedAt ? new Date(battle.resolvedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—"}</p>
+                            <p className="text-zinc-600 text-xs">
+                              {battle.resolvedAt
+                                ? new Date(battle.resolvedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+                                : "—"}
+                            </p>
                           </div>
                         </div>
                         <div className="text-right shrink-0">
@@ -281,6 +359,7 @@ export default function PlayerPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </button>
+
                       {expandedBattle === battle.id && battle.matchResults && (
                         <div className="border-t border-zinc-800 px-4 py-3 space-y-2">
                           {battle.matchResults.rounds.map((round) => {
@@ -312,7 +391,11 @@ export default function PlayerPage() {
                             );
                           })}
                           <div className="pt-1 border-t border-zinc-800/60 text-xs text-zinc-600 flex justify-between">
-                            <span>Rounds: {battle.wasChallenger ? battle.matchResults.challengerWins : battle.matchResults.acceptorWins} – {battle.wasChallenger ? battle.matchResults.acceptorWins : battle.matchResults.challengerWins}</span>
+                            <span>
+                              Rounds: {battle.wasChallenger ? battle.matchResults.challengerWins : battle.matchResults.acceptorWins}
+                              {" – "}
+                              {battle.wasChallenger ? battle.matchResults.acceptorWins : battle.matchResults.challengerWins}
+                            </span>
                             <span>{battle.wasChallenger ? "You challenged" : "You accepted"}</span>
                           </div>
                         </div>
