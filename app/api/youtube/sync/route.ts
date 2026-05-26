@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { POINTS_CONFIG } from "@/lib/cards";
+import { createNotification } from "@/lib/notifications";
 
 export const maxDuration = 30;
 
@@ -351,6 +352,21 @@ export async function POST(req: NextRequest) {
   }
 
   await prisma.$transaction(ops);
+
+  // Notify user of points earned
+  if (pointsDelta > 0) {
+    const parts: string[] = [];
+    if (isSubscribed && !wasSubscribed) parts.push(`subscribed (+${POINTS_CONFIG.subscribe} pts)`);
+    if (newEarlyLikes.length > 0) parts.push(`${newEarlyLikes.length} early like${newEarlyLikes.length > 1 ? "s" : ""} (+${newEarlyLikes.length * POINTS_CONFIG.earlyLike} pts)`);
+    if (newRegularLikes.length > 0) parts.push(`${newRegularLikes.length} like${newRegularLikes.length > 1 ? "s" : ""} (+${newRegularLikes.length * POINTS_CONFIG.like} pts)`);
+    await createNotification({
+      userId,
+      type: "points_earned",
+      title: `You earned ${pointsDelta} points from YouTube! ⚡`,
+      body: parts.join(", "),
+      link: channelSlug ? `/${channelSlug}` : "/",
+    });
+  }
 
   const channelStats = await prisma.userChannelStats.findUnique({
     where: { userId_channelId: { userId, channelId } },

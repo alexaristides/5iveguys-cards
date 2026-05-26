@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createNotification } from "@/lib/notifications";
 
 const WELCOME_POINTS = 100;
 
@@ -31,6 +32,13 @@ export async function POST(
         points: WELCOME_POINTS,
         totalEarned: WELCOME_POINTS,
       },
+    });
+    await createNotification({
+      userId: session.user.id,
+      type: "welcome",
+      title: `Welcome to ${channel.name}! 🎉`,
+      body: `You've been awarded ${WELCOME_POINTS} points to get started.`,
+      link: `/${slug}`,
     });
     return NextResponse.json({ joined: true, welcomePoints: WELCOME_POINTS });
   }

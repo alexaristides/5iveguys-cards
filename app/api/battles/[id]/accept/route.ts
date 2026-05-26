@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { CARDS_BY_ID, CAP_COSTS, SALARY_CAP } from "@/lib/cards";
 import { resolveMatch } from "@/lib/battles";
+import { createNotification } from "@/lib/notifications";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -124,6 +125,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const remainingPoints = await getPoints(userId, channelId);
+
+    // Resolve channel slug for notification links
+    const channelSlug = channelId
+      ? (await prisma.channel.findUnique({ where: { id: channelId }, select: { slug: true } }))?.slug ?? null
+      : null;
+    const battleLink = channelSlug ? `/${channelSlug}/battles` : "/";
+
+    if (tie) {
+      await Promise.all([
+        createNotification({ userId: battle.challengerId, type: "battle_tie", title: "Your battle ended in a tie 🤝", body: `Both players get their ${battle.wager} pts back.`, link: battleLink }),
+        createNotification({ userId, type: "battle_tie", title: "Battle ended in a tie 🤝", body: `Both players get their ${battle.wager} pts back.`, link: battleLink }),
+      ]);
+    } else if (winnerId === battle.challengerId) {
+      await Promise.all([
+        createNotification({ userId: battle.challengerId, type: "battle_won", title: `You won the battle! 🏆`, body: `You took the ${pot} pt pot.`, link: battleLink }),
+        createNotification({ userId, type: "battle_lost", title: "You lost the battle 😤", body: `Better luck next time — ${battle.wager} pts lost.`, link: battleLink }),
+      ]);
+    } else {
+      await Promise.all([
+        createNotification({ userId, type: "battle_won", title: `You won the battle! 🏆`, body: `You took the ${pot} pt pot.`, link: battleLink }),
+        createNotification({ userId: battle.challengerId, type: "battle_lost", title: "You lost the battle 😤", body: `Better luck next time — ${battle.wager} pts lost.`, link: battleLink }),
+      ]);
+    }
 
     return NextResponse.json({
       winnerId,

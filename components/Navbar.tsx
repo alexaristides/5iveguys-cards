@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
+import NotificationBell from "./NotificationBell";
 
 interface ChannelInfo {
   slug: string;
@@ -100,7 +101,7 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
                   <span className="text-white text-sm font-bold">5</span>
                 </div>
                 <span className="text-white font-semibold text-sm tracking-tight hidden sm:block">
-                  Fan Rewards
+                  5iveG
                 </span>
               </Link>
             )}
@@ -128,7 +129,7 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
             </div>
           )}
 
-          {/* Right: points + avatar */}
+          {/* Right: points + bell + avatar */}
           <div className="flex items-center gap-3 shrink-0">
             {channel && (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-900/50 border border-purple-700/50">
@@ -138,6 +139,8 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
                 <span className="text-purple-200 text-xs font-semibold">{points.toLocaleString()}</span>
               </div>
             )}
+
+            <NotificationBell />
 
             {/* Avatar + dropdown */}
             <div className="relative" ref={menuRef}>

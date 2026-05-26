@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createNotification } from "@/lib/notifications";
 
 export async function POST(
   _req: Request,
@@ -10,7 +11,7 @@ export async function POST(
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { postId } = await params;
+  const { slug, postId } = await params;
   const userId = session.user.id;
 
   const existing = await prisma.forumLike.findUnique({
@@ -23,7 +24,21 @@ export async function POST(
     return NextResponse.json({ liked: false, count });
   }
 
-  await prisma.forumLike.create({ data: { postId, userId } });
+  const [, post] = await Promise.all([
+    prisma.forumLike.create({ data: { postId, userId } }),
+    prisma.forumPost.findUnique({ where: { id: postId }, select: { authorId: true, title: true } }),
+  ]);
   const count = await prisma.forumLike.count({ where: { postId } });
+
+  if (post && post.authorId !== userId) {
+    await createNotification({
+      userId: post.authorId,
+      type: "post_liked",
+      title: `${session.user.name ?? "Someone"} liked your post`,
+      body: post.title,
+      link: `/${slug}/forum/${postId}`,
+    });
+  }
+
   return NextResponse.json({ liked: true, count });
 }

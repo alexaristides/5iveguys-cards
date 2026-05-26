@@ -63,6 +63,7 @@ model User {
   forumLikes        ForumLike[]
   forumReplyLikes   ForumReplyLike[]
   videoWatches      VideoWatch[]
+  notifications     Notification[]
 }
 
 model VerificationToken {
@@ -334,6 +335,23 @@ model ForumReplyLike {
 
   @@unique([replyId, userId])
   @@index([replyId])
+}
+
+// ---------- Notifications ----------
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // post_liked | reply_liked | new_reply | new_nested_reply | points_earned | battle_won | battle_lost | battle_tie | welcome
+  title     String
+  body      String?
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 model ForumLike {

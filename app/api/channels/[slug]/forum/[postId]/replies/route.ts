@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { createNotification } from "@/lib/notifications";
 
 export async function POST(
   req: Request,
@@ -30,6 +31,35 @@ export async function POST(
     data: { postId, authorId: session.user.id, body: body.trim(), parentId: parentId ?? null },
     include: { author: { select: { id: true, name: true, image: true } } },
   });
+
+  const { slug } = await params;
+  const replierName = session.user.name ?? "Someone";
+  const link = `/${slug}/forum/${postId}`;
+
+  // Notify post author when someone replies (not if they replied to their own post)
+  if (post.authorId !== session.user.id) {
+    await createNotification({
+      userId: post.authorId,
+      type: "new_reply",
+      title: `${replierName} replied to your post`,
+      body: body.trim().slice(0, 80),
+      link,
+    });
+  }
+
+  // If nested reply, also notify the parent reply author (if different from post author and replier)
+  if (parentId) {
+    const parent = await prisma.forumReply.findUnique({ where: { id: parentId }, select: { authorId: true } });
+    if (parent && parent.authorId !== session.user.id && parent.authorId !== post.authorId) {
+      await createNotification({
+        userId: parent.authorId,
+        type: "new_nested_reply",
+        title: `${replierName} replied to your comment`,
+        body: body.trim().slice(0, 80),
+        link,
+      });
+    }
+  }
 
   return NextResponse.json({ reply }, { status: 201 });
 }
