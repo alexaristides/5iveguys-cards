@@ -135,13 +135,12 @@ model CardVote {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   cardId     String
   card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  attack     Int
-  defense    Int
-  speed      Int
-  strength   Int
-  skillMoves Int
-  iq         Int
-  aura       Int
+  goalkeeping  Int
+  strength     Int
+  speed        Int
+  agility      Int
+  celebration  Int
+  clutch       Int
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
