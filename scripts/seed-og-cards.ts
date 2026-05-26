@@ -9,7 +9,7 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const OG_SLUG = "the-other-guys";
+const OG_SLUG = "OGFC";
 const BACK_IMAGE = "/cards/og/OG_Back.jpg";
 const KIT = "OG Kit";
 
