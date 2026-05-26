@@ -64,6 +64,7 @@ model User {
   forumReplyLikes   ForumReplyLike[]
   videoWatches      VideoWatch[]
   notifications     Notification[]
+  cardVotes         CardVote[]
 }
 
 model VerificationToken {
@@ -122,8 +123,30 @@ model Card {
   availableInPacks Boolean  @default(true)
   createdAt        DateTime @default(now())
 
+  votes CardVote[]
+
   @@index([channelId])
   @@index([legacyId])
+}
+
+model CardVote {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId     String
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  attack     Int
+  defense    Int
+  speed      Int
+  strength   Int
+  skillMoves Int
+  iq         Int
+  aura       Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, cardId])
+  @@index([cardId])
 }
 
 model UserChannelStats {
