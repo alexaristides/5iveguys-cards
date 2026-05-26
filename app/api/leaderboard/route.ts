@@ -96,6 +96,16 @@ export async function GET(req: NextRequest) {
 
   // ── All-time ranking via UserChannelStats ─────────────────────────────────
   if (channelId) {
+    // Backfill fanTotalEarned for any user whose data predates the field.
+    // All pre-existing PointsEvents default to isFanPoint=true, so fanTotalEarned should equal totalEarned.
+    await prisma.$executeRaw`
+      UPDATE "UserChannelStats"
+      SET "fanTotalEarned" = "totalEarned"
+      WHERE "channelId" = ${channelId}
+        AND "fanTotalEarned" = 0
+        AND "totalEarned" > 0
+    `;
+
     const channelStats = await prisma.userChannelStats.findMany({
       where: { channelId, fanTotalEarned: { gt: 0 } },
       orderBy: { fanTotalEarned: "desc" },
