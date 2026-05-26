@@ -36,7 +36,7 @@ export default function AdminChannelsPage() {
   const [form, setForm] = useState({ slug: "", name: "", youtubeChannelId: "", description: "", thumbnailUrl: "", rewardTags: "" });
   const [saving, setSaving] = useState(false);
 
-  // YouTube search state
+  // YouTube search
   const [ytQuery, setYtQuery] = useState("");
   const [ytResults, setYtResults] = useState<YTResult[]>([]);
   const [ytLoading, setYtLoading] = useState(false);
@@ -62,7 +62,6 @@ export default function AdminChannelsPage() {
     if (secret) load(secret);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Dismiss dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -103,7 +102,6 @@ export default function AdminChannelsPage() {
     });
     setYtQuery(result.name);
     setShowDropdown(false);
-    setYtResults([]);
   }
 
   async function handleAdd(e: React.FormEvent) {
@@ -124,30 +122,31 @@ export default function AdminChannelsPage() {
     await load(secret);
   }
 
-  function openAdd() {
-    setForm({ slug: "", name: "", youtubeChannelId: "", description: "", thumbnailUrl: "", rewardTags: "" });
-    setYtQuery("");
-    setYtResults([]);
-    setShowDropdown(false);
-    setShowAdd(true);
-  }
+  const active = channels.filter((c) => c.isActive);
+  const inactive = channels.filter((c) => !c.isActive);
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] p-8">
-      <div className="max-w-3xl mx-auto space-y-6">
+    <main className="min-h-screen bg-[#0a0a0a] p-6 md:p-10">
+      <div className="max-w-4xl mx-auto space-y-7">
+
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <Link href="/admin" className="text-zinc-500 text-sm hover:text-white transition-colors">← Admin</Link>
             <h1 className="text-white text-2xl font-bold mt-1">Channels</h1>
+            {channels.length > 0 && (
+              <p className="text-zinc-500 text-sm mt-0.5">{channels.length} total · {active.length} active</p>
+            )}
           </div>
           <button
-            onClick={openAdd}
+            onClick={() => { setForm({ slug: "", name: "", youtubeChannelId: "", description: "", thumbnailUrl: "", rewardTags: "" }); setYtQuery(""); setShowAdd(true); }}
             className="px-4 py-2 rounded-xl bg-purple-700 hover:bg-purple-600 text-white text-sm font-medium transition-colors"
           >
             + Add Channel
           </button>
         </div>
 
+        {/* Secret input */}
         <div className="flex gap-3">
           <input
             type="password"
@@ -162,120 +161,135 @@ export default function AdminChannelsPage() {
             disabled={!secret || loading}
             className="px-4 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-white text-sm transition-all"
           >
-            {loading ? "..." : "Load"}
+            {loading ? "…" : "Load"}
           </button>
         </div>
 
         {error && <p className="text-sm rounded-xl p-4 bg-red-900/40 text-red-300">{error}</p>}
 
-        {channels.length > 0 && (
+        {/* Active channels */}
+        {active.length > 0 && (
           <div className="space-y-3">
-            {channels.map((ch) => (
-              <div key={ch.id} className="flex items-center gap-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800">
-                {ch.thumbnailUrl && (
-                  <img src={ch.thumbnailUrl} alt={ch.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-white font-semibold text-sm">{ch.name}</p>
-                    {!ch.isActive && <span className="text-red-400 text-[10px] border border-red-800 rounded px-1">inactive</span>}
-                  </div>
-                  <p className="text-zinc-500 text-xs">/{ch.slug} · {ch._count?.cards ?? 0} cards · {ch._count?.userStats ?? 0} fans</p>
-                </div>
-                <Link
-                  href={`/admin/channels/${ch.id}`}
-                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition-colors"
-                >
-                  Edit
-                </Link>
-                <Link
-                  href={`/admin/channels/${ch.id}/cards`}
-                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition-colors"
-                >
-                  Cards
-                </Link>
-              </div>
-            ))}
+            <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Active</p>
+            {active.map((ch) => <ChannelRow key={ch.id} channel={ch} />)}
           </div>
         )}
 
-        {showAdd && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-            <form onSubmit={handleAdd} className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto">
-              <h2 className="text-white font-bold text-lg">New Channel</h2>
-
-              {/* YouTube search */}
-              <div ref={dropdownRef} className="relative">
-                <label className="text-zinc-400 text-xs mb-1 block">Search YouTube Channel</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Type a channel name..."
-                    value={ytQuery}
-                    onChange={(e) => handleYtQueryChange(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500 pr-8"
-                  />
-                  {ytLoading && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">...</span>
-                  )}
-                </div>
-                {showDropdown && ytResults.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-zinc-800 border border-zinc-600 rounded-xl overflow-hidden shadow-xl">
-                    {ytResults.map((r) => (
-                      <button
-                        key={r.channelId}
-                        type="button"
-                        onClick={() => selectYtChannel(r)}
-                        className="flex items-center gap-3 w-full px-3 py-2.5 hover:bg-zinc-700 transition-colors text-left"
-                      >
-                        {r.thumbnailUrl && (
-                          <img src={r.thumbnailUrl} alt={r.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-white text-sm font-medium truncate">{r.name}</p>
-                          <p className="text-zinc-400 text-xs truncate">{r.channelId}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="border-t border-zinc-700/50 pt-3 space-y-4">
-                {[
-                  { key: "slug", label: "Slug (URL key)", placeholder: "e.g. 5iveguysfc" },
-                  { key: "name", label: "Display Name", placeholder: "e.g. 5iveguysfc" },
-                  { key: "youtubeChannelId", label: "YouTube Channel ID", placeholder: "UCxxxxxxxx" },
-                  { key: "description", label: "Description", placeholder: "Optional" },
-                  { key: "thumbnailUrl", label: "Thumbnail URL", placeholder: "https://..." },
-                  { key: "rewardTags", label: "Reward Tags (comma-separated)", placeholder: "Trading Cards, Merch, Exclusive Content" },
-                ].map(({ key, label, placeholder }) => (
-                  <div key={key}>
-                    <label className="text-zinc-400 text-xs mb-1 block">{label}</label>
-                    <input
-                      type="text"
-                      placeholder={placeholder}
-                      value={form[key as keyof typeof form]}
-                      onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                      required={key === "slug" || key === "name" || key === "youtubeChannelId"}
-                      className="w-full px-3 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500"
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setShowAdd(false)} className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-400 text-sm hover:bg-zinc-700 transition-colors">
-                  Cancel
-                </button>
-                <button type="submit" disabled={saving} className="flex-1 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white text-sm font-medium transition-colors">
-                  {saving ? "Saving..." : "Create"}
-                </button>
-              </div>
-            </form>
+        {/* Inactive channels */}
+        {inactive.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Inactive</p>
+            {inactive.map((ch) => <ChannelRow key={ch.id} channel={ch} />)}
           </div>
         )}
       </div>
+
+      {/* Add channel modal */}
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <form onSubmit={handleAdd} className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-white font-bold text-lg">New Channel</h2>
+
+            {/* YouTube search */}
+            <div ref={dropdownRef} className="relative">
+              <label className="text-zinc-400 text-xs mb-1 block">Search YouTube Channel</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Type a channel name…"
+                  value={ytQuery}
+                  onChange={(e) => handleYtQueryChange(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500 pr-8"
+                />
+                {ytLoading && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">…</span>}
+              </div>
+              {showDropdown && ytResults.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-zinc-800 border border-zinc-600 rounded-xl overflow-hidden shadow-xl">
+                  {ytResults.map((r) => (
+                    <button key={r.channelId} type="button" onClick={() => selectYtChannel(r)}
+                      className="flex items-center gap-3 w-full px-3 py-2.5 hover:bg-zinc-700 transition-colors text-left">
+                      {r.thumbnailUrl && <img src={r.thumbnailUrl} alt={r.name} className="w-8 h-8 rounded-full object-cover shrink-0" />}
+                      <div className="min-w-0">
+                        <p className="text-white text-sm font-medium truncate">{r.name}</p>
+                        <p className="text-zinc-400 text-xs truncate">{r.channelId}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-zinc-700/50 pt-3 space-y-4">
+              {[
+                { key: "slug",             label: "Slug (URL key)",                placeholder: "e.g. 5iveguysfc" },
+                { key: "name",             label: "Display Name",                  placeholder: "e.g. 5iveguysfc" },
+                { key: "youtubeChannelId", label: "YouTube Channel ID",            placeholder: "UCxxxxxxxx" },
+                { key: "description",      label: "Description",                   placeholder: "Optional" },
+                { key: "thumbnailUrl",     label: "Thumbnail URL",                 placeholder: "https://…" },
+                { key: "rewardTags",       label: "Reward Tags (comma-separated)", placeholder: "Trading Cards, Merch" },
+              ].map(({ key, label, placeholder }) => (
+                <div key={key}>
+                  <label className="text-zinc-400 text-xs mb-1 block">{label}</label>
+                  <input
+                    type="text"
+                    placeholder={placeholder}
+                    value={form[key as keyof typeof form]}
+                    onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                    required={["slug", "name", "youtubeChannelId"].includes(key)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setShowAdd(false)} className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-400 text-sm hover:bg-zinc-700 transition-colors">
+                Cancel
+              </button>
+              <button type="submit" disabled={saving} className="flex-1 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white text-sm font-medium transition-colors">
+                {saving ? "Saving…" : "Create"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </main>
+  );
+}
+
+function ChannelRow({ channel }: { channel: Channel }) {
+  return (
+    <Link
+      href={`/admin/channels/${channel.id}`}
+      className="flex items-center gap-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/80 transition-all group"
+    >
+      {channel.thumbnailUrl ? (
+        <img src={channel.thumbnailUrl} alt={channel.name} className="w-11 h-11 rounded-xl object-cover shrink-0" />
+      ) : (
+        <div className="w-11 h-11 rounded-xl bg-purple-900/50 flex items-center justify-center shrink-0">
+          <span className="text-white font-bold text-sm">{channel.name[0]}</span>
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-white font-semibold text-sm">{channel.name}</p>
+          {!channel.isActive && (
+            <span className="text-red-400 text-[10px] border border-red-800 rounded px-1">inactive</span>
+          )}
+        </div>
+        <p className="text-zinc-500 text-xs mt-0.5">
+          /{channel.slug} · {channel._count?.cards ?? 0} cards · {channel._count?.userStats ?? 0} fans
+        </p>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="text-right hidden sm:block">
+          <p className="text-zinc-400 text-xs">{channel._count?.userStats ?? 0} fans</p>
+          <p className="text-zinc-600 text-xs">{channel._count?.cards ?? 0} cards</p>
+        </div>
+        <svg className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </div>
+    </Link>
   );
 }

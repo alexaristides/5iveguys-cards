@@ -39,9 +39,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Insufficient points" }, { status: 400 });
   }
 
-  // Load channel cards from DB
+  // Load channel cards from DB — only cards marked available in packs
   const channelCards = await prisma.card.findMany({
-    where: { channelId },
+    where: { channelId, availableInPacks: true },
   }) as DbCard[];
 
   if (channelCards.length === 0) {

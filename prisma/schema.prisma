@@ -117,9 +117,10 @@ model Card {
   rarity       Rarity
   imageUrl     String
   backImageUrl String?
-  attribute    String?
-  description  String?
-  createdAt    DateTime @default(now())
+  attribute        String?
+  description      String?
+  availableInPacks Boolean  @default(true)
+  createdAt        DateTime @default(now())
 
   @@index([channelId])
   @@index([legacyId])

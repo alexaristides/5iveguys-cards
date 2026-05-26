@@ -233,6 +233,7 @@ export interface DbCard {
   backImageUrl: string | null;
   attribute: string | null;
   description: string | null;
+  availableInPacks?: boolean;
 }
 
 /** Infer draw weight from a DB card's kit field.

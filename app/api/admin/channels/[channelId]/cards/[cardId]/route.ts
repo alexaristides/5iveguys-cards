@@ -12,7 +12,7 @@ export async function PATCH(
   if (!checkAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { cardId } = await params;
   const data = await req.json();
-  const allowed = ["name", "kit", "rarity", "imageUrl", "backImageUrl", "attribute", "description"];
+  const allowed = ["name", "kit", "rarity", "imageUrl", "backImageUrl", "attribute", "description", "availableInPacks"];
   const update = Object.fromEntries(Object.entries(data).filter(([k]) => allowed.includes(k)));
   const card = await prisma.card.update({ where: { id: cardId }, data: update });
   return NextResponse.json({ card });
