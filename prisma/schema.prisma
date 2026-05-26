@@ -134,6 +134,7 @@ model UserChannelStats {
   channel          Channel  @relation(fields: [channelId], references: [id])
   points           Int      @default(0)
   totalEarned      Int      @default(0)
+  fanTotalEarned   Int      @default(0)
   watchTimeSeconds Int      @default(0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -230,6 +231,7 @@ model PointsEvent {
   type       String
   points     Int
   videoCount Int      @default(0)
+  isFanPoint Boolean  @default(true)
   earnedAt   DateTime @default(now())
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)

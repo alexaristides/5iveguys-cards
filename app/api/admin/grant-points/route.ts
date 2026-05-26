@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
         channelId,
         type: reason?.trim() || "admin_grant",
         points,
+        isFanPoint: false,
       })),
     }),
   ]);

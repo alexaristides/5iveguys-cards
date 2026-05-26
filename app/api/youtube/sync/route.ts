@@ -311,15 +311,15 @@ export async function POST(req: NextRequest) {
     ops.push(
       prisma.userChannelStats.upsert({
         where: { userId_channelId: { userId, channelId } },
-        create: { userId, channelId, points: pointsDelta, totalEarned: pointsDelta },
-        update: { points: { increment: pointsDelta }, totalEarned: { increment: pointsDelta } },
+        create: { userId, channelId, points: pointsDelta, totalEarned: pointsDelta, fanTotalEarned: pointsDelta },
+        update: { points: { increment: pointsDelta }, totalEarned: { increment: pointsDelta }, fanTotalEarned: { increment: pointsDelta } },
       })
     );
 
     if (isSubscribed && !wasSubscribed) {
       ops.push(
         prisma.pointsEvent.create({
-          data: { userId, channelId, type: "subscribe", points: POINTS_CONFIG.subscribe, videoCount: 0 },
+          data: { userId, channelId, type: "subscribe", points: POINTS_CONFIG.subscribe, videoCount: 0, isFanPoint: true },
         })
       );
     }
@@ -332,6 +332,7 @@ export async function POST(req: NextRequest) {
             type: "earlyLike",
             points: newEarlyLikes.length * POINTS_CONFIG.earlyLike,
             videoCount: newEarlyLikes.length,
+            isFanPoint: true,
           },
         })
       );
@@ -345,6 +346,7 @@ export async function POST(req: NextRequest) {
             type: "like",
             points: newRegularLikes.length * POINTS_CONFIG.like,
             videoCount: newRegularLikes.length,
+            isFanPoint: true,
           },
         })
       );

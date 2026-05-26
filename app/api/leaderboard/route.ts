@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
       by: ["userId"],
       where: {
         earnedAt: { gte: cutoff },
+        isFanPoint: true,
         ...(channelId ? { channelId } : {}),
       },
       _sum: { points: true },
@@ -96,8 +97,8 @@ export async function GET(req: NextRequest) {
   // ── All-time ranking via UserChannelStats ─────────────────────────────────
   if (channelId) {
     const channelStats = await prisma.userChannelStats.findMany({
-      where: { channelId, totalEarned: { gt: 0 } },
-      orderBy: { totalEarned: "desc" },
+      where: { channelId, fanTotalEarned: { gt: 0 } },
+      orderBy: { fanTotalEarned: "desc" },
       take: 50,
       include: { user: { select: { id: true, name: true, image: true } } },
     });
@@ -137,7 +138,7 @@ export async function GET(req: NextRequest) {
 
     if (!latestSnapshot || latestSnapshot.snapshotAt < oneHourAgo) {
       await prisma.rankSnapshot.createMany({
-        data: channelStats.map((s, i) => ({ userId: s.userId, channelId, rank: i + 1, totalEarned: s.totalEarned })),
+        data: channelStats.map((s, i) => ({ userId: s.userId, channelId, rank: i + 1, totalEarned: s.fanTotalEarned })),
       });
     }
 
@@ -152,7 +153,8 @@ export async function GET(req: NextRequest) {
           image: s.user.image,
           points: s.points,
           totalEarned: s.totalEarned,
-          score: s.totalEarned,
+          fanTotalEarned: s.fanTotalEarned,
+          score: s.fanTotalEarned,
           cardCount: cardCountMap.get(s.userId) ?? 0,
           isSubscribed: sync?.isSubscribed ?? false,
           ...parseYoutubeCounts(sync),
