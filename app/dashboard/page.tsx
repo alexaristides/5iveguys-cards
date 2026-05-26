@@ -87,20 +87,22 @@ function ChannelCard({ channel }: { channel: ChannelData }) {
   const inactive = !channel.isActive;
 
   return (
-    <div className={`rounded-2xl bg-zinc-900/80 border overflow-hidden transition-all group ${inactive ? "border-zinc-800/50 opacity-60" : "border-zinc-800 hover:border-purple-700/50"}`}>
+    <Link
+      href={`/${channel.slug}`}
+      className={`rounded-2xl bg-zinc-900/80 border overflow-hidden transition-all group block ${inactive ? "border-zinc-800/50 opacity-60" : "border-zinc-800 hover:border-purple-700/50 cursor-pointer"}`}
+    >
       {/* Thumbnail */}
-      <div className="h-28 relative bg-zinc-800">
+      <div className="h-20 relative bg-zinc-800">
         {channel.thumbnailUrl ? (
           <Image src={channel.thumbnailUrl} alt={channel.name} fill className={`object-cover ${inactive ? "grayscale" : ""}`} />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <div className="w-12 h-12 rounded-full bg-purple-700 flex items-center justify-center">
-              <span className="text-white text-xl font-bold">{channel.name[0]}</span>
+            <div className="w-10 h-10 rounded-full bg-purple-700 flex items-center justify-center">
+              <span className="text-white text-lg font-bold">{channel.name[0]}</span>
             </div>
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/20 to-transparent" />
-        {/* Inactive badge or rank badge */}
         {inactive ? (
           <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-zinc-800/90 border border-zinc-600/60 backdrop-blur-sm">
             <span className="text-zinc-400 text-[11px] font-medium">Inactive</span>
@@ -112,21 +114,21 @@ function ChannelCard({ channel }: { channel: ChannelData }) {
         )}
       </div>
 
-      <div className="p-4">
-        <h3 className="text-white font-bold text-base group-hover:text-purple-300 transition-colors truncate">
+      <div className="p-3">
+        <h3 className="text-white font-bold text-sm group-hover:text-purple-300 transition-colors truncate">
           {channel.name}
         </h3>
-        <p className="text-zinc-500 text-xs mt-0.5">{channel.fanCount.toLocaleString()} fans</p>
+        <p className="text-zinc-500 text-[11px] mt-0.5">{channel.fanCount.toLocaleString()} fans</p>
 
         {/* Points grid */}
-        <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-zinc-800">
+        <div className="grid grid-cols-3 gap-2 mt-2.5 pt-2.5 border-t border-zinc-800">
           <StatPill label="Fan Pts" value={stats.fanTotalEarned.toLocaleString()} />
           <StatPill label="Bonus" value={stats.bonusPoints.toLocaleString()} />
           <StatPill label="Spendable" value={stats.spendablePoints.toLocaleString()} />
         </div>
 
         {/* Cards progress */}
-        <div className="mt-3">
+        <div className="mt-2.5">
           <div className="flex items-center justify-between mb-1">
             <span className="text-zinc-500 text-[10px]">Cards {stats.cardCount}/{stats.totalCards}</span>
             <span className="text-zinc-500 text-[10px]">{progress}%</span>
@@ -139,18 +141,17 @@ function ChannelCard({ channel }: { channel: ChannelData }) {
           </div>
         </div>
 
-        <Link
-          href={`/${channel.slug}`}
-          className={`mt-4 flex items-center justify-center w-full py-2 rounded-xl text-xs font-semibold transition-all
+        <div
+          className={`mt-3 flex items-center justify-center w-full py-1.5 rounded-lg text-xs font-semibold transition-all
             ${inactive
-              ? "bg-zinc-800/60 border border-zinc-700 text-zinc-500 hover:text-zinc-300"
-              : "bg-purple-900/40 border border-purple-700/40 text-purple-300 hover:bg-purple-800/50"
+              ? "bg-zinc-800/60 border border-zinc-700 text-zinc-500"
+              : "bg-purple-900/40 border border-purple-700/40 text-purple-300 group-hover:bg-purple-800/50"
             }`}
         >
           Enter Channel →
-        </Link>
+        </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
