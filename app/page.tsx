@@ -70,6 +70,13 @@ export default function HomePage() {
         </div>
       </header>
 
+      {/* Beta banner */}
+      <div className="bg-amber-950/60 border-b border-amber-800/40 px-4 py-2.5 text-center">
+        <p className="text-amber-300/90 text-xs sm:text-sm">
+          🚧 <span className="font-semibold">Beta</span> — 5iveG is still in early testing. Points may be reset periodically before the full launch.
+        </p>
+      </div>
+
       <div className="relative max-w-6xl mx-auto px-6 py-16">
         {/* Hero */}
         <div className="text-center mb-14">
