@@ -341,9 +341,9 @@ export default function DashboardPage() {
               </div>
             ) : (
               <>
-                {/* Active/inactive toggle */}
-                {channels.some((c) => !c.isActive) && (
-                  <div className="flex items-center justify-end mb-4">
+                {/* Toolbar row */}
+                <div className="flex items-center justify-between mb-4">
+                  {channels.some((c) => !c.isActive) ? (
                     <button
                       onClick={() => setShowInactive((v) => !v)}
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all
@@ -355,14 +355,30 @@ export default function DashboardPage() {
                       <span className={`w-1.5 h-1.5 rounded-full ${showInactive ? "bg-zinc-300" : "bg-zinc-600"}`} />
                       {showInactive ? "Hiding inactive" : "Show inactive"}
                     </button>
-                  </div>
-                )}
+                  ) : <div />}
+                  <button
+                    onClick={() => setActiveTab("discover")}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-all shadow-lg shadow-purple-900/30"
+                  >
+                    <span className="text-lg leading-none">+</span> Add Channel
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {channels
                     .filter((ch) => showInactive || ch.isActive)
                     .map((ch) => (
                       <ChannelCard key={ch.slug} channel={ch} />
                     ))}
+                  {/* Add channel tile */}
+                  <button
+                    onClick={() => setActiveTab("discover")}
+                    className="rounded-2xl border-2 border-dashed border-zinc-700 hover:border-purple-600 bg-zinc-900/40 hover:bg-purple-900/10 transition-all flex flex-col items-center justify-center gap-3 min-h-[220px] group"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-zinc-800 group-hover:bg-purple-900/60 border border-zinc-700 group-hover:border-purple-600 flex items-center justify-center transition-all">
+                      <span className="text-zinc-400 group-hover:text-purple-300 text-2xl leading-none transition-colors">+</span>
+                    </div>
+                    <span className="text-zinc-500 group-hover:text-purple-300 text-sm font-medium transition-colors">Add a Channel</span>
+                  </button>
                 </div>
               </>
             )}
