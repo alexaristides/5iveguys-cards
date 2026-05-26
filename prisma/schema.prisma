@@ -135,9 +135,14 @@ model CardVote {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   cardId     String
   card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  goalkeeping  Int
-  strength     Int
+  attack       Int
+  defense      Int
   speed        Int
+  strength     Int
+  skillMoves   Int
+  iq           Int
+  aura         Int
+  goalkeeping  Int
   agility      Int
   celebration  Int
   clutch       Int

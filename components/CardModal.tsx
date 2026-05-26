@@ -26,20 +26,25 @@ const RARITY_BORDER: Record<Rarity, string> = {
   legendary: "border-amber-400",
 };
 
-type StatKey = "goalkeeping" | "strength" | "speed" | "agility" | "celebration" | "clutch";
+type StatKey = "attack" | "defense" | "speed" | "strength" | "skillMoves" | "iq" | "aura" | "goalkeeping" | "agility" | "celebration" | "clutch";
 
 const STATS: { key: StatKey; label: string; color: string; bar: string }[] = [
-  { key: "goalkeeping",  label: "Goalkeeping",  color: "text-yellow-400", bar: "bg-yellow-500" },
+  { key: "attack",       label: "Attack",       color: "text-red-400",    bar: "bg-red-500" },
+  { key: "defense",      label: "Defense",      color: "text-blue-400",   bar: "bg-blue-500" },
+  { key: "speed",        label: "Speed",        color: "text-yellow-400", bar: "bg-yellow-500" },
   { key: "strength",     label: "Strength",     color: "text-green-400",  bar: "bg-green-500" },
-  { key: "speed",        label: "Speed",        color: "text-blue-400",   bar: "bg-blue-500" },
-  { key: "agility",      label: "Agility",      color: "text-cyan-400",   bar: "bg-cyan-500" },
-  { key: "celebration",  label: "Celebration",  color: "text-purple-400", bar: "bg-purple-500" },
-  { key: "clutch",       label: "Clutch",       color: "text-red-400",    bar: "bg-red-500" },
+  { key: "skillMoves",   label: "Skill Moves",  color: "text-purple-400", bar: "bg-purple-500" },
+  { key: "iq",           label: "IQ",           color: "text-cyan-400",   bar: "bg-cyan-500" },
+  { key: "aura",         label: "Aura",         color: "text-orange-400", bar: "bg-orange-500" },
+  { key: "goalkeeping",  label: "Goalkeeping",  color: "text-amber-400",  bar: "bg-amber-500" },
+  { key: "agility",      label: "Agility",      color: "text-teal-400",   bar: "bg-teal-500" },
+  { key: "celebration",  label: "Celebration",  color: "text-pink-400",   bar: "bg-pink-500" },
+  { key: "clutch",       label: "Clutch",       color: "text-rose-400",   bar: "bg-rose-500" },
 ];
 
 type StatsMap = Record<StatKey, number>;
 
-const DEFAULT_STATS: StatsMap = { goalkeeping: 50, strength: 50, speed: 50, agility: 50, celebration: 50, clutch: 50 };
+const DEFAULT_STATS: StatsMap = { attack: 50, defense: 50, speed: 50, strength: 50, skillMoves: 50, iq: 50, aura: 50, goalkeeping: 50, agility: 50, celebration: 50, clutch: 50 };
 
 interface CardModalProps {
   card: Card;
