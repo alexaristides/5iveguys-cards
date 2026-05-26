@@ -84,13 +84,14 @@ function StatPill({ label, value, sub }: { label: string; value: string; sub?: s
 function ChannelCard({ channel }: { channel: ChannelData }) {
   const { stats } = channel;
   const progress = stats.totalCards > 0 ? Math.round((stats.cardCount / stats.totalCards) * 100) : 0;
+  const inactive = !channel.isActive;
 
   return (
-    <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800 overflow-hidden hover:border-purple-700/50 transition-all group">
+    <div className={`rounded-2xl bg-zinc-900/80 border overflow-hidden transition-all group ${inactive ? "border-zinc-800/50 opacity-60" : "border-zinc-800 hover:border-purple-700/50"}`}>
       {/* Thumbnail */}
       <div className="h-28 relative bg-zinc-800">
         {channel.thumbnailUrl ? (
-          <Image src={channel.thumbnailUrl} alt={channel.name} fill className="object-cover" />
+          <Image src={channel.thumbnailUrl} alt={channel.name} fill className={`object-cover ${inactive ? "grayscale" : ""}`} />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <div className="w-12 h-12 rounded-full bg-purple-700 flex items-center justify-center">
@@ -99,10 +100,16 @@ function ChannelCard({ channel }: { channel: ChannelData }) {
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/20 to-transparent" />
-        {/* Rank badge */}
-        <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-purple-900/80 border border-purple-700/60 backdrop-blur-sm">
-          <span className="text-purple-300 text-[11px] font-bold">#{stats.rank}</span>
-        </div>
+        {/* Inactive badge or rank badge */}
+        {inactive ? (
+          <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-zinc-800/90 border border-zinc-600/60 backdrop-blur-sm">
+            <span className="text-zinc-400 text-[11px] font-medium">Inactive</span>
+          </div>
+        ) : (
+          <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-purple-900/80 border border-purple-700/60 backdrop-blur-sm">
+            <span className="text-purple-300 text-[11px] font-bold">#{stats.rank}</span>
+          </div>
+        )}
       </div>
 
       <div className="p-4">
@@ -134,7 +141,11 @@ function ChannelCard({ channel }: { channel: ChannelData }) {
 
         <Link
           href={`/${channel.slug}`}
-          className="mt-4 flex items-center justify-center w-full py-2 rounded-xl bg-purple-900/40 border border-purple-700/40 text-purple-300 text-xs font-semibold hover:bg-purple-800/50 transition-all"
+          className={`mt-4 flex items-center justify-center w-full py-2 rounded-xl text-xs font-semibold transition-all
+            ${inactive
+              ? "bg-zinc-800/60 border border-zinc-700 text-zinc-500 hover:text-zinc-300"
+              : "bg-purple-900/40 border border-purple-700/40 text-purple-300 hover:bg-purple-800/50"
+            }`}
         >
           Enter Channel →
         </Link>
@@ -169,6 +180,7 @@ export default function DashboardPage() {
 
   // Active section tab
   const [activeTab, setActiveTab] = useState<"channels" | "collection" | "discover">("channels");
+  const [showInactive, setShowInactive] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/");
@@ -290,7 +302,7 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-2xl font-bold text-white">{user?.name ?? "Fan"}</h1>
             <p className="text-zinc-500 text-sm mt-0.5">
-              {channelsLoading ? "—" : `${channels.length} channel${channels.length !== 1 ? "s" : ""} · ${collection.length} cards`}
+              {channelsLoading ? "—" : `${channels.filter((c) => c.isActive).length} channel${channels.filter((c) => c.isActive).length !== 1 ? "s" : ""} · ${collection.length} cards`}
             </p>
           </div>
         </div>
@@ -328,11 +340,31 @@ export default function DashboardPage() {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {channels.map((ch) => (
-                  <ChannelCard key={ch.slug} channel={ch} />
-                ))}
-              </div>
+              <>
+                {/* Active/inactive toggle */}
+                {channels.some((c) => !c.isActive) && (
+                  <div className="flex items-center justify-end mb-4">
+                    <button
+                      onClick={() => setShowInactive((v) => !v)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all
+                        ${showInactive
+                          ? "bg-zinc-700/60 border-zinc-600 text-zinc-200"
+                          : "bg-zinc-900/60 border-zinc-700 text-zinc-500 hover:text-zinc-300"
+                        }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${showInactive ? "bg-zinc-300" : "bg-zinc-600"}`} />
+                      {showInactive ? "Hiding inactive" : "Show inactive"}
+                    </button>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {channels
+                    .filter((ch) => showInactive || ch.isActive)
+                    .map((ch) => (
+                      <ChannelCard key={ch.slug} channel={ch} />
+                    ))}
+                </div>
+              </>
             )}
           </>
         )}

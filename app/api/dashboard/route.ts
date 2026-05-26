@@ -30,6 +30,18 @@ export async function GET() {
     orderBy: { fanTotalEarned: "desc" },
   });
 
+  // Backfill fanTotalEarned for users whose data predates the new field.
+  // All pre-existing PointsEvents default to isFanPoint=true, so fanTotalEarned should equal totalEarned.
+  const needsBackfill = userStats.filter((s) => s.fanTotalEarned === 0 && s.totalEarned > 0);
+  if (needsBackfill.length > 0) {
+    await Promise.all(
+      needsBackfill.map((s) =>
+        prisma.userChannelStats.update({ where: { id: s.id }, data: { fanTotalEarned: s.totalEarned } })
+      )
+    );
+    needsBackfill.forEach((s) => { s.fanTotalEarned = s.totalEarned; });
+  }
+
   const channelIds = userStats.map((s) => s.channelId);
 
   const [cardCounts, totalCards, rankCounts] = await Promise.all([
