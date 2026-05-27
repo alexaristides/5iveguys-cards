@@ -71,19 +71,26 @@ export async function POST(req: NextRequest, { params }: Params) {
     where: { userId_cardId: { userId: session.user.id, cardId } },
     create: data,
     update: {
-      attack: body.attack,
-      defense: body.defense,
-      speed: body.speed,
-      strength: body.strength,
-      skillMoves: body.skillMoves,
-      iq: body.iq,
-      aura: body.aura,
-      goalkeeping: body.goalkeeping,
-      agility: body.agility,
-      celebration: body.celebration,
-      clutch: body.clutch,
+      attack: body.attack, defense: body.defense, speed: body.speed,
+      strength: body.strength, skillMoves: body.skillMoves, iq: body.iq,
+      aura: body.aura, goalkeeping: body.goalkeeping, agility: body.agility,
+      celebration: body.celebration, clutch: body.clutch,
     },
   });
+
+  // Write a rating snapshot so leaderboard history is trackable
+  const allVotes = await prisma.cardVote.findMany({
+    where: { cardId },
+    select: { attack: true, defense: true, speed: true, strength: true, skillMoves: true, iq: true, aura: true, goalkeeping: true, agility: true, celebration: true, clutch: true },
+  });
+  if (allVotes.length > 0) {
+    const total = allVotes.reduce((sum, v) =>
+      sum + v.attack + v.defense + v.speed + v.strength + v.skillMoves +
+      v.iq + v.aura + v.goalkeeping + v.agility + v.celebration + v.clutch, 0);
+    await prisma.cardRatingSnapshot.create({
+      data: { cardId, overall: total / (allVotes.length * 11), voteCount: allVotes.length },
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }

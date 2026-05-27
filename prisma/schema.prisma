@@ -123,10 +123,23 @@ model Card {
   availableInPacks Boolean  @default(true)
   createdAt        DateTime @default(now())
 
-  votes CardVote[]
+  votes           CardVote[]
+  ratingSnapshots CardRatingSnapshot[]
 
   @@index([channelId])
   @@index([legacyId])
+}
+
+model CardRatingSnapshot {
+  id         String   @id @default(cuid())
+  cardId     String
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  overall    Float
+  voteCount  Int
+  snapshotAt DateTime @default(now())
+
+  @@index([cardId, snapshotAt])
+  @@index([snapshotAt])
 }
 
 model CardVote {

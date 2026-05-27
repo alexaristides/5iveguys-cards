@@ -7,6 +7,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { dbCardToCard, Rarity } from "@/lib/cards";
 import CardDisplay from "@/components/CardDisplay";
+import CardRatingsLeaderboard from "@/components/CardRatingsLeaderboard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -180,7 +181,7 @@ export default function DashboardPage() {
   const searchDebounce = useRef<ReturnType<typeof setTimeout>>();
 
   // Active section tab
-  const [activeTab, setActiveTab] = useState<"channels" | "collection" | "discover">("channels");
+  const [activeTab, setActiveTab] = useState<"channels" | "collection" | "discover" | "cards">("channels");
   const [showInactive, setShowInactive] = useState(false);
 
   useEffect(() => {
@@ -309,15 +310,15 @@ export default function DashboardPage() {
         </div>
 
         {/* Tab nav */}
-        <div className="flex gap-1 mb-6 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1 w-fit">
-          {(["channels", "collection", "discover"] as const).map((tab) => (
+        <div className="flex gap-1 mb-6 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1 w-fit flex-wrap">
+          {(["channels", "collection", "cards", "discover"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all whitespace-nowrap
                 ${activeTab === tab ? "bg-purple-600 text-white" : "text-zinc-400 hover:text-white"}`}
             >
-              {tab === "channels" ? "My Channels" : tab === "collection" ? "Collection" : "Discover"}
+              {tab === "channels" ? "My Channels" : tab === "collection" ? "Collection" : tab === "cards" ? "🏆 Card Ratings" : "Discover"}
             </button>
           ))}
         </div>
@@ -480,6 +481,13 @@ export default function DashboardPage() {
               </>
             )}
           </>
+        )}
+
+        {/* ── Card Ratings tab ── */}
+        {activeTab === "cards" && (
+          <CardRatingsLeaderboard
+            channels={channels.map((c) => ({ id: c.slug, name: c.name, slug: c.slug }))}
+          />
         )}
 
         {/* ── Discover tab ── */}
