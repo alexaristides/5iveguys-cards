@@ -13,38 +13,49 @@ const RARITY_GLOW: Record<Rarity, string> = {
 };
 
 const RARITY_BADGE: Record<Rarity, { label: string; class: string }> = {
-  common: { label: "Common", class: "bg-zinc-700 text-zinc-300" },
-  rare: { label: "Rare", class: "bg-blue-900/80 text-blue-300 border border-blue-700/50" },
-  epic: { label: "Epic", class: "bg-purple-900/80 text-purple-300 border border-purple-700/50" },
+  common:    { label: "Common",    class: "bg-zinc-700/80 text-zinc-300" },
+  rare:      { label: "Rare",      class: "bg-blue-900/80 text-blue-300 border border-blue-700/50" },
+  epic:      { label: "Epic",      class: "bg-purple-900/80 text-purple-300 border border-purple-700/50" },
   legendary: { label: "Legendary", class: "bg-amber-900/80 text-amber-300 border border-amber-700/50" },
 };
 
 const RARITY_BORDER: Record<Rarity, string> = {
-  common: "border-zinc-600",
-  rare: "border-blue-400",
-  epic: "border-purple-400",
+  common:    "border-zinc-600",
+  rare:      "border-blue-400",
+  epic:      "border-purple-400",
   legendary: "border-amber-400",
+};
+
+/* OVR ring + accent colours per rarity */
+const OVR_STYLE: Record<Rarity, { ring: string; text: string; glow: string; bar: string }> = {
+  common:    { ring: "border-zinc-400",  text: "text-zinc-200",  glow: "",                                          bar: "from-zinc-400 to-zinc-300" },
+  rare:      { ring: "border-blue-400",  text: "text-blue-200",  glow: "shadow-[0_0_24px_rgba(96,165,250,0.45)]",   bar: "from-blue-500 to-blue-300" },
+  epic:      { ring: "border-purple-400",text: "text-purple-200",glow: "shadow-[0_0_24px_rgba(192,132,252,0.5)]",   bar: "from-purple-500 to-purple-300" },
+  legendary: { ring: "border-amber-400", text: "text-amber-200", glow: "shadow-[0_0_32px_rgba(251,191,36,0.55)]",   bar: "from-amber-500 to-amber-300" },
 };
 
 type StatKey = "attack" | "defense" | "speed" | "strength" | "skillMoves" | "iq" | "aura" | "goalkeeping" | "agility" | "celebration" | "clutch";
 
-const STATS: { key: StatKey; label: string; color: string; bar: string }[] = [
-  { key: "attack",       label: "Attack",       color: "text-red-400",    bar: "bg-red-500" },
-  { key: "defense",      label: "Defense",      color: "text-blue-400",   bar: "bg-blue-500" },
-  { key: "speed",        label: "Speed",        color: "text-yellow-400", bar: "bg-yellow-500" },
-  { key: "strength",     label: "Strength",     color: "text-green-400",  bar: "bg-green-500" },
-  { key: "skillMoves",   label: "Skill Moves",  color: "text-purple-400", bar: "bg-purple-500" },
-  { key: "iq",           label: "IQ",           color: "text-cyan-400",   bar: "bg-cyan-500" },
-  { key: "aura",         label: "Aura",         color: "text-orange-400", bar: "bg-orange-500" },
-  { key: "goalkeeping",  label: "Goalkeeping",  color: "text-amber-400",  bar: "bg-amber-500" },
-  { key: "agility",      label: "Agility",      color: "text-teal-400",   bar: "bg-teal-500" },
-  { key: "celebration",  label: "Celebration",  color: "text-pink-400",   bar: "bg-pink-500" },
-  { key: "clutch",       label: "Clutch",       color: "text-rose-400",   bar: "bg-rose-500" },
+const STATS: { key: StatKey; label: string; abbrev: string; color: string; bar: string }[] = [
+  { key: "attack",      label: "Attack",      abbrev: "ATK", color: "text-red-400",    bar: "bg-red-500" },
+  { key: "defense",     label: "Defense",     abbrev: "DEF", color: "text-blue-400",   bar: "bg-blue-500" },
+  { key: "speed",       label: "Speed",       abbrev: "SPD", color: "text-yellow-400", bar: "bg-yellow-400" },
+  { key: "strength",    label: "Strength",    abbrev: "STR", color: "text-green-400",  bar: "bg-green-500" },
+  { key: "skillMoves",  label: "Skill Moves", abbrev: "SKL", color: "text-purple-400", bar: "bg-purple-500" },
+  { key: "iq",          label: "IQ",          abbrev: "IQ",  color: "text-cyan-400",   bar: "bg-cyan-500" },
+  { key: "aura",        label: "Aura",        abbrev: "AUR", color: "text-orange-400", bar: "bg-orange-500" },
+  { key: "goalkeeping", label: "Goalkeeping", abbrev: "GKP", color: "text-amber-400",  bar: "bg-amber-500" },
+  { key: "agility",     label: "Agility",     abbrev: "AGI", color: "text-teal-400",   bar: "bg-teal-500" },
+  { key: "celebration", label: "Celebration", abbrev: "CLB", color: "text-pink-400",   bar: "bg-pink-500" },
+  { key: "clutch",      label: "Clutch",      abbrev: "CLT", color: "text-rose-400",   bar: "bg-rose-500" },
 ];
 
 type StatsMap = Record<StatKey, number>;
 
-const DEFAULT_STATS: StatsMap = { attack: 50, defense: 50, speed: 50, strength: 50, skillMoves: 50, iq: 50, aura: 50, goalkeeping: 50, agility: 50, celebration: 50, clutch: 50 };
+const DEFAULT_STATS: StatsMap = {
+  attack: 50, defense: 50, speed: 50, strength: 50, skillMoves: 50,
+  iq: 50, aura: 50, goalkeeping: 50, agility: 50, celebration: 50, clutch: 50,
+};
 
 interface CardModalProps {
   card: Card;
@@ -62,6 +73,7 @@ export default function CardModal({ card, onClose }: CardModalProps) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [voteOpen, setVoteOpen] = useState(false);
 
   const fetchVotes = useCallback(async () => {
     try {
@@ -75,18 +87,13 @@ export default function CardModal({ card, onClose }: CardModalProps) {
         setDraft(data.userVote);
         setIsLoggedIn(true);
       } else {
-        // userVote being null could mean not logged in or no vote yet
-        // We detect login state separately via session check
         setIsLoggedIn(data.userVote !== undefined);
       }
-    } catch {
-      // silently ignore
-    }
+    } catch { /* silently ignore */ }
   }, [card.id]);
 
   useEffect(() => {
     setMounted(true);
-    // Check login state
     fetch("/api/auth/session").then(async (r) => {
       if (r.ok) {
         const s = await r.json();
@@ -126,7 +133,9 @@ export default function CardModal({ card, onClose }: CardModalProps) {
   if (!mounted) return null;
 
   const badge = RARITY_BADGE[card.rarity];
+  const ovrStyle = OVR_STYLE[card.rarity];
   const currentImage = flipped && card.backImage ? card.backImage : card.image;
+  const overall = Math.round(STATS.reduce((sum, { key }) => sum + averages[key], 0) / STATS.length);
 
   return createPortal(
     <div
@@ -134,15 +143,15 @@ export default function CardModal({ card, onClose }: CardModalProps) {
       onClick={onClose}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-md" />
+      <div className="absolute inset-0 bg-black/75 backdrop-blur-xl" />
 
-      {/* Modal container */}
+      {/* Modal */}
       <div
-        className="relative z-10 flex flex-col lg:flex-row items-center lg:items-start gap-6 max-h-[90vh] overflow-y-auto"
+        className="relative z-10 flex flex-col lg:flex-row items-start gap-5 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Left: card + info */}
-        <div className="flex flex-col items-center gap-4 flex-shrink-0">
+        {/* ── Left: card image + meta ── */}
+        <div className="flex flex-col items-center gap-4 flex-shrink-0 w-full lg:w-auto">
           <div
             className={`
               relative rounded-2xl overflow-hidden border-2 cursor-pointer
@@ -150,23 +159,24 @@ export default function CardModal({ card, onClose }: CardModalProps) {
               ${RARITY_BORDER[card.rarity]}
               ${RARITY_GLOW[card.rarity]}
             `}
-            style={{ width: 260, height: 364 }}
+            style={{ width: 240, height: 336 }}
             onClick={() => card.backImage && setFlipped(!flipped)}
           >
-            <Image
-              src={currentImage}
-              alt={card.name}
-              fill
-              className="object-cover"
-              sizes="260px"
-              priority
-            />
+            <Image src={currentImage} alt={card.name} fill className="object-cover" sizes="240px" priority />
+
             {card.rarity === "legendary" && (
               <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/10 via-transparent to-amber-300/10 pointer-events-none animate-pulse" />
             )}
             {card.rarity === "epic" && (
               <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/10 via-transparent to-purple-300/10 pointer-events-none" />
             )}
+
+            {/* OVR overlay — FIFA-style bottom-left */}
+            <div className={`absolute bottom-3 left-3 flex flex-col items-center justify-center w-[52px] h-[52px] rounded-full border-2 ${ovrStyle.ring} ${ovrStyle.glow} bg-black/70 backdrop-blur-sm`}>
+              <span className={`text-[9px] font-bold uppercase tracking-widest ${ovrStyle.text} leading-none opacity-75`}>OVR</span>
+              <span className={`text-[22px] font-black leading-tight tabular-nums ${ovrStyle.text}`}>{overall}</span>
+            </div>
+
             {card.backImage && (
               <div className="absolute bottom-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-sm">
                 <svg className="w-3 h-3 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -178,9 +188,7 @@ export default function CardModal({ card, onClose }: CardModalProps) {
           </div>
 
           <div className="text-center">
-            <span className={`text-xs font-semibold px-3 py-1 rounded-full ${badge.class}`}>
-              {badge.label}
-            </span>
+            <span className={`text-xs font-semibold px-3 py-1 rounded-full ${badge.class}`}>{badge.label}</span>
             <h2 className="text-white text-xl font-bold mt-2">{card.name}</h2>
             {card.kit && <p className="text-zinc-400 text-sm">{card.kit}</p>}
             {card.description && <p className="text-zinc-500 text-sm mt-1">{card.description}</p>}
@@ -197,73 +205,126 @@ export default function CardModal({ card, onClose }: CardModalProps) {
           </button>
         </div>
 
-        {/* Right: stats panel */}
-        <div className="w-full lg:w-80 bg-zinc-900/90 border border-zinc-700/50 rounded-2xl p-5 backdrop-blur-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white font-bold text-base">Community Stats</h3>
-            <span className="text-zinc-500 text-xs">{voteCount} {voteCount === 1 ? "vote" : "votes"}</span>
-          </div>
+        {/* ── Right: stats panel ── */}
+        <div className="w-full lg:w-72 flex flex-col gap-3">
 
-          <div className="space-y-3 mb-5">
-            {STATS.map(({ key, label, color, bar }) => (
-              <div key={key}>
-                <div className="flex justify-between items-center mb-1">
-                  <span className={`text-xs font-semibold ${color}`}>{label}</span>
-                  <span className="text-white text-xs font-bold">{averages[key]}</span>
-                </div>
-                <div className="h-2 bg-zinc-700 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${bar}`}
-                    style={{ width: `${averages[key]}%` }}
-                  />
-                </div>
+          {/* Overall rating */}
+          <div className="bg-zinc-950/80 border border-white/8 rounded-2xl p-6 text-center backdrop-blur-xl">
+            <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-zinc-500 mb-5">
+              Community Rating
+            </p>
+
+            {/* Big OVR circle */}
+            <div className="flex justify-center mb-5">
+              <div className={`relative flex flex-col items-center justify-center w-28 h-28 rounded-full border-2 ${ovrStyle.ring} ${ovrStyle.glow}`}>
+                {/* subtle inner gradient */}
+                <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/5 to-transparent" />
+                <span className={`text-5xl font-black tabular-nums leading-none ${ovrStyle.text}`}>{overall}</span>
+                <span className={`text-[9px] font-bold uppercase tracking-[0.25em] mt-1 ${ovrStyle.text} opacity-60`}>OVR</span>
               </div>
-            ))}
+            </div>
+
+            {/* Rarity-coloured thin bar */}
+            <div className="h-px w-full bg-white/6 rounded-full overflow-hidden mb-4">
+              <div className={`h-full bg-gradient-to-r ${ovrStyle.bar} transition-all duration-700`} style={{ width: `${overall}%` }} />
+            </div>
+
+            <p className="text-[11px] text-zinc-600 tabular-nums">
+              {voteCount} {voteCount === 1 ? "community rating" : "community ratings"}
+            </p>
           </div>
 
-          {/* Voting section */}
-          <div className="border-t border-zinc-700/50 pt-4">
-            {isLoggedIn ? (
-              <>
-                <p className="text-zinc-400 text-xs mb-3">
-                  {userVote ? "Update your vote" : "Cast your vote"} — drag each slider to rate 0–100
-                </p>
-                <div className="space-y-3">
-                  {STATS.map(({ key, label, color }) => (
-                    <div key={key}>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className={`text-xs font-medium ${color}`}>{label}</span>
-                        <span className="text-white text-xs font-bold w-8 text-right">{draft[key]}</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        value={draft[key]}
-                        onChange={(e) =>
-                          setDraft((prev) => ({ ...prev, [key]: parseInt(e.target.value) }))
-                        }
-                        className="w-full h-1.5 accent-white cursor-pointer"
-                      />
+          {/* Attributes grid */}
+          <div className="bg-zinc-950/80 border border-white/8 rounded-2xl p-5 backdrop-blur-xl">
+            <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-zinc-500 mb-4">Attributes</p>
+
+            <div className="grid grid-cols-2 gap-x-5 gap-y-3.5">
+              {STATS.map(({ key, abbrev, color, bar }) => {
+                const val = averages[key];
+                return (
+                  <div key={key}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-[11px] font-bold uppercase tracking-wide ${color}`}>{abbrev}</span>
+                      <span className="text-white text-xs font-bold tabular-nums">{val}</span>
                     </div>
-                  ))}
-                </div>
-                <button
-                  onClick={handleSubmit}
-                  disabled={saving}
-                  className={`mt-4 w-full py-2 rounded-lg text-sm font-semibold transition-all ${
-                    saved
-                      ? "bg-green-600 text-white"
-                      : "bg-white text-zinc-900 hover:bg-zinc-100 disabled:opacity-50"
-                  }`}
-                >
-                  {saved ? "Saved!" : saving ? "Saving…" : userVote ? "Update Vote" : "Submit Vote"}
-                </button>
-              </>
-            ) : (
-              <p className="text-zinc-500 text-xs text-center">Sign in to vote on this card's stats</p>
-            )}
+                    <div className="h-[2px] bg-white/8 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${bar} transition-all duration-700`} style={{ width: `${val}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
+
+          {/* Vote section */}
+          {isLoggedIn ? (
+            <div className="bg-zinc-950/80 border border-white/8 rounded-2xl overflow-hidden backdrop-blur-xl">
+              {/* Collapsible header */}
+              <button
+                onClick={() => setVoteOpen((o) => !o)}
+                className="w-full flex items-center justify-between px-5 py-4 text-left"
+              >
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-zinc-500">
+                    {userVote ? "Your Vote" : "Cast a Vote"}
+                  </p>
+                  {userVote && (
+                    <p className="text-[11px] text-zinc-600 mt-0.5">Tap to update</p>
+                  )}
+                </div>
+                <svg
+                  className={`w-4 h-4 text-zinc-500 transition-transform duration-200 ${voteOpen ? "rotate-180" : ""}`}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {voteOpen && (
+                <div className="px-5 pb-5 border-t border-white/6">
+                  <div className="space-y-4 mt-4">
+                    {STATS.map(({ key, label, color }) => (
+                      <div key={key}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className={`text-xs font-semibold ${color}`}>{label}</span>
+                          <span className="text-white text-xs font-bold tabular-nums w-7 text-right">{draft[key]}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={draft[key]}
+                          onChange={(e) =>
+                            setDraft((prev) => ({ ...prev, [key]: parseInt(e.target.value) }))
+                          }
+                          className="w-full h-[3px] rounded-full appearance-none cursor-pointer"
+                          style={{
+                            background: `linear-gradient(to right, white ${draft[key]}%, rgba(255,255,255,0.12) ${draft[key]}%)`,
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={handleSubmit}
+                    disabled={saving}
+                    className={`mt-5 w-full py-2.5 rounded-xl text-sm font-semibold tracking-wide transition-all ${
+                      saved
+                        ? "bg-green-600 text-white"
+                        : "bg-white text-zinc-900 hover:bg-zinc-100 active:scale-[0.98] disabled:opacity-40"
+                    }`}
+                  >
+                    {saved ? "Saved!" : saving ? "Saving…" : userVote ? "Update Vote" : "Submit Vote"}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-zinc-950/80 border border-white/8 rounded-2xl px-5 py-4 backdrop-blur-xl text-center">
+              <p className="text-zinc-500 text-xs">Sign in to rate this card&apos;s attributes</p>
+            </div>
+          )}
         </div>
       </div>
     </div>,
