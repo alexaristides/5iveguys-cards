@@ -248,6 +248,44 @@ export function simulateMatch(
   return { events, userScore, cpuScore, result, userOverall: us.overall, cpuOverall: cs.overall };
 }
 
+// ── Lineup slot (used by the squad builder UI) ────────────────────────────────
+
+export interface LineupSlot {
+  position: Position;
+  posIndex: number;
+  card: FootballCard | null;
+}
+
+/** Create a fresh set of empty slots for a given formation. */
+export function buildSlots(formation: Formation): LineupSlot[] {
+  const positions = FORMATIONS[formation].positions;
+  const counters: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, ATT: 0 };
+  const slots: LineupSlot[] = [{ position: "GK", posIndex: counters.GK++, card: null }];
+  for (const pos of positions) {
+    slots.push({ position: pos, posIndex: counters[pos]++, card: null });
+  }
+  return slots;
+}
+
+/** When the user switches formation, preserve cards that fit in the new shape. */
+export function adaptSlots(current: LineupSlot[], newFormation: Formation): LineupSlot[] {
+  const next = buildSlots(newFormation);
+  for (const slot of next) {
+    const match = current.find(
+      (s) => s.position === slot.position && s.posIndex === slot.posIndex,
+    );
+    if (match) slot.card = match.card;
+  }
+  return next;
+}
+
+/** Convert filled lineup slots into AssignedPlayer[] for the match engine. */
+export function slotsToLineup(slots: LineupSlot[]): AssignedPlayer[] {
+  return slots
+    .filter((s): s is LineupSlot & { card: FootballCard } => s.card !== null)
+    .map((s) => ({ card: s.card, position: s.position, posIndex: s.posIndex }));
+}
+
 const RANDOM_FORMATIONS: Formation[] = ["2-2-2", "3-2-1", "1-3-2", "2-3-1"];
 
 export function pickCpuLineup(): { formation: Formation; lineup: AssignedPlayer[] } {
