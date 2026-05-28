@@ -94,7 +94,7 @@ function ChannelCard({ channel }: { channel: ChannelData }) {
         ${inactive ? "opacity-50 ring-1 ring-white/5" : "ring-1 ring-white/8 hover:ring-purple-500/40 hover:scale-[1.015] cursor-pointer"}`}
     >
       {/* Hero image — tall, channel name overlaid */}
-      <div className="h-36 relative bg-zinc-800">
+      <div className="h-20 relative bg-zinc-800">
         {channel.thumbnailUrl ? (
           <Image src={channel.thumbnailUrl} alt={channel.name} fill className={`object-cover ${inactive ? "grayscale" : ""}`} />
         ) : (
