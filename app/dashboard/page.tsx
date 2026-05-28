@@ -93,7 +93,7 @@ function ChannelCard({ channel }: { channel: ChannelData }) {
       className={`rounded-2xl bg-zinc-900/80 border overflow-hidden transition-all group block ${inactive ? "border-zinc-800/50 opacity-60" : "border-zinc-800 hover:border-purple-700/50 cursor-pointer"}`}
     >
       {/* Thumbnail */}
-      <div className="h-20 relative bg-zinc-800">
+      <div className="h-28 relative bg-zinc-800">
         {channel.thumbnailUrl ? (
           <Image src={channel.thumbnailUrl} alt={channel.name} fill className={`object-cover ${inactive ? "grayscale" : ""}`} />
         ) : (
@@ -142,15 +142,6 @@ function ChannelCard({ channel }: { channel: ChannelData }) {
           </div>
         </div>
 
-        <div
-          className={`mt-3 flex items-center justify-center w-full py-1.5 rounded-lg text-xs font-semibold transition-all
-            ${inactive
-              ? "bg-zinc-800/60 border border-zinc-700 text-zinc-500"
-              : "bg-purple-900/40 border border-purple-700/40 text-purple-300 group-hover:bg-purple-800/50"
-            }`}
-        >
-          Enter Channel →
-        </div>
       </div>
     </Link>
   );
