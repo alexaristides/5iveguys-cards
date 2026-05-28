@@ -115,41 +115,28 @@ function ChannelCard({ channel }: { channel: ChannelData }) {
         )}
       </div>
 
-      <div className="p-3">
-        <h3 className="text-white font-bold text-sm group-hover:text-purple-300 transition-colors truncate">
-          {channel.name}
-        </h3>
-        <p className="text-zinc-500 text-[11px] mt-0.5">{channel.fanCount.toLocaleString()} fans</p>
+      <div className="px-3 pt-2 pb-2.5">
+        <div className="flex items-baseline justify-between gap-2 mb-1.5">
+          <h3 className="text-white font-bold text-sm group-hover:text-purple-300 transition-colors truncate">{channel.name}</h3>
+          <span className="text-zinc-600 text-[10px] shrink-0">{channel.fanCount.toLocaleString()} fans</span>
+        </div>
 
         {/* Points grid */}
-        <div className="grid grid-cols-3 gap-2 mt-2.5 pt-2.5 border-t border-zinc-800">
+        <div className="grid grid-cols-3 gap-2 pt-1.5 border-t border-zinc-800">
           <StatPill label="Fan Pts" value={stats.fanTotalEarned.toLocaleString()} />
           <StatPill label="Bonus" value={stats.bonusPoints.toLocaleString()} />
           <StatPill label="Spendable" value={stats.spendablePoints.toLocaleString()} />
         </div>
 
         {/* Cards progress */}
-        <div className="mt-2.5">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-zinc-500 text-[10px]">Cards {stats.cardCount}/{stats.totalCards}</span>
-            <span className="text-zinc-500 text-[10px]">{progress}%</span>
-          </div>
-          <div className="h-1 rounded-full bg-zinc-800 overflow-hidden">
+        <div className="mt-2 flex items-center gap-2">
+          <div className="flex-1 h-1 rounded-full bg-zinc-800 overflow-hidden">
             <div
               className="h-full rounded-full bg-gradient-to-r from-purple-600 to-purple-400 transition-all"
               style={{ width: `${progress}%` }}
             />
           </div>
-        </div>
-
-        <div
-          className={`mt-3 flex items-center justify-center w-full py-1.5 rounded-lg text-xs font-semibold transition-all
-            ${inactive
-              ? "bg-zinc-800/60 border border-zinc-700 text-zinc-500"
-              : "bg-purple-900/40 border border-purple-700/40 text-purple-300 group-hover:bg-purple-800/50"
-            }`}
-        >
-          Enter Channel →
+          <span className="text-zinc-600 text-[10px] shrink-0">{stats.cardCount}/{stats.totalCards}</span>
         </div>
       </div>
     </Link>
