@@ -90,39 +90,48 @@ function ChannelCard({ channel }: { channel: ChannelData }) {
   return (
     <Link
       href={`/${channel.slug}`}
-      className={`rounded-2xl bg-zinc-900/80 border overflow-hidden transition-all group block ${inactive ? "border-zinc-800/50 opacity-60" : "border-zinc-800 hover:border-purple-700/50 cursor-pointer"}`}
+      className={`rounded-2xl overflow-hidden block group transition-all duration-200
+        ${inactive ? "opacity-50 ring-1 ring-white/5" : "ring-1 ring-white/8 hover:ring-purple-500/40 hover:scale-[1.015] cursor-pointer"}`}
     >
-      {/* Thumbnail */}
-      <div className="h-20 relative bg-zinc-800">
+      {/* Hero image — tall, channel name overlaid */}
+      <div className="h-36 relative bg-zinc-800">
         {channel.thumbnailUrl ? (
           <Image src={channel.thumbnailUrl} alt={channel.name} fill className={`object-cover ${inactive ? "grayscale" : ""}`} />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <div className="w-10 h-10 rounded-full bg-purple-700 flex items-center justify-center">
-              <span className="text-white text-lg font-bold">{channel.name[0]}</span>
+            <div className="w-12 h-12 rounded-full bg-purple-700 flex items-center justify-center">
+              <span className="text-white text-xl font-bold">{channel.name[0]}</span>
             </div>
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/20 to-transparent" />
-        {inactive ? (
-          <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-zinc-800/90 border border-zinc-600/60 backdrop-blur-sm">
-            <span className="text-zinc-400 text-[11px] font-medium">Inactive</span>
-          </div>
-        ) : (
-          <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-purple-900/80 border border-purple-700/60 backdrop-blur-sm">
-            <span className="text-purple-300 text-[11px] font-bold">#{stats.rank}</span>
-          </div>
-        )}
+        {/* Subtle bottom vignette — just enough for text legibility */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+
+        {/* Rank / status badge */}
+        <div className="absolute top-2.5 right-2.5">
+          {inactive ? (
+            <span className="px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-zinc-400 text-[11px] font-medium">
+              Inactive
+            </span>
+          ) : (
+            <span className="px-2 py-0.5 rounded-full bg-purple-600/85 backdrop-blur-md text-white text-[11px] font-bold">
+              #{stats.rank}
+            </span>
+          )}
+        </div>
+
+        {/* Channel name + fans overlaid on image */}
+        <div className="absolute bottom-0 left-0 right-0 px-3 pb-3">
+          <h3 className="text-white font-semibold text-sm group-hover:text-purple-200 transition-colors truncate leading-snug">
+            {channel.name}
+          </h3>
+          <p className="text-white/55 text-[11px] mt-0.5">{channel.fanCount.toLocaleString()} fans</p>
+        </div>
       </div>
 
-      <div className="p-3">
-        <h3 className="text-white font-bold text-sm group-hover:text-purple-300 transition-colors truncate">
-          {channel.name}
-        </h3>
-        <p className="text-zinc-500 text-[11px] mt-0.5">{channel.fanCount.toLocaleString()} fans</p>
-
-        {/* Points grid */}
-        <div className="grid grid-cols-3 gap-2 mt-2.5 pt-2.5 border-t border-zinc-800">
+      {/* Stats section */}
+      <div className="bg-zinc-900 px-3 pt-2.5 pb-3">
+        <div className="grid grid-cols-3 gap-2 pb-2.5 border-b border-zinc-800/70">
           <StatPill label="Fan Pts" value={stats.fanTotalEarned.toLocaleString()} />
           <StatPill label="Bonus" value={stats.bonusPoints.toLocaleString()} />
           <StatPill label="Spendable" value={stats.spendablePoints.toLocaleString()} />
@@ -130,7 +139,7 @@ function ChannelCard({ channel }: { channel: ChannelData }) {
 
         {/* Cards progress */}
         <div className="mt-2.5">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-1.5">
             <span className="text-zinc-500 text-[10px]">Cards {stats.cardCount}/{stats.totalCards}</span>
             <span className="text-zinc-500 text-[10px]">{progress}%</span>
           </div>
@@ -140,16 +149,6 @@ function ChannelCard({ channel }: { channel: ChannelData }) {
               style={{ width: `${progress}%` }}
             />
           </div>
-        </div>
-
-        <div
-          className={`mt-3 flex items-center justify-center w-full py-1.5 rounded-lg text-xs font-semibold transition-all
-            ${inactive
-              ? "bg-zinc-800/60 border border-zinc-700 text-zinc-500"
-              : "bg-purple-900/40 border border-purple-700/40 text-purple-300 group-hover:bg-purple-800/50"
-            }`}
-        >
-          Enter Channel →
         </div>
       </div>
     </Link>
