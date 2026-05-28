@@ -89,6 +89,7 @@ export default function ChannelDashboard() {
       if (res.ok) {
         setSyncMessage(data.pointsEarned > 0 ? `+${data.pointsEarned} points earned!` : "All caught up — keep engaging!");
         fetchUser();
+        window.dispatchEvent(new Event("pointsUpdated"));
       } else if (data.error === "reauth_required") {
         signIn("google", { callbackUrl: `/${channelSlug}` });
       } else {

@@ -79,7 +79,7 @@ export default function PacksPage() {
             pack={activePack}
             userPoints={points}
             onOpen={handleOpenPack}
-            onPointsUpdate={setPoints}
+            onPointsUpdate={(pts) => { setPoints(pts); window.dispatchEvent(new Event("pointsUpdated")); }}
           />
         </div>
       </main>

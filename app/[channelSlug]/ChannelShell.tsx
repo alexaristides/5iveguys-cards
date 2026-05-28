@@ -35,6 +35,21 @@ export default function ChannelShell({
     fetch(`/api/channels/${channel.slug}/join`, { method: "POST" }).then(() => fetchPoints());
   }, [status, channel.slug, fetchPoints]);
 
+  // Keep points fresh: re-fetch on tab focus, every 15s, and on explicit pointsUpdated events
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    const onVisible = () => { if (document.visibilityState === "visible") fetchPoints(); };
+    const onUpdated = () => fetchPoints();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pointsUpdated", onUpdated);
+    const interval = setInterval(fetchPoints, 15_000);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pointsUpdated", onUpdated);
+      clearInterval(interval);
+    };
+  }, [status, fetchPoints]);
+
   if (status === "unauthenticated") {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center gap-6">
