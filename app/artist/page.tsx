@@ -29,11 +29,10 @@ export default function ArtistPage() {
           <div className="flex flex-col items-center pt-10 pb-8 px-8 text-center">
             <div className="relative w-28 h-28 rounded-full overflow-hidden ring-4 ring-purple-600/50 mb-5 shrink-0">
               <Image
-                src="https://scontent-lhr6-1.cdninstagram.com/v/t51.82787-19/645835118_18444493102128902_7451309450422417395_n.jpg?efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby44NTguYzIifQ&_nc_ht=scontent-lhr6-1.cdninstagram.com&_nc_cat=102&_nc_oc=Q6cZ2gHksTkWw4AZdzx5wFA8Wgs062g__P9zWLGYBz44_EUqEd2HUypXhlUtPfRopRSQ61GV1kJKKW69WJL9gOaqvOXn&_nc_ohc=VLU98CrkQUAQ7kNvwF4wXY6&_nc_gid=-kU53urhg_HQheTNs_Ba3w&edm=AP4sbd4BAAAA&ccb=7-5&oh=00_Af6UBgkT-91h6FjpxOekejVxHx5b5RtliXoUBxSAwFnZTg&oe=6A165A24&_nc_sid=7a9f4b"
+                src="/merle.jpg"
                 alt="Merle"
                 fill
                 className="object-cover"
-                unoptimized
               />
             </div>
 
