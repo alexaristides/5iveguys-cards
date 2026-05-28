@@ -58,6 +58,7 @@ model User {
   challengedBattles CardBattle[] @relation("ChallengerBattles")
   acceptedBattles   CardBattle[] @relation("AcceptorBattles")
   wonBattles        CardBattle[] @relation("WonBattles")
+  footballMatches   FootballMatch[]
   forumPosts        ForumPost[]
   forumReplies      ForumReply[]
   forumLikes        ForumLike[]
@@ -89,16 +90,17 @@ model Channel {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  cards        Card[]
-  youtubeSync  YoutubeSync[]
-  videoMeta    VideoMeta[]
-  pointsEvents PointsEvent[]
-  packOpens    PackOpen[]
-  userCards    UserCard[]
-  userStats    UserChannelStats[]
-  forumPosts   ForumPost[]
-  videoWatches VideoWatch[]
-  battles      CardBattle[] @relation("ChannelBattles")
+  cards           Card[]
+  youtubeSync     YoutubeSync[]
+  videoMeta       VideoMeta[]
+  pointsEvents    PointsEvent[]
+  packOpens       PackOpen[]
+  userCards       UserCard[]
+  userStats       UserChannelStats[]
+  forumPosts      ForumPost[]
+  videoWatches    VideoWatch[]
+  battles         CardBattle[]    @relation("ChannelBattles")
+  footballMatches FootballMatch[] @relation("ChannelMatches")
 }
 
 enum Rarity {
@@ -327,6 +329,27 @@ model CardBattle {
   @@index([channelId, status, createdAt])
   @@index([challengerId])
   @@index([acceptorId])
+}
+
+// ---------- Football ----------
+
+model FootballMatch {
+  id          String   @id @default(cuid())
+  userId      String
+  channelId   String?
+  userCardIds String[]
+  cpuCardIds  String[]
+  formation   String
+  userScore   Int
+  cpuScore    Int
+  result      String   // "win" | "loss" | "draw"
+  playedAt    DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel? @relation("ChannelMatches", fields: [channelId], references: [id])
+
+  @@index([userId, playedAt])
+  @@index([channelId, userId])
 }
 
 // ---------- Forum ----------
