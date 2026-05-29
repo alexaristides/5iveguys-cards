@@ -25,6 +25,9 @@ function slugify(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+type SortKey = "name" | "fans" | "cards" | "added";
+type StatusFilter = "all" | "active" | "inactive";
+
 export default function AdminChannelsPage() {
   const [secret, setSecret] = useState(() =>
     typeof window !== "undefined" ? sessionStorage.getItem("adminSecret") ?? "" : ""
@@ -35,6 +38,11 @@ export default function AdminChannelsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ slug: "", name: "", youtubeChannelId: "", description: "", thumbnailUrl: "", rewardTags: "" });
   const [saving, setSaving] = useState(false);
+
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("added");
+  const [sortAsc, setSortAsc] = useState(true);
 
   // YouTube search
   const [ytQuery, setYtQuery] = useState("");
@@ -122,8 +130,30 @@ export default function AdminChannelsPage() {
     await load(secret);
   }
 
-  const active = channels.filter((c) => c.isActive);
-  const inactive = channels.filter((c) => !c.isActive);
+  const activeCount = channels.filter((c) => c.isActive).length;
+
+  const visible = channels
+    .filter((c) => {
+      if (statusFilter === "active" && !c.isActive) return false;
+      if (statusFilter === "inactive" && c.isActive) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        return c.name.toLowerCase().includes(q) || c.slug.toLowerCase().includes(q);
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "name")  cmp = a.name.localeCompare(b.name);
+      if (sortKey === "fans")  cmp = (a._count?.userStats ?? 0) - (b._count?.userStats ?? 0);
+      if (sortKey === "cards") cmp = (a._count?.cards ?? 0) - (b._count?.cards ?? 0);
+      return sortAsc ? cmp : -cmp;
+    });
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortAsc((v) => !v);
+    else { setSortKey(key); setSortAsc(key === "name"); }
+  }
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] p-6 md:p-10">
@@ -135,7 +165,7 @@ export default function AdminChannelsPage() {
             <Link href="/admin" className="text-zinc-500 text-sm hover:text-white transition-colors">← Admin</Link>
             <h1 className="text-white text-2xl font-bold mt-1">Channels</h1>
             {channels.length > 0 && (
-              <p className="text-zinc-500 text-sm mt-0.5">{channels.length} total · {active.length} active</p>
+              <p className="text-zinc-500 text-sm mt-0.5">{channels.length} total · {activeCount} active</p>
             )}
           </div>
           <button
@@ -167,19 +197,63 @@ export default function AdminChannelsPage() {
 
         {error && <p className="text-sm rounded-xl p-4 bg-red-900/40 text-red-300">{error}</p>}
 
-        {/* Active channels */}
-        {active.length > 0 && (
+        {/* Filter / sort bar */}
+        {channels.length > 0 && (
           <div className="space-y-3">
-            <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Active</p>
-            {active.map((ch) => <ChannelRow key={ch.id} channel={ch} />)}
-          </div>
-        )}
+            {/* Search */}
+            <input
+              type="search"
+              placeholder="Search by name or slug…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500 placeholder:text-zinc-600"
+            />
 
-        {/* Inactive channels */}
-        {inactive.length > 0 && (
-          <div className="space-y-3">
-            <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Inactive</p>
-            {inactive.map((ch) => <ChannelRow key={ch.id} channel={ch} />)}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Status tabs */}
+              <div className="flex rounded-xl overflow-hidden border border-zinc-700 text-xs">
+                {(["all", "active", "inactive"] as StatusFilter[]).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    className={`px-3 py-1.5 capitalize transition-colors ${statusFilter === s ? "bg-purple-700 text-white" : "text-zinc-400 hover:text-white hover:bg-zinc-800"}`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              <div className="h-4 w-px bg-zinc-700 hidden sm:block" />
+
+              {/* Sort buttons */}
+              <span className="text-zinc-600 text-xs hidden sm:block">Sort:</span>
+              {(["name", "fans", "cards", "added"] as SortKey[]).map((k) => (
+                <button
+                  key={k}
+                  onClick={() => toggleSort(k)}
+                  className={`px-3 py-1.5 rounded-xl text-xs capitalize transition-colors border ${sortKey === k ? "border-purple-600 text-purple-300 bg-purple-900/30" : "border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500"}`}
+                >
+                  {k}{sortKey === k ? (sortAsc ? " ↑" : " ↓") : ""}
+                </button>
+              ))}
+
+              {(search || statusFilter !== "all") && (
+                <button
+                  onClick={() => { setSearch(""); setStatusFilter("all"); }}
+                  className="ml-auto text-xs text-zinc-500 hover:text-white transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {visible.length === 0 ? (
+              <p className="text-zinc-600 text-sm text-center py-8">No channels match</p>
+            ) : (
+              <div className="space-y-3">
+                {visible.map((ch) => <ChannelRow key={ch.id} channel={ch} />)}
+              </div>
+            )}
           </div>
         )}
       </div>
