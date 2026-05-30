@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import Navbar from "@/components/Navbar";
 import PackOpening from "@/components/PackOpening";
+import { SkeletonBox } from "@/components/Skeleton";
 import { PACKS, CardResult } from "@/lib/cards";
 
 export default function PacksPage() {
@@ -38,8 +39,19 @@ export default function PacksPage() {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#0a0a0a]">
+        <main className="max-w-4xl mx-auto px-6 pt-24 pb-20">
+          <div className="text-center mb-10">
+            <SkeletonBox className="h-8 w-40 mx-auto mb-2" />
+            <SkeletonBox className="h-4 w-56 mx-auto" />
+          </div>
+          <div className="flex justify-center gap-3 mb-12">
+            {Array.from({ length: 3 }).map((_, i) => <SkeletonBox key={i} className="h-10 w-28" />)}
+          </div>
+          <div className="flex justify-center">
+            <SkeletonBox className="w-48 h-64 rounded-2xl" />
+          </div>
+        </main>
       </div>
     );
   }

@@ -91,6 +91,7 @@ export async function GET(req: NextRequest) {
         };
       }).filter(Boolean),
       currentUserRank: currentUserRank || null,
+      channelName: channel?.name ?? null,
     });
   }
 
@@ -173,6 +174,7 @@ export async function GET(req: NextRequest) {
         };
       }),
       currentUserRank: currentUserRank || null,
+      channelName: channel?.name ?? null,
     });
   }
 

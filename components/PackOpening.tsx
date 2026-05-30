@@ -22,6 +22,12 @@ const RARITY_OVERLAY_BG: Record<Rarity, string> = {
   legendary: "bg-amber-950/70 border-amber-400",
 };
 
+// Glow ring applied to non-duplicate epic/legendary reveals
+const RARITY_GLOW: Partial<Record<Rarity, string>> = {
+  epic:      "ring-2 ring-purple-400 shadow-[0_0_40px_rgba(192,132,252,0.7)] rounded-xl",
+  legendary: "ring-2 ring-amber-400 shadow-[0_0_60px_rgba(251,191,36,0.9)] animate-glow-pulse rounded-xl",
+};
+
 function DuplicateCardSlot({ card }: { card: CardResult }) {
   const [dupPhase, setDupPhase] = useState<DupPhase>("entering");
 
@@ -140,7 +146,9 @@ export default function PackOpening({ pack, userPoints, onOpen, onPointsUpdate }
     onPointsUpdate(result.remainingPoints);
 
     for (let i = 0; i < result.cards.length; i++) {
-      await new Promise((r) => setTimeout(r, 400));
+      const rarity = result.cards[i].rarity;
+      const delay = rarity === "legendary" ? 800 : rarity === "epic" ? 500 : 400;
+      await new Promise((r) => setTimeout(r, delay));
       setRevealedCount(i + 1);
     }
 
@@ -214,6 +222,7 @@ export default function PackOpening({ pack, userPoints, onOpen, onPointsUpdate }
                 initial={{ opacity: 0, scale: 0.5, y: 40 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                className={RARITY_GLOW[card.rarity] ?? ""}
               >
                 <CardDisplay card={card} size="lg" showDetails />
               </motion.div>

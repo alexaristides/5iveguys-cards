@@ -6,6 +6,18 @@ import { createPortal } from "react-dom";
 import CardModal from "./CardModal";
 import { dbCardToCard, Rarity } from "@/lib/cards";
 
+// ── Column tooltip ─────────────────────────────────────────────────────────────
+function ColumnTooltip({ text }: { text: string }) {
+  return (
+    <span className="relative group/tip inline-flex items-center ml-1 align-middle">
+      <span className="w-3.5 h-3.5 rounded-full bg-zinc-700 text-zinc-400 text-[9px] font-bold flex items-center justify-center cursor-help leading-none">?</span>
+      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-48 px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-[11px] leading-snug opacity-0 group-hover/tip:opacity-100 pointer-events-none transition-opacity z-50 whitespace-normal text-left shadow-xl">
+        {text}
+      </span>
+    </span>
+  );
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface RatedCard {
@@ -325,7 +337,7 @@ function CardRow({ card, rank, onViewCard, onViewChart }: {
 
       {/* Chart button */}
       <button
-        className="shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all text-zinc-500 hover:text-purple-400 hover:bg-purple-900/30"
+        className="shrink-0 p-1.5 rounded-lg opacity-50 hover:opacity-100 transition-all text-zinc-500 hover:text-purple-400 hover:bg-purple-900/30"
         onClick={(e) => { e.stopPropagation(); onViewChart(card); }}
         title="View rating chart"
       >
@@ -448,9 +460,9 @@ export default function CardRatingsLeaderboard({ channels }: { channels: Channel
           <span className="w-9 shrink-0" />
           <span className="flex-1 text-[10px] uppercase tracking-widest text-zinc-600 font-semibold">Card</span>
           <span className="text-[10px] uppercase tracking-widest text-zinc-600 font-semibold w-16 text-right shrink-0 hidden sm:block">Rarity</span>
-          <span className="text-[10px] uppercase tracking-widest text-zinc-600 font-semibold w-10 text-right shrink-0">OVR</span>
-          <span className="text-[10px] uppercase tracking-widest text-zinc-600 font-semibold w-10 text-right shrink-0">Chg</span>
-          <span className="text-[10px] uppercase tracking-widest text-zinc-600 font-semibold w-[72px] text-center shrink-0 hidden md:block">Trend</span>
+          <span className="text-[10px] uppercase tracking-widest text-zinc-600 font-semibold w-10 text-right shrink-0">OVR<ColumnTooltip text="Overall rating — average of all fan votes across 11 attributes" /></span>
+          <span className="text-[10px] uppercase tracking-widest text-zinc-600 font-semibold w-10 text-right shrink-0">Chg<ColumnTooltip text="Change in OVR over the selected time period" /></span>
+          <span className="text-[10px] uppercase tracking-widest text-zinc-600 font-semibold w-[72px] text-center shrink-0 hidden md:block">Trend<ColumnTooltip text="7-day rating history — click to vote or see full chart" /></span>
           <span className="w-7 shrink-0" />
         </div>
 

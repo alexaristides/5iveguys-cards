@@ -2,6 +2,7 @@
 
 import { useSession, signIn } from "next-auth/react";
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 
 interface ChannelInfo {
@@ -9,6 +10,52 @@ interface ChannelInfo {
   slug: string;
   name: string;
   thumbnailUrl: string | null;
+}
+
+function OnboardingBanner({
+  channelName,
+  channelSlug,
+  onDismiss,
+}: {
+  channelName: string;
+  channelSlug: string;
+  onDismiss: () => void;
+}) {
+  const steps = [
+    { num: 1, label: "Sync YouTube", sub: "earn your first points", href: null },
+    { num: 2, label: "Open your first pack", sub: "you have 100 pts to start!", href: `/${channelSlug}/packs` },
+    { num: 3, label: "Collect all the cards", sub: "build your collection", href: `/${channelSlug}/collection` },
+  ];
+  return (
+    <div className="mx-4 mt-20 mb-0 relative px-5 py-4 rounded-2xl bg-purple-900/25 border border-purple-700/40">
+      <button
+        onClick={onDismiss}
+        className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:text-white hover:bg-zinc-700/60 transition-colors text-sm"
+        aria-label="Dismiss"
+      >
+        ✕
+      </button>
+      <p className="text-white font-semibold text-sm mb-3">Welcome to {channelName}! Here&apos;s how to get started:</p>
+      <div className="flex flex-col sm:flex-row gap-2">
+        {steps.map((s) => {
+          const inner = (
+            <div className="flex items-start gap-3 px-3 py-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800 hover:border-purple-700/50 transition-colors flex-1">
+              <span className="w-5 h-5 rounded-full bg-purple-700/60 text-purple-300 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">{s.num}</span>
+              <div className="min-w-0">
+                <p className="text-white text-sm font-medium">{s.label}</p>
+                <p className="text-zinc-500 text-xs">{s.sub}</p>
+              </div>
+            </div>
+          );
+          return s.href ? (
+            <Link key={s.num} href={s.href} className="flex-1">{inner}</Link>
+          ) : (
+            <div key={s.num} className="flex-1">{inner}</div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export default function ChannelShell({
@@ -20,6 +67,7 @@ export default function ChannelShell({
 }) {
   const { data: session, status } = useSession();
   const [points, setPoints] = useState(0);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const fetchPoints = useCallback(async () => {
     const res = await fetch(`/api/user?channelSlug=${channel.slug}`);
@@ -32,7 +80,12 @@ export default function ChannelShell({
   // Ensure UserChannelStats exists (grants 100 pts on first visit) and fetch points
   useEffect(() => {
     if (status !== "authenticated") return;
-    fetch(`/api/channels/${channel.slug}/join`, { method: "POST" }).then(() => fetchPoints());
+    fetch(`/api/channels/${channel.slug}/join`, { method: "POST" })
+      .then((r) => r.ok ? r.json() : { joined: false })
+      .then((data: { joined: boolean }) => {
+        if (data.joined) setShowOnboarding(true);
+        fetchPoints();
+      });
   }, [status, channel.slug, fetchPoints]);
 
   // Keep points fresh: re-fetch on tab focus, every 15s, and on explicit pointsUpdated events
@@ -88,6 +141,13 @@ export default function ChannelShell({
         points={points}
         channel={{ slug: channel.slug, name: channel.name, thumbnailUrl: channel.thumbnailUrl }}
       />
+      {showOnboarding && (
+        <OnboardingBanner
+          channelName={channel.name}
+          channelSlug={channel.slug}
+          onDismiss={() => setShowOnboarding(false)}
+        />
+      )}
       {children}
     </>
   );

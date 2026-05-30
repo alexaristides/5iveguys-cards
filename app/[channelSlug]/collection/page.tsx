@@ -4,10 +4,17 @@ import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import CardDisplay from "@/components/CardDisplay";
+import { SkeletonBox } from "@/components/Skeleton";
 import { dbCardToCard, Rarity } from "@/lib/cards";
 
 type FilterRarity = "all" | Rarity;
 const RARITY_ORDER: Rarity[] = ["legendary", "epic", "rare", "common"];
+const RARITY_BADGE: Record<Rarity, string> = {
+  legendary: "bg-amber-900/70 text-amber-300",
+  epic:      "bg-purple-900/70 text-purple-300",
+  rare:      "bg-blue-900/70 text-blue-300",
+  common:    "bg-zinc-700/70 text-zinc-300",
+};
 
 interface DbCard {
   id: string;
@@ -74,10 +81,28 @@ export default function CollectionPage() {
 
   const progress = stats.total > 0 ? Math.round((stats.owned / stats.total) * 100) : 0;
 
-  if (status === "loading") {
+  if (status === "loading" || (status === "authenticated" && allCards.length === 0 && ownedIds.length === 0)) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#0a0a0a]">
+        <main className="max-w-6xl mx-auto px-6 pt-24 pb-20">
+          <div className="mb-8">
+            <SkeletonBox className="h-8 w-40 mb-2" />
+            <SkeletonBox className="h-4 w-32" />
+          </div>
+          <div className="mb-8 rounded-2xl bg-zinc-900/80 border border-zinc-800 p-5">
+            <div className="flex justify-between mb-3">
+              <SkeletonBox className="h-4 w-36" />
+              <SkeletonBox className="h-4 w-10" />
+            </div>
+            <SkeletonBox className="h-2 w-full mb-4" />
+            <div className="flex gap-6">
+              {Array.from({ length: 4 }).map((_, i) => <SkeletonBox key={i} className="h-8 w-16" />)}
+            </div>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+            {Array.from({ length: 18 }).map((_, i) => <SkeletonBox key={i} className="aspect-[2/3]" />)}
+          </div>
+        </main>
       </div>
     );
   }
@@ -107,6 +132,17 @@ export default function CollectionPage() {
             <MiniStat label="Rare" value={`${stats.rare}/${allCards.filter(c => c.rarity === "rare").length}`} color="text-blue-400" />
             <MiniStat label="Common" value={`${stats.common}/${allCards.filter(c => c.rarity === "common").length}`} color="text-zinc-400" />
           </div>
+          {(() => {
+            const totalMissing = stats.total - stats.owned;
+            if (totalMissing <= 0 || stats.total === 0) return null;
+            const pHit = totalMissing / stats.total;
+            const estimatedPacks = Math.ceil(totalMissing / (3 * pHit));
+            return (
+              <p className="text-zinc-500 text-xs mt-3">
+                ~{estimatedPacks} Team Pack{estimatedPacks !== 1 ? "s" : ""} to complete your set
+              </p>
+            );
+          })()}
         </div>
 
         <div className="flex flex-wrap items-center gap-3 mb-6">
@@ -144,10 +180,25 @@ export default function CollectionPage() {
             const owned = ownedSet.has(dbCard.id);
             const count = ownedIds.filter((id) => id === dbCard.id).length;
             return (
-              <div key={dbCard.id} className={`relative transition-all ${!owned ? "opacity-30 grayscale" : ""}`}>
+              <div
+                key={dbCard.id}
+                className={`relative group transition-all ${!owned ? "opacity-30 grayscale hover:opacity-85 hover:grayscale-0" : ""}`}
+              >
                 <CardDisplay card={card} size="sm" showDetails />
+                {/* Hover overlay — name + rarity badge */}
+                <div className="absolute inset-0 flex flex-col items-center justify-end pb-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none overflow-hidden">
+                  <div className="w-full bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-6 pb-2 px-1 flex flex-col items-center gap-0.5">
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold capitalize ${RARITY_BADGE[card.rarity]}`}>
+                      {card.rarity}
+                    </span>
+                    <p className="text-white text-[10px] font-medium text-center leading-tight drop-shadow-md line-clamp-2">
+                      {card.name}
+                    </p>
+                    {!owned && <span className="text-zinc-400 text-[9px]">Not owned</span>}
+                  </div>
+                </div>
                 {owned && count > 1 && (
-                  <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-purple-600 flex items-center justify-center">
+                  <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-purple-600 flex items-center justify-center z-10">
                     <span className="text-white text-xs font-bold">×{count}</span>
                   </div>
                 )}

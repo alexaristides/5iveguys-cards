@@ -41,6 +41,34 @@ interface PlatformStats {
   totalLikesThisWeek: number;
 }
 
+function ShareRankButton({ rank, channelName }: { rank: number; channelName: string }) {
+  const [copied, setCopied] = useState(false);
+  const text = `I'm ranked #${rank} fan of ${channelName} on 5iveG!`;
+
+  async function handleShare() {
+    try {
+      if (typeof navigator.share === "function") {
+        await navigator.share({ text, title: "5iveG Fan Rank", url: window.location.href });
+      } else {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      }
+    } catch {
+      // user dismissed share sheet — ignore
+    }
+  }
+
+  return (
+    <button
+      onClick={handleShare}
+      className="px-3 py-1 rounded-full text-xs bg-purple-900/40 border border-purple-700/40 text-purple-300 hover:bg-purple-800/40 transition-colors"
+    >
+      {copied ? "Copied!" : "Share"}
+    </button>
+  );
+}
+
 function RankChange({ change }: { change: number }) {
   if (change === 0) return <span className="text-zinc-600 text-[10px]">—</span>;
   if (change > 0) return <span className="text-green-400 text-[10px] font-semibold">↑{change}</span>;
@@ -54,6 +82,7 @@ export default function FansPage() {
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
+  const [channelName, setChannelName] = useState<string>("");
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [lbLoading, setLbLoading] = useState(false);
@@ -67,6 +96,7 @@ export default function FansPage() {
       const data = await res.json();
       setLeaderboard(data.leaderboard);
       setCurrentUserRank(data.currentUserRank);
+      if (data.channelName) setChannelName(data.channelName);
     }
     setLbLoading(false);
   }, [channelSlug]);
@@ -114,7 +144,10 @@ export default function FansPage() {
           <h1 className="text-2xl font-bold text-white">Fan Leaderboard</h1>
           <p className="text-zinc-500 text-sm mt-1">The most dedicated supporters</p>
           {currentUserRank && (
-            <p className="text-purple-400 text-sm mt-1.5 font-medium">You&apos;re ranked #{currentUserRank}</p>
+            <div className="flex items-center justify-center gap-2 mt-1.5">
+              <p className="text-purple-400 text-sm font-medium">You&apos;re ranked #{currentUserRank}</p>
+              {channelName && <ShareRankButton rank={currentUserRank} channelName={channelName} />}
+            </div>
           )}
         </div>
 

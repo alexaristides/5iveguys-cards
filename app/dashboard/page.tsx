@@ -339,6 +339,7 @@ export default function DashboardPage() {
                   {channels.some((c) => !c.isActive) ? (
                     <button
                       onClick={() => setShowInactive((v) => !v)}
+                      title="Channels you've joined but haven't interacted with yet"
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all
                         ${showInactive
                           ? "bg-zinc-700/60 border-zinc-600 text-zinc-200"
@@ -347,6 +348,7 @@ export default function DashboardPage() {
                     >
                       <span className={`w-1.5 h-1.5 rounded-full ${showInactive ? "bg-zinc-300" : "bg-zinc-600"}`} />
                       {showInactive ? "Hiding inactive" : "Show inactive"}
+                      <span className="text-zinc-600 text-[9px] hidden sm:inline">no activity</span>
                     </button>
                   ) : <div />}
                   <button

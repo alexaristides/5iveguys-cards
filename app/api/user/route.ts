@@ -43,6 +43,14 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
+  // Rank context — how many fans are ahead of this user, and total fan count
+  const [fanRankAbove, totalFanCount] = await Promise.all([
+    prisma.userChannelStats.count({
+      where: { channelId: channel.id, fanTotalEarned: { gt: stats?.fanTotalEarned ?? 0 } },
+    }),
+    prisma.userChannelStats.count({ where: { channelId: channel.id } }),
+  ]);
+
   // Look up card data for owned cards
   const cardIds = userCards.map((uc) => uc.cardId);
   const cardData = cardIds.length > 0
@@ -66,5 +74,8 @@ export async function GET(req: NextRequest) {
     cards,
     youtubeSync,
     youtubeChannelId: channel.youtubeChannelId,
+    fanRank: fanRankAbove + 1,
+    totalFanCount,
+    lastDailyReward: stats?.lastDailyReward?.toISOString() ?? null,
   });
 }

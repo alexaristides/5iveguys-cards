@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import CardDisplay from "@/components/CardDisplay";
 import PointsActivity from "@/components/PointsActivity";
+import { SkeletonBox } from "@/components/Skeleton";
 import { PACKS, dbCardToCard } from "@/lib/cards";
 import Link from "next/link";
 
@@ -38,6 +39,9 @@ interface UserData {
     earlyLikedVideoIds: string;
   } | null;
   youtubeChannelId?: string;
+  fanRank?: number;
+  totalFanCount?: number;
+  lastDailyReward?: string | null;
 }
 
 function formatWatchTime(seconds: number): string {
@@ -66,6 +70,7 @@ export default function ChannelDashboard() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [claimingDaily, setClaimingDaily] = useState(false);
 
   const fetchUser = useCallback(async () => {
     const res = await fetch(`/api/user?channelSlug=${channelSlug}`);
@@ -75,6 +80,22 @@ export default function ChannelDashboard() {
   useEffect(() => {
     if (status === "authenticated") fetchUser();
   }, [status, fetchUser]);
+
+  async function handleClaimDaily() {
+    setClaimingDaily(true);
+    try {
+      const res = await fetch(`/api/channels/${channelSlug}/daily-reward`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.claimed) {
+          fetchUser();
+          window.dispatchEvent(new Event("pointsUpdated"));
+        }
+      }
+    } finally {
+      setClaimingDaily(false);
+    }
+  }
 
   async function handleSync() {
     setSyncing(true);
@@ -104,8 +125,33 @@ export default function ChannelDashboard() {
 
   if (status === "loading" || !userData) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#0a0a0a]">
+        <main className="max-w-6xl mx-auto px-6 pt-24 pb-20">
+          <div className="mb-10">
+            <SkeletonBox className="h-3 w-24 mb-2" />
+            <SkeletonBox className="h-8 w-40" />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <div className="grid grid-cols-3 gap-4">
+                {Array.from({ length: 4 }).map((_, i) => <SkeletonBox key={i} className="h-20" />)}
+              </div>
+              <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-6">
+                <SkeletonBox className="h-4 w-28 mb-4" />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {Array.from({ length: 3 }).map((_, i) => <SkeletonBox key={i} className="h-16" />)}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-6">
+                <SkeletonBox className="h-4 w-32 mb-4" />
+                <div className="flex flex-wrap gap-3">
+                  {Array.from({ length: 6 }).map((_, i) => <SkeletonBox key={i} className="w-24 h-32" />)}
+                </div>
+              </div>
+            </div>
+            <SkeletonBox className="h-64 rounded-2xl" />
+          </div>
+        </main>
       </div>
     );
   }
@@ -138,7 +184,14 @@ export default function ChannelDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             <div className="grid grid-cols-3 gap-4">
-              <StatCard label="Points" value={userData.points.toLocaleString()} accent />
+              <div>
+                <StatCard label="Points" value={userData.points.toLocaleString()} accent />
+                {userData.totalFanCount != null && userData.totalFanCount > 1 && userData.fanRank != null && (
+                  <p className="text-purple-400 text-xs font-medium text-center mt-1.5">
+                    Top {Math.max(1, Math.ceil((userData.fanRank / userData.totalFanCount) * 100))}% of fans
+                  </p>
+                )}
+              </div>
               <StatCard label="Cards" value={String(userData.cardCount)} />
               <StatCard label="Unique" value={String(uniqueCards)} />
               <StatCard label="Watch Time" value={userData.watchTimeSeconds > 0 ? formatWatchTime(userData.watchTimeSeconds) : "—"} />
@@ -196,6 +249,10 @@ export default function ChannelDashboard() {
               syncing={syncing}
               channelSlug={channelSlug}
               youtubeChannelId={userData.youtubeChannelId}
+              watchTimeSeconds={userData.watchTimeSeconds}
+              lastDailyReward={userData.lastDailyReward}
+              onClaimDaily={handleClaimDaily}
+              claimingDaily={claimingDaily}
             />
           </div>
         </div>
