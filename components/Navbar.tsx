@@ -7,6 +7,7 @@ import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
 import NotificationBell from "./NotificationBell";
 import ThemeToggle from "./ThemeToggle";
+import ChannelSwitcher from "./ChannelSwitcher";
 
 interface ChannelInfo {
   slug: string;
@@ -79,25 +80,7 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
             )}
 
             {channel ? (
-              <>
-                <Link href="/" className="text-gray-400 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-white text-xs transition-colors hidden sm:block">
-                  ← Channels
-                </Link>
-                <Link href={`/${channel.slug}`} className="flex items-center gap-2">
-                  {channel.thumbnailUrl ? (
-                    <div className="w-8 h-8 rounded-full overflow-hidden relative">
-                      <Image src={channel.thumbnailUrl} alt={channel.name} fill className="object-cover" />
-                    </div>
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center">
-                      <span className="text-white text-sm font-bold">{channel.name[0]}</span>
-                    </div>
-                  )}
-                  <span className="text-gray-900 dark:text-white font-semibold text-sm tracking-tight hidden sm:block">
-                    {channel.name}
-                  </span>
-                </Link>
-              </>
+              <ChannelSwitcher current={channel} />
             ) : (
               <Link href="/" className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center">
@@ -170,17 +153,6 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
                     )}
                   </div>
 
-                  {channel && (
-                    <Link
-                      href="/"
-                      onClick={() => setMenuOpen(false)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                    >
-                      <span>🏠</span>
-                      All Channels
-                    </Link>
-                  )}
-
                   <Link
                     href="/settings"
                     onClick={() => setMenuOpen(false)}
@@ -225,18 +197,7 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
           >
             <div className="flex items-center justify-between px-4 h-14 border-b border-gray-100 dark:border-white/5 shrink-0">
               {channel ? (
-                <div className="flex items-center gap-2">
-                  {channel.thumbnailUrl ? (
-                    <div className="w-7 h-7 rounded-full overflow-hidden relative">
-                      <Image src={channel.thumbnailUrl} alt={channel.name} fill className="object-cover" />
-                    </div>
-                  ) : (
-                    <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">{channel.name[0]}</span>
-                    </div>
-                  )}
-                  <span className="text-gray-900 dark:text-white text-sm font-semibold truncate">{channel.name}</span>
-                </div>
+                <ChannelSwitcher current={channel} onSwitch={() => setSidebarOpen(false)} />
               ) : (
                 <span className="text-gray-900 dark:text-white text-sm font-semibold">Menu</span>
               )}
@@ -272,17 +233,6 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
               })}
             </nav>
 
-            <div className="border-t border-gray-100 dark:border-white/5 py-3 shrink-0">
-              {channel && (
-                <Link
-                  href="/"
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                >
-                  <span className="text-lg">🏠</span>
-                  All Channels
-                </Link>
-              )}
-            </div>
           </div>
         </>
       )}
