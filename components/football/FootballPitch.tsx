@@ -10,28 +10,28 @@ type PositionMap = { GK: number[][]; DEF: number[][]; MID: number[][]; ATT: numb
 
 const USER_POSITIONS: Record<Formation, PositionMap> = {
   "2-2-2": {
-    GK:  [[50, 89]],
-    DEF: [[28, 74], [72, 74]],
-    MID: [[28, 59], [72, 59]],
-    ATT: [[35, 44], [65, 44]],
+    GK:  [[50, 90]],
+    DEF: [[28, 76], [72, 76]],
+    MID: [[28, 62], [72, 62]],
+    ATT: [[35, 47], [65, 47]],
   },
   "3-2-1": {
-    GK:  [[50, 89]],
-    DEF: [[18, 74], [50, 74], [82, 74]],
-    MID: [[32, 59], [68, 59]],
-    ATT: [[50, 44]],
+    GK:  [[50, 90]],
+    DEF: [[18, 76], [50, 76], [82, 76]],
+    MID: [[32, 62], [68, 62]],
+    ATT: [[50, 47]],
   },
   "1-3-2": {
-    GK:  [[50, 89]],
-    DEF: [[50, 74]],
-    MID: [[18, 60], [50, 60], [82, 60]],
-    ATT: [[33, 44], [67, 44]],
+    GK:  [[50, 90]],
+    DEF: [[50, 76]],
+    MID: [[18, 62], [50, 62], [82, 62]],
+    ATT: [[33, 47], [67, 47]],
   },
   "2-3-1": {
-    GK:  [[50, 89]],
-    DEF: [[30, 74], [70, 74]],
-    MID: [[18, 60], [50, 60], [82, 60]],
-    ATT: [[50, 44]],
+    GK:  [[50, 90]],
+    DEF: [[30, 76], [70, 76]],
+    MID: [[18, 62], [50, 62], [82, 62]],
+    ATT: [[50, 47]],
   },
 };
 
@@ -223,9 +223,9 @@ export default function FootballPitch({
         }}
       >
         <div
-          className={`w-7 h-7 rounded-full ring-2 ${RARITY_RING[player.card.rarity]}
+          className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full ring-2 ${RARITY_RING[player.card.rarity]}
             ${team === "user" ? "bg-blue-600" : "bg-red-600"}
-            flex items-center justify-center text-[8px] font-black text-white shadow-lg`}
+            flex items-center justify-center text-[6px] sm:text-[8px] font-black text-white shadow-lg`}
           title={`${player.card.name} (${player.position})`}
         >
           {player.card.name.slice(0, 2).toUpperCase()}

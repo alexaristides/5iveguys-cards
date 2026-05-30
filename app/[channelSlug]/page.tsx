@@ -183,7 +183,7 @@ export default function ChannelDashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
                 <StatCard label="Points" value={userData.points.toLocaleString()} accent />
                 {userData.totalFanCount != null && userData.totalFanCount > 1 && userData.fanRank != null && (
@@ -233,9 +233,11 @@ export default function ChannelDashboard() {
                     View all →
                   </Link>
                 </div>
-                <div className="flex flex-wrap gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {recentCards.map((card, i) => (
-                    <CardDisplay key={i} card={card} size="sm" showDetails />
+                    <div key={i} className="flex justify-center">
+                      <CardDisplay card={card} size="sm" showDetails />
+                    </div>
                   ))}
                 </div>
               </div>

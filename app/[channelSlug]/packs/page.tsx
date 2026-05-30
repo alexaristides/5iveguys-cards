@@ -68,20 +68,22 @@ export default function PacksPage() {
           <p className="text-zinc-500">Spend your points to reveal new cards</p>
         </div>
 
-        <div className="flex justify-center gap-3 mb-12">
-          {PACKS.map((pack) => (
-            <button
-              key={pack.id}
-              onClick={() => setSelectedPack(pack.id)}
-              className={`px-5 py-2.5 rounded-xl font-medium text-sm transition-all border
-                ${selectedPack === pack.id
-                  ? "bg-purple-900/60 border-purple-600 text-white"
-                  : "bg-zinc-900/60 border-zinc-700 text-zinc-400 hover:border-zinc-600 hover:text-white"
-                }`}
-            >
-              {pack.name}
-            </button>
-          ))}
+        <div className="overflow-x-auto -mx-6 px-6 mb-12">
+          <div className="flex justify-center gap-3 min-w-max mx-auto">
+            {PACKS.map((pack) => (
+              <button
+                key={pack.id}
+                onClick={() => setSelectedPack(pack.id)}
+                className={`shrink-0 px-5 py-2.5 rounded-xl font-medium text-sm transition-all border
+                  ${selectedPack === pack.id
+                    ? "bg-purple-900/60 border-purple-600 text-white"
+                    : "bg-zinc-900/60 border-zinc-700 text-zinc-400 hover:border-zinc-600 hover:text-white"
+                  }`}
+              >
+                {pack.name}
+              </button>
+            ))}
+          </div>
         </div>
 
         <p className="text-center text-zinc-500 text-sm mb-8">{activePack.description}</p>

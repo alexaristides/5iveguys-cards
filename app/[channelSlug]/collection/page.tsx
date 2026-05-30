@@ -126,7 +126,7 @@ export default function CollectionPage() {
               style={{ width: `${progress}%` }}
             />
           </div>
-          <div className="flex gap-6 mt-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-5 gap-y-3 mt-4">
             <MiniStat label="Legendary" value={`${stats.legendary}/${allCards.filter(c => c.rarity === "legendary").length}`} color="text-amber-400" />
             <MiniStat label="Epic" value={`${stats.epic}/${allCards.filter(c => c.rarity === "epic").length}`} color="text-purple-400" />
             <MiniStat label="Rare" value={`${stats.rare}/${allCards.filter(c => c.rarity === "rare").length}`} color="text-blue-400" />

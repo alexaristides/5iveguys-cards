@@ -151,20 +151,22 @@ export default function FansPage() {
           )}
         </div>
 
-        <div className="flex gap-1.5 justify-center mb-5">
-          {PERIODS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setPeriod(key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all
-                ${period === key
-                  ? "bg-purple-600 text-white"
-                  : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700"
-                }`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="overflow-x-auto -mx-4 px-4 mb-5">
+          <div className="flex gap-1.5 justify-center min-w-max mx-auto">
+            {PERIODS.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setPeriod(key)}
+                className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all
+                  ${period === key
+                    ? "bg-purple-600 text-white"
+                    : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700"
+                  }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {stats && (
