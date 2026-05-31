@@ -721,15 +721,15 @@ export default function FootballPitch({
         </div>
       </div>
 
-      {/* Commentary + stats */}
-      <div className="flex-1 flex flex-col gap-2 min-h-0">
-        <div className="flex items-center gap-2 mb-1">
+      {/* Commentary + stats — on desktop, cap to exact pitch height so the page doesn't grow */}
+      <div className="flex-1 flex flex-col gap-2 min-h-0 lg:h-96 xl:h-[432px] lg:overflow-hidden">
+        <div className="flex items-center gap-2 mb-1 shrink-0">
           <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
           <span className="text-zinc-400 text-xs font-medium uppercase tracking-wider">Live Commentary</span>
           <span className="ml-auto text-zinc-500 text-xs font-mono">{currentMinute}&apos;</span>
         </div>
 
-        <div className="flex flex-col gap-1.5 overflow-y-auto h-56 lg:h-72 pr-1">
+        <div className="flex flex-col gap-1.5 overflow-y-auto h-48 lg:flex-1 lg:h-auto pr-1">
           {feed.length === 0 && <div className="text-zinc-600 text-sm italic">Waiting for kick off…</div>}
           {feed.map((ev, i) => (
             <div
@@ -756,7 +756,7 @@ export default function FootballPitch({
         </div>
 
         {/* Live match stats */}
-        <div className="mt-2 rounded-xl bg-zinc-900/60 border border-zinc-800 px-3 py-2">
+        <div className="mt-2 rounded-xl bg-zinc-900/60 border border-zinc-800 px-3 py-2 shrink-0">
           <div className="grid grid-cols-3 gap-2 text-center">
             <div>
               <div className="text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Shots</div>
@@ -784,7 +784,7 @@ export default function FootballPitch({
         </div>
 
         {/* Rarity legend */}
-        <div className="pt-1 flex flex-wrap gap-2">
+        <div className="pt-1 flex flex-wrap gap-2 shrink-0">
           {(["legendary", "epic", "rare", "common"] as const).map((r) => (
             <div key={r} className="flex items-center gap-1 text-xs text-zinc-500">
               <div className={`w-2.5 h-2.5 rounded-full ring-1 ${RARITY_RING[r]} bg-zinc-700`} />
