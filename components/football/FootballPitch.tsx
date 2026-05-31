@@ -632,8 +632,8 @@ export default function FootballPitch({
       {/* Pitch */}
       <div className="relative w-[42%] sm:w-52 lg:w-64 xl:w-72 shrink-0">
         <div
-          className="relative w-full overflow-hidden rounded-xl"
-          style={{ paddingTop: "150%", background: "linear-gradient(180deg, #1a5c28 0%, #206b30 30%, #1e6b2e 50%, #206b30 70%, #1a5c28 100%)" }}
+          className="relative w-full overflow-hidden rounded-xl pt-[105%] sm:pt-[150%]"
+          style={{ background: "linear-gradient(180deg, #1a5c28 0%, #206b30 30%, #1e6b2e 50%, #206b30 70%, #1a5c28 100%)" }}
         >
           <div className="absolute inset-0">
             {/* Pitch markings */}
