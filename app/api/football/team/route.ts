@@ -3,17 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const channelSlug = req.nextUrl.searchParams.get("channelSlug");
-  const channel = channelSlug
-    ? await prisma.channel.findUnique({ where: { slug: channelSlug } })
-    : null;
-
   const saved = await prisma.savedFootballTeam.findUnique({
-    where: { userId_channelId: { userId: session.user.id, channelId: channel?.id ?? "" } },
+    where: { userId: session.user.id },
   });
 
   if (!saved) return NextResponse.json({ team: null });
@@ -24,15 +19,11 @@ export async function PUT(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { channelSlug, formation, slots } = await req.json();
-
-  const channel = channelSlug
-    ? await prisma.channel.findUnique({ where: { slug: channelSlug } })
-    : null;
+  const { formation, slots } = await req.json();
 
   await prisma.savedFootballTeam.upsert({
-    where: { userId_channelId: { userId: session.user.id, channelId: channel?.id ?? "" } },
-    create: { userId: session.user.id, channelId: channel?.id ?? null, formation, slotData: slots },
+    where: { userId: session.user.id },
+    create: { userId: session.user.id, formation, slotData: slots },
     update: { formation, slotData: slots },
   });
 

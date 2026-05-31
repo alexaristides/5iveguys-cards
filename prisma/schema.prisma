@@ -101,8 +101,7 @@ model Channel {
   forumPosts      ForumPost[]
   videoWatches    VideoWatch[]
   battles         CardBattle[]    @relation("ChannelBattles")
-  footballMatches    FootballMatch[]     @relation("ChannelMatches")
-  savedFootballTeams SavedFootballTeam[] @relation("ChannelSavedTeams")
+  footballMatches FootballMatch[] @relation("ChannelMatches")
 }
 
 enum Rarity {
@@ -357,17 +356,12 @@ model FootballMatch {
 
 model SavedFootballTeam {
   id        String   @id @default(cuid())
-  userId    String
-  channelId String?
+  userId    String   @unique
   formation String
   slotData  Json     // [{ position, posIndex, cardId }]
   savedAt   DateTime @default(now()) @updatedAt
 
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  channel Channel? @relation("ChannelSavedTeams", fields: [channelId], references: [id])
-
-  @@unique([userId, channelId])
-  @@index([userId])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ---------- Forum ----------

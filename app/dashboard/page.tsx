@@ -8,6 +8,7 @@ import Link from "next/link";
 import { dbCardToCard, Rarity } from "@/lib/cards";
 import CardDisplay from "@/components/CardDisplay";
 import CardRatingsLeaderboard from "@/components/CardRatingsLeaderboard";
+import FootballGame from "@/components/football/FootballGame";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -172,7 +173,7 @@ export default function DashboardPage() {
   const searchDebounce = useRef<ReturnType<typeof setTimeout>>();
 
   // Active section tab
-  const [activeTab, setActiveTab] = useState<"channels" | "collection" | "discover" | "cards">("channels");
+  const [activeTab, setActiveTab] = useState<"channels" | "collection" | "discover" | "cards" | "game">("channels");
   const [showInactive, setShowInactive] = useState(false);
 
   useEffect(() => {
@@ -302,14 +303,14 @@ export default function DashboardPage() {
 
         {/* Tab nav */}
         <div className="flex gap-1 mb-6 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1 w-fit flex-wrap">
-          {(["channels", "collection", "cards", "discover"] as const).map((tab) => (
+          {(["channels", "collection", "cards", "game", "discover"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all whitespace-nowrap
                 ${activeTab === tab ? "bg-purple-600 text-white" : "text-zinc-400 hover:text-white"}`}
             >
-              {tab === "channels" ? "My Channels" : tab === "collection" ? "Collection" : tab === "cards" ? "🏆 Card Ratings" : "Discover"}
+              {tab === "channels" ? "My Channels" : tab === "collection" ? "Collection" : tab === "cards" ? "🏆 Card Ratings" : tab === "game" ? "⚽ Game" : "Discover"}
             </button>
           ))}
         </div>
@@ -481,6 +482,17 @@ export default function DashboardPage() {
           <CardRatingsLeaderboard
             channels={channels.map((c) => ({ id: c.slug, name: c.name, slug: c.slug }))}
           />
+        )}
+
+        {/* ── Game tab ── */}
+        {activeTab === "game" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-white">Game</h2>
+              <p className="text-zinc-500 text-sm mt-1">Pick your best squad from all your cards and play a 7v7 match</p>
+            </div>
+            <FootballGame />
+          </div>
         )}
 
         {/* ── Discover tab ── */}

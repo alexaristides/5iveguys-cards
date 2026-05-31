@@ -43,9 +43,9 @@ interface SavedSlot {
   cardId: string;
 }
 
-const LS_KEY = (slug: string) => `fball_team_${slug}`;
+const LS_KEY = "fball_team";
 
-function saveToStorage(slug: string, formation: Formation, slots: LineupSlot[]) {
+function saveToStorage(formation: Formation, slots: LineupSlot[]) {
   try {
     const data = {
       formation,
@@ -53,16 +53,15 @@ function saveToStorage(slug: string, formation: Formation, slots: LineupSlot[]) 
         .filter((s) => s.card !== null)
         .map((s) => ({ position: s.position, posIndex: s.posIndex, cardId: s.card!.id })),
     };
-    localStorage.setItem(LS_KEY(slug), JSON.stringify(data));
+    localStorage.setItem(LS_KEY, JSON.stringify(data));
   } catch {}
 }
 
 function loadFromStorage(
-  slug: string,
   cards: FootballCard[],
 ): { formation: Formation; lineup: LineupSlot[] } | null {
   try {
-    const raw = localStorage.getItem(LS_KEY(slug));
+    const raw = localStorage.getItem(LS_KEY);
     if (!raw) return null;
     const { formation, slots } = JSON.parse(raw) as { formation: Formation; slots: SavedSlot[] };
     const cardMap = new Map(cards.map((c) => [c.id, c]));
@@ -80,7 +79,7 @@ function loadFromStorage(
   }
 }
 
-export default function FootballGame({ channelSlug }: { channelSlug: string }) {
+export default function FootballGame() {
   const [phase, setPhase] = useState<Phase>("setup");
   const [ownedCards, setOwnedCards] = useState<FootballCard[]>([]);
   const [formation, setFormation] = useState<Formation>("2-2-2");
@@ -94,13 +93,13 @@ export default function FootballGame({ channelSlug }: { channelSlug: string }) {
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
 
-  // auto-save debounce
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  void saveTimer;
 
   const fetchCards = useCallback(async () => {
     setLoadingCards(true);
     try {
-      const res = await fetch(`/api/user?channelSlug=${channelSlug}`);
+      const res = await fetch("/api/user/collection");
       if (!res.ok) return;
       const data = await res.json();
       const seen = new Set<string>();
@@ -114,24 +113,23 @@ export default function FootballGame({ channelSlug }: { channelSlug: string }) {
           rarity: item.card.rarity as FootballCard["rarity"],
           attribute: (item.card.attribute ?? "Skill") as FootballCard["attribute"],
           imageUrl: item.card.imageUrl,
-          kit: item.card.kit,
+          kit: item.card.kit ?? null,
         });
       }
       setOwnedCards(cards);
 
       // Restore saved lineup: localStorage first (instant), then DB
-      const local = loadFromStorage(channelSlug, cards);
+      const local = loadFromStorage(cards);
       if (local) {
         setFormation(local.formation);
         setLineup(local.lineup);
       }
 
-      // Also check DB for cross-device persistence
-      const teamRes = await fetch(`/api/football/team?channelSlug=${channelSlug}`);
+      // Check DB for cross-device persistence
+      const teamRes = await fetch("/api/football/team");
       if (teamRes.ok) {
         const { team } = await teamRes.json();
         if (team && !local) {
-          // Only use DB if nothing in localStorage
           const dbLineup = buildSlots(team.formation as Formation);
           const cardMap = new Map(cards.map((c) => [c.id, c]));
           for (const saved of (team.slots as SavedSlot[])) {
@@ -148,30 +146,28 @@ export default function FootballGame({ channelSlug }: { channelSlug: string }) {
     } finally {
       setLoadingCards(false);
     }
-  }, [channelSlug]);
+  }, []);
 
   const fetchStats = useCallback(async () => {
-    const res = await fetch(`/api/football?channelSlug=${channelSlug}`);
+    const res = await fetch("/api/football");
     if (res.ok) {
       const data = await res.json();
       setStats({ wins: data.wins, losses: data.losses, draws: data.draws });
     }
-  }, [channelSlug]);
+  }, []);
 
   useEffect(() => {
     fetchCards();
     fetchStats();
   }, [fetchCards, fetchStats]);
 
-  // Auto-save to localStorage whenever lineup changes
   function handleLineupChange(next: LineupSlot[]) {
     setLineup(next);
-    saveToStorage(channelSlug, formation, next);
+    saveToStorage(formation, next);
   }
 
   function handleFormationChange(f: Formation) {
     setFormation(f);
-    // adaptSlots is handled inside FormationPitchSelector
   }
 
   async function saveTeamToDb(fm: Formation, slots: LineupSlot[]) {
@@ -181,14 +177,13 @@ export default function FootballGame({ channelSlug }: { channelSlug: string }) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          channelSlug,
           formation: fm,
           slots: slots
             .filter((s) => s.card !== null)
             .map((s) => ({ position: s.position, posIndex: s.posIndex, cardId: s.card!.id })),
         }),
       });
-      saveToStorage(channelSlug, fm, slots);
+      saveToStorage(fm, slots);
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2500);
     } finally {
@@ -207,7 +202,6 @@ export default function FootballGame({ channelSlug }: { channelSlug: string }) {
     setSimulation(simulateMatch(assigned, cpuAssigned));
     setPhase("playing");
 
-    // Save to DB on kick-off (fire-and-forget)
     saveTeamToDb(formation, lineup);
   }
 
@@ -219,7 +213,6 @@ export default function FootballGame({ channelSlug }: { channelSlug: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          channelSlug,
           userCardIds: userLineup.map((p) => p.card.id),
           cpuCardIds: cpuLineup.map((p) => p.card.id),
           formation,
