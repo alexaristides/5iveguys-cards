@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     event.type === "fulltime" ? "match:fulltime" :
     "match:tick";
 
-  await pusher.trigger(`lobby-${id}`, pusherEvent, { eventIndex, event });
+  await pusher.trigger(`presence-lobby-${id}`, pusherEvent, { eventIndex, event });
 
   return NextResponse.json({ ok: true });
 }

@@ -76,7 +76,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     data: { [squadField]: squadJson as object },
   });
 
-  await pusher.trigger(`lobby-${id}`, "lobby:squad_locked", {
+  await pusher.trigger(`presence-lobby-${id}`, "lobby:squad_locked", {
     player: isCreator ? "creator" : "opponent",
   });
 
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   ]);
 
   // Signal match start — clients fetch the full lobby to get both squads, then run sim locally
-  await pusher.trigger(`lobby-${id}`, "lobby:squad_locked", {
+  await pusher.trigger(`presence-lobby-${id}`, "lobby:squad_locked", {
     player: "both",
     matchReady: true,
   });

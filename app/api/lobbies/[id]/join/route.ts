@@ -26,7 +26,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     },
   });
 
-  await pusher.trigger(`lobby-${id}`, "lobby:joined", {
+  await pusher.trigger(`presence-lobby-${id}`, "lobby:joined", {
     opponent: updated.opponent,
   });
 

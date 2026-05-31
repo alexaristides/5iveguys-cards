@@ -19,6 +19,12 @@ import FootballPitch from "@/components/football/FootballPitch";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+interface PvPRecord {
+  pvpWins: number;
+  pvpLosses: number;
+  pvpDraws: number;
+}
+
 interface ApiCard {
   cardId: string;
   card: {
@@ -65,6 +71,9 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+
+  // PvP record (fetched after match completes)
+  const [pvpRecord, setPvpRecord] = useState<PvPRecord | null>(null);
 
   // Match state
   const [simulation, setSimulation] = useState<MatchSimulation | null>(null);
@@ -179,13 +188,21 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   }
 
   async function handleMatchComplete() {
-    if (role !== "creator") { setPhase("result"); return; }
-    // Creator persists the result
-    await fetch(`/api/lobbies/${lobbyId}/result`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
+    if (role === "creator") {
+      await fetch(`/api/lobbies/${lobbyId}/result`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+    }
+    // Fetch updated PvP record for the results screen
+    try {
+      const res = await fetch("/api/pvp/record");
+      if (res.ok) {
+        const data = await res.json();
+        setPvpRecord(data);
+      }
+    } catch { /* non-critical */ }
     setPhase("result");
   }
 
@@ -543,6 +560,27 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
                     })}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* PvP record */}
+        {pvpRecord && (
+          <div className="mb-5 rounded-xl bg-zinc-900/60 border border-zinc-800 px-4 py-3">
+            <p className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider mb-2">Your PvP Record</p>
+            <div className="flex justify-around">
+              <div className="text-center">
+                <div className="text-2xl font-black text-green-400">{pvpRecord.pvpWins}</div>
+                <div className="text-zinc-500 text-xs">Wins</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-black text-red-400">{pvpRecord.pvpLosses}</div>
+                <div className="text-zinc-500 text-xs">Losses</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-black text-zinc-400">{pvpRecord.pvpDraws}</div>
+                <div className="text-zinc-500 text-xs">Draws</div>
+              </div>
             </div>
           </div>
         )}

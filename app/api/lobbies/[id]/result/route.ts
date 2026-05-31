@@ -91,7 +91,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const matchResult = await prisma.matchResult.findUnique({ where: { lobbyId: id } });
 
-  await pusher.trigger(`lobby-${id}`, "match:fulltime", { winnerId, scoreline });
+  await pusher.trigger(`presence-lobby-${id}`, "match:fulltime", { winnerId, scoreline });
 
   return NextResponse.json({ matchResult });
 }
