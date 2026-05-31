@@ -282,6 +282,7 @@ interface PlayerTokenProps {
   formation: Formation;
   team: "user" | "cpu";
   elapsed: number;
+  ball: { x: number; y: number };
   playerOffsets: Record<string, { x: number; y: number }>;
   spotlightCardId: string | null;
   possessorCardId: string | null;
@@ -291,28 +292,34 @@ interface PlayerTokenProps {
 
 function PlayerToken({
   player, formation, team,
-  elapsed, playerOffsets, spotlightCardId, possessorCardId, activePhase, goalFlash,
+  elapsed, ball, playerOffsets, spotlightCardId, possessorCardId, activePhase, goalFlash,
 }: PlayerTokenProps) {
   const [bx, by] = getCoord(player, formation, team);
-  const phase     = playerOffsets[player.card.id] ?? { x: 0, y: 0 };
-  const wobbleX   = Math.sin(elapsed * 1.1 + phase.x) * 1.1;
-  const wobbleY   = Math.sin(elapsed * 0.85 + phase.y) * 0.9;
+  const phase   = playerOffsets[player.card.id] ?? { x: 0, y: 0 };
+  // Bigger wobble so players visibly jitter at all times
+  const wobbleX = Math.sin(elapsed * 1.4 + phase.x) * 3.5;
+  const wobbleY = Math.sin(elapsed * 1.1 + phase.y) * 2.5;
   const [extraX, extraY] = getPositionOffset(player, team, activePhase, bx);
 
   const isSpotlight  = spotlightCardId === player.card.id;
   const isPossessor  = possessorCardId === player.card.id && !isSpotlight;
   const isGoalScorer = isSpotlight && goalFlash !== null;
 
+  // Possessor drifts toward the ball so they visibly "carry" it
+  const blendToBall = isPossessor ? 0.38 : 0;
+  const finalX = bx + wobbleX + extraX + (ball.x - bx) * blendToBall;
+  const finalY = by + wobbleY + extraY + (ball.y - by) * blendToBall;
+
   return (
     <div
       className={`absolute ${isSpotlight ? "z-30" : "z-10"}`}
       style={{
-        left: `${bx + wobbleX + extraX}%`,
-        top:  `${by + wobbleY + extraY}%`,
+        left: `${finalX}%`,
+        top:  `${finalY}%`,
         transform: "translate(-50%, -50%)",
         transition: isGoalScorer
-          ? "top 0.4s ease-out, left 0.4s ease-out"
-          : "top 0.7s cubic-bezier(0.4,0,0.2,1), left 0.7s cubic-bezier(0.4,0,0.2,1)",
+          ? "top 0.3s ease-out, left 0.3s ease-out"
+          : "top 0.35s cubic-bezier(0.4,0,0.2,1), left 0.35s cubic-bezier(0.4,0,0.2,1)",
       }}
     >
       {isPossessor && (
@@ -674,13 +681,13 @@ export default function FootballPitch({
             {/* Players */}
             {userLineup.map((p) => (
               <PlayerToken key={p.card.id} player={p} formation={userFormation} team="user"
-                elapsed={elapsed} playerOffsets={playerOffsets}
+                elapsed={elapsed} ball={ball} playerOffsets={playerOffsets}
                 spotlightCardId={spotlightCardId} possessorCardId={possessorCardId}
                 activePhase={activePhase} goalFlash={goalFlash} />
             ))}
             {cpuLineup.map((p) => (
               <PlayerToken key={p.card.id} player={p} formation={cpuFormation} team="cpu"
-                elapsed={elapsed} playerOffsets={playerOffsets}
+                elapsed={elapsed} ball={ball} playerOffsets={playerOffsets}
                 spotlightCardId={spotlightCardId} possessorCardId={possessorCardId}
                 activePhase={activePhase} goalFlash={goalFlash} />
             ))}
