@@ -275,6 +275,72 @@ function CpuReveal({
   );
 }
 
+// ── Player token (module-level so React never remounts it mid-animation) ─────
+
+interface PlayerTokenProps {
+  player: AssignedPlayer;
+  formation: Formation;
+  team: "user" | "cpu";
+  elapsed: number;
+  playerOffsets: Record<string, { x: number; y: number }>;
+  spotlightCardId: string | null;
+  possessorCardId: string | null;
+  activePhase: string;
+  goalFlash: "user" | "cpu" | null;
+}
+
+function PlayerToken({
+  player, formation, team,
+  elapsed, playerOffsets, spotlightCardId, possessorCardId, activePhase, goalFlash,
+}: PlayerTokenProps) {
+  const [bx, by] = getCoord(player, formation, team);
+  const phase     = playerOffsets[player.card.id] ?? { x: 0, y: 0 };
+  const wobbleX   = Math.sin(elapsed * 1.1 + phase.x) * 1.1;
+  const wobbleY   = Math.sin(elapsed * 0.85 + phase.y) * 0.9;
+  const [extraX, extraY] = getPositionOffset(player, team, activePhase, bx);
+
+  const isSpotlight  = spotlightCardId === player.card.id;
+  const isPossessor  = possessorCardId === player.card.id && !isSpotlight;
+  const isGoalScorer = isSpotlight && goalFlash !== null;
+
+  return (
+    <div
+      className={`absolute ${isSpotlight ? "z-30" : "z-10"}`}
+      style={{
+        left: `${bx + wobbleX + extraX}%`,
+        top:  `${by + wobbleY + extraY}%`,
+        transform: "translate(-50%, -50%)",
+        transition: isGoalScorer
+          ? "top 0.4s ease-out, left 0.4s ease-out"
+          : "top 0.7s cubic-bezier(0.4,0,0.2,1), left 0.7s cubic-bezier(0.4,0,0.2,1)",
+      }}
+    >
+      {isPossessor && (
+        <div className="absolute inset-0 rounded-full ring-2 ring-white/60 animate-pulse scale-125 z-10" />
+      )}
+      {isSpotlight && (
+        <div className="absolute inset-0 rounded-full ring-4 ring-yellow-400 animate-pulse scale-150 z-10" />
+      )}
+      <div
+        className={`relative rounded-full ring-2 overflow-hidden shadow-lg transition-all duration-300
+          ${RARITY_RING[player.card.rarity]}
+          ${isSpotlight ? "w-11 h-11 sm:w-12 sm:h-12" : "w-8 h-8 sm:w-8 sm:h-8"}
+        `}
+        title={`${player.card.name} (${player.position})`}
+      >
+        <Image
+          src={player.card.imageUrl}
+          alt={player.card.name}
+          fill
+          className="object-cover object-top"
+          sizes="32px"
+        />
+        <div className={`absolute inset-0 pointer-events-none ${team === "user" ? "bg-blue-500/20" : "bg-red-500/25"}`} />
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface Props {
@@ -534,59 +600,6 @@ export default function FootballPitch({
   const totalPoss = liveStats.userPoss + liveStats.cpuPoss;
   const userPossPct = totalPoss > 0 ? Math.round((liveStats.userPoss / totalPoss) * 100) : 50;
 
-  // ── Player token ──────────────────────────────────────────────────────────
-
-  function PlayerToken({ player, formation, team }: { player: AssignedPlayer; formation: Formation; team: "user" | "cpu" }) {
-    const [bx, by] = getCoord(player, formation, team);
-    const phase     = playerOffsets[player.card.id] ?? { x: 0, y: 0 };
-    const wobbleX   = Math.sin(elapsed * 1.1 + phase.x) * 1.1;
-    const wobbleY   = Math.sin(elapsed * 0.85 + phase.y) * 0.9;
-    const [extraX, extraY] = getPositionOffset(player, team, activePhase, bx);
-
-    const isSpotlight  = spotlightCardId === player.card.id;
-    const isPossessor  = possessorCardId === player.card.id && !isSpotlight;
-    const isGoalScorer = isSpotlight && goalFlash !== null;
-
-    return (
-      <div
-        className={`absolute ${isSpotlight ? "z-30" : "z-10"}`}
-        style={{
-          left: `${bx + wobbleX + extraX}%`,
-          top:  `${by + wobbleY + extraY}%`,
-          transform: "translate(-50%, -50%)",
-          transition: isGoalScorer
-            ? "top 0.4s ease-out, left 0.4s ease-out"
-            : "top 0.7s cubic-bezier(0.4,0,0.2,1), left 0.7s cubic-bezier(0.4,0,0.2,1)",
-        }}
-      >
-        {/* Possessor ring */}
-        {isPossessor && (
-          <div className="absolute inset-0 rounded-full ring-2 ring-white/60 animate-pulse scale-125 z-10" />
-        )}
-        {/* Spotlight ring */}
-        {isSpotlight && (
-          <div className="absolute inset-0 rounded-full ring-4 ring-yellow-400 animate-pulse scale-150 z-10" />
-        )}
-        <div
-          className={`relative rounded-full ring-2 overflow-hidden shadow-lg transition-all duration-300
-            ${RARITY_RING[player.card.rarity]}
-            ${isSpotlight ? "w-11 h-11 sm:w-12 sm:h-12" : "w-8 h-8 sm:w-8 sm:h-8"}
-          `}
-          title={`${player.card.name} (${player.position})`}
-        >
-          <Image
-            src={player.card.imageUrl}
-            alt={player.card.name}
-            fill
-            className="object-cover object-top"
-            sizes="32px"
-          />
-          <div className={`absolute inset-0 pointer-events-none ${team === "user" ? "bg-blue-500/20" : "bg-red-500/25"}`} />
-        </div>
-      </div>
-    );
-  }
-
   // ── Pre-match CPU reveal ──────────────────────────────────────────────────
 
   if (!matchStarted) {
@@ -632,7 +645,7 @@ export default function FootballPitch({
       {/* Pitch */}
       <div className="relative w-full sm:w-52 lg:w-64 xl:w-72 shrink-0">
         <div
-          className="relative w-full overflow-hidden rounded-xl pt-[85%] sm:pt-[150%]"
+          className="relative w-full overflow-hidden rounded-xl pt-[100%] sm:pt-[150%]"
           style={{ background: "linear-gradient(180deg, #1a5c28 0%, #206b30 30%, #1e6b2e 50%, #206b30 70%, #1a5c28 100%)" }}
         >
           <div className="absolute inset-0">
@@ -659,8 +672,18 @@ export default function FootballPitch({
             <div className="absolute bottom-[4.5%] left-1/2 -translate-x-1/2 text-blue-300/70 text-[8px] font-bold uppercase tracking-widest">YOU</div>
 
             {/* Players */}
-            {userLineup.map((p) => <PlayerToken key={p.card.id} player={p} formation={userFormation} team="user" />)}
-            {cpuLineup.map((p)  => <PlayerToken key={p.card.id} player={p} formation={cpuFormation}  team="cpu"  />)}
+            {userLineup.map((p) => (
+              <PlayerToken key={p.card.id} player={p} formation={userFormation} team="user"
+                elapsed={elapsed} playerOffsets={playerOffsets}
+                spotlightCardId={spotlightCardId} possessorCardId={possessorCardId}
+                activePhase={activePhase} goalFlash={goalFlash} />
+            ))}
+            {cpuLineup.map((p) => (
+              <PlayerToken key={p.card.id} player={p} formation={cpuFormation} team="cpu"
+                elapsed={elapsed} playerOffsets={playerOffsets}
+                spotlightCardId={spotlightCardId} possessorCardId={possessorCardId}
+                activePhase={activePhase} goalFlash={goalFlash} />
+            ))}
 
             {/* Ball */}
             <div
