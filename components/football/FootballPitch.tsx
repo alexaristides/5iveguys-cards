@@ -284,14 +284,23 @@ interface Props {
   userFormation: Formation;
   cpuFormation: Formation;
   onComplete: () => void;
+  /** PvP: skip the CPU card-reveal pre-match animation */
+  skipReveal?: boolean;
+  /** PvP: label shown on the scoreboard for the user side (default "Y") */
+  userLabel?: string;
+  /** PvP: label shown on the scoreboard for the CPU side (default "C") */
+  cpuLabel?: string;
+  /** PvP: called each time a new match event fires — creator uses this to publish ticks */
+  onEventFired?: (event: MatchEvent, index: number) => void;
 }
 
 export default function FootballPitch({
   simulation, userLineup, cpuLineup, userFormation, cpuFormation, onComplete,
+  skipReveal = false, userLabel = "Y", cpuLabel = "C", onEventFired,
 }: Props) {
   const { events } = simulation;
 
-  const [matchStarted, setMatchStarted]     = useState(false);
+  const [matchStarted, setMatchStarted]     = useState(() => skipReveal);
   const [elapsed, setElapsed]               = useState(0);
   const [ball, setBall]                     = useState({ x: 50, y: 50 });
   const [currentMinute, setCurrentMinute]   = useState(0);
@@ -407,6 +416,7 @@ export default function FootballPitch({
       if (activeIdx > lastEventRef.current) {
         lastEventRef.current = activeIdx;
         const ev = events[activeIdx];
+        onEventFired?.(ev, activeIdx);
 
         setFeed((prev) => [ev, ...prev].slice(0, 12));
         setActivePhase(ev.phase);
@@ -681,13 +691,13 @@ export default function FootballPitch({
             <div className="absolute top-0 left-0 right-0 z-20 bg-black/55 backdrop-blur-sm">
               <div className="flex items-center justify-between px-3 py-1.5">
                 <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[7px] font-bold">Y</div>
+                  <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[7px] font-bold">{userLabel[0]}</div>
                   <span className="text-white text-xs font-bold">{feed[0]?.scoreUser ?? 0}</span>
                 </div>
                 <div className="text-white/60 text-[9px] font-mono">{currentMinute}&apos;</div>
                 <div className="flex items-center gap-1">
                   <span className="text-white text-xs font-bold">{feed[0]?.scoreCpu ?? 0}</span>
-                  <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center text-white text-[7px] font-bold">C</div>
+                  <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center text-white text-[7px] font-bold">{cpuLabel[0]}</div>
                 </div>
               </div>
               {/* Momentum bar */}

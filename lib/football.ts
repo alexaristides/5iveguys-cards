@@ -266,7 +266,23 @@ export function simulateMatch(
   cpuLineup: AssignedPlayer[],
   userFormation: Formation = "2-2-2",
   cpuFormation: Formation = "2-2-2",
+  rng: () => number = Math.random,
 ): MatchSimulation {
+  // Local helpers that use the seeded RNG (so the simulation is deterministic when a seed is passed)
+  function _rnd<T>(arr: T[]): T { return arr[Math.floor(rng() * arr.length)]; }
+  function _pickCard(lineup: AssignedPlayer[], ...positions: Position[]): AssignedPlayer | null {
+    const pool = lineup.filter((p) => positions.includes(p.position));
+    return pool.length > 0 ? _rnd(pool) : null;
+  }
+  function _pickAttrCard(lineup: AssignedPlayer[], attr: Attribute, ...positions: Position[]): AssignedPlayer | null {
+    const pool = lineup.filter((p) => positions.includes(p.position) && p.card.attribute === attr);
+    return pool.length > 0 ? _rnd(pool) : null;
+  }
+  function _pickDifferent(lineup: AssignedPlayer[], excludeId: string | null, ...positions: Position[]): AssignedPlayer | null {
+    const pool = lineup.filter((p) => positions.includes(p.position) && p.card.id !== excludeId);
+    return pool.length > 0 ? _rnd(pool) : null;
+  }
+
   const us = calcTeamStats(userLineup);
   const cs = calcTeamStats(cpuLineup);
   const uMod = FORMATION_MODS[userFormation];
@@ -296,7 +312,7 @@ export function simulateMatch(
     const used = poolHistory.get(pool) ?? [];
     const candidates = pool.map((_, i) => i).filter((i) => !used.includes(i));
     const from = candidates.length > 0 ? candidates : pool.map((_, i) => i);
-    const idx = from[Math.floor(Math.random() * from.length)];
+    const idx = from[Math.floor(rng() * from.length)];
     const next = [...used, idx].slice(-(Math.max(2, Math.floor(pool.length * 0.6))));
     poolHistory.set(pool, next);
     return pool[idx](a, b);
@@ -318,7 +334,7 @@ export function simulateMatch(
 
   push(0, "kickoff", "user", "⚡ Kick off! The match is underway!", "kickoff");
 
-  const phaseCount = 26 + Math.floor(Math.random() * 8); // 26–33 phases for higher scoring
+  const phaseCount = 26 + Math.floor(rng() * 8); // 26–33 phases for higher scoring
   const minuteStep = 89 / phaseCount;
   let halfAdded = false;
 
@@ -334,8 +350,8 @@ export function simulateMatch(
     }
 
     // Midfield battle
-    const userMidRoll = uEff.midfield + Math.random() * 22;
-    const cpuMidRoll  = cEff.midfield + Math.random() * 22;
+    const userMidRoll = uEff.midfield + rng() * 22;
+    const cpuMidRoll  = cEff.midfield + rng() * 22;
     const atk = userMidRoll > cpuMidRoll ? "user" : "cpu";
     const atkEff      = atk === "user" ? uEff : cEff;
     const defEff      = atk === "user" ? cEff : uEff;
@@ -346,32 +362,32 @@ export function simulateMatch(
     const atkMod      = atk === "user" ? uMod : cMod;
 
     // Midfield Control extra possession events
-    if (atkMod.extraPoss && Math.random() < 0.35) {
-      const m1 = pickCard(atkLineup, "MID");
-      const m2 = pickDifferent(atkLineup, m1?.card.id ?? null, "MID", "ATT");
+    if (atkMod.extraPoss && rng() < 0.35) {
+      const m1 = _pickCard(atkLineup, "MID");
+      const m2 = _pickDifferent(atkLineup, m1?.card.id ?? null, "MID", "ATT");
       push(minute, "possession", atk, pick(POSSESSION_TEMPLATES, name(m1), name(m2)), phase);
       continue;
     }
 
     // Random special events (~7% per phase)
-    if (Math.random() < 0.07) {
-      const defP = pickCard(defLineup, "DEF");
-      const attP = pickCard(atkLineup, "ATT", "MID");
-      const isYellow = Math.random() < 0.4;
+    if (rng() < 0.07) {
+      const defP = _pickCard(defLineup, "DEF");
+      const attP = _pickCard(atkLineup, "ATT", "MID");
+      const isYellow = rng() < 0.4;
       push(minute, isYellow ? "yellowcard" : "freekick", atk === "user" ? "cpu" : "user",
         pick(isYellow ? YELLOW_TEMPLATES : FREEKICK_TEMPLATES, name(defP), name(attP)), phase);
       continue;
     }
 
     // Does attack become dangerous?
-    const atkDanger = atkEff.attack  + Math.random() * 18;
-    const defBlock  = defEff.defense + Math.random() * 18;
+    const atkDanger = atkEff.attack  + rng() * 18;
+    const defBlock  = defEff.defense + rng() * 18;
     const isDangerous = atkDanger > defBlock * 0.82;
 
     if (!isDangerous) {
-      const defP = pickCard(defLineup, "DEF");
-      const attP = pickCard(atkLineup, "ATT", "MID");
-      const isTackle = Math.random() > 0.45;
+      const defP = _pickCard(defLineup, "DEF");
+      const attP = _pickCard(atkLineup, "ATT", "MID");
+      const isTackle = rng() > 0.45;
       push(minute, isTackle ? "tackle" : "clearance",
         atk === "user" ? "cpu" : "user",
         pick(isTackle ? TACKLE_TEMPLATES : CLEARANCE_TEMPLATES, name(defP), name(attP)), phase);
@@ -379,37 +395,37 @@ export function simulateMatch(
     }
 
     // Attribute-driven shot selection
-    const pacer    = pickAttrCard(atkLineup, "Pace",  "ATT");
-    const powerAtt = pickAttrCard(atkLineup, "Power", "ATT", "MID");
-    const skillAtt = pickAttrCard(atkLineup, "Skill", "ATT");
+    const pacer    = _pickAttrCard(atkLineup, "Pace",  "ATT");
+    const powerAtt = _pickAttrCard(atkLineup, "Power", "ATT", "MID");
+    const skillAtt = _pickAttrCard(atkLineup, "Skill", "ATT");
 
     let scorerPlayer: AssignedPlayer | null;
     let assisterPlayer: AssignedPlayer | null;
     let goalTemplates = GOAL_GENERIC;
     let isCounterEvent = false;
 
-    if (pacer && Math.random() < 0.30) {
+    if (pacer && rng() < 0.30) {
       scorerPlayer  = pacer;
-      assisterPlayer = pickDifferent(atkLineup, pacer.card.id, "MID", "DEF");
+      assisterPlayer = _pickDifferent(atkLineup, pacer.card.id, "MID", "DEF");
       goalTemplates  = GOAL_PACE;
       isCounterEvent = true;
-    } else if (powerAtt && Math.random() < 0.28) {
+    } else if (powerAtt && rng() < 0.28) {
       scorerPlayer  = powerAtt;
-      assisterPlayer = pickDifferent(atkLineup, powerAtt.card.id, "MID", "ATT");
+      assisterPlayer = _pickDifferent(atkLineup, powerAtt.card.id, "MID", "ATT");
       goalTemplates  = GOAL_POWER;
-    } else if (skillAtt && Math.random() < 0.30) {
+    } else if (skillAtt && rng() < 0.30) {
       scorerPlayer  = skillAtt;
-      assisterPlayer = pickDifferent(atkLineup, skillAtt.card.id, "MID", "ATT");
+      assisterPlayer = _pickDifferent(atkLineup, skillAtt.card.id, "MID", "ATT");
       goalTemplates  = GOAL_SKILL;
     } else {
-      scorerPlayer  = pickCard(atkLineup, "ATT", "MID");
-      assisterPlayer = pickDifferent(atkLineup, scorerPlayer?.card.id ?? null, "MID", "ATT");
+      scorerPlayer  = _pickCard(atkLineup, "ATT", "MID");
+      assisterPlayer = _pickDifferent(atkLineup, scorerPlayer?.card.id ?? null, "MID", "ATT");
     }
 
     const sc  = name(scorerPlayer);
-    const as  = name(assisterPlayer, name(pickCard(atkLineup, "MID")));
-    const gk  = name(pickCard(defLineup, "GK"));
-    const def = name(pickCard(defLineup, "DEF"));
+    const as  = name(assisterPlayer, name(_pickCard(atkLineup, "MID")));
+    const gk  = name(_pickCard(defLineup, "GK"));
+    const def = name(_pickCard(defLineup, "DEF"));
 
     // Balanced goal probability — sigmoid with luck floor, cap at 12
     const goalProb = clamp((() => {
@@ -417,12 +433,12 @@ export function simulateMatch(
       const advantage = (atkEff.attack - combined) / 14;
       const sigmoid = 1 / (1 + Math.exp(-advantage));
       const base = sigmoid * 0.52;            // [~0.10 .. ~0.42] for normal OVR spreads
-      const noise = (Math.random() - 0.5) * 0.12;
+      const noise = (rng() - 0.5) * 0.12;
       const softCap = atkGoals >= 9 ? 0.45 : 1.0; // slight dampener after 9 goals
       return (base + noise) * softCap;
     })(), 0.08, atkGoals >= 12 ? 0.03 : 0.55);
 
-    if (Math.random() < goalProb) {
+    if (rng() < goalProb) {
       if (atk === "user") userScore++; else cpuScore++;
 
       if (atk === "user") {
@@ -433,7 +449,7 @@ export function simulateMatch(
       push(minute, "goal", atk, `⚽ GOAL! ${pick(goalTemplates, sc, as)}`, phase,
         scorerPlayer?.card.id, assisterPlayer?.card.id);
     } else {
-      const r = Math.random();
+      const r = rng();
       if (r < 0.42) {
         push(minute, "save",     atk, `🧤 ${pick(SAVE_TEMPLATES, gk, sc)}`, phase);
       } else if (r < 0.57) {

@@ -44,6 +44,9 @@ model User {
   image         String?
   points        Int       @default(0)
   totalEarned   Int       @default(0)
+  pvpWins       Int       @default(0)
+  pvpLosses     Int       @default(0)
+  pvpDraws      Int       @default(0)
   createdAt     DateTime  @default(now())
 
   accounts      Account[]
@@ -67,6 +70,8 @@ model User {
   videoWatches      VideoWatch[]
   notifications     Notification[]
   cardVotes         CardVote[]
+  lobbiesCreated    Lobby[]  @relation("CreatedLobbies")
+  lobbiesJoined     Lobby[]  @relation("JoinedLobbies")
 }
 
 model VerificationToken {
@@ -442,4 +447,42 @@ model ForumLike {
 
   @@unique([postId, userId])
   @@index([postId])
+}
+
+// ---------- PvP ----------
+
+enum LobbyStatus {
+  WAITING
+  ACTIVE
+  FINISHED
+}
+
+model Lobby {
+  id            String      @id
+  creatorId     String
+  creator       User        @relation("CreatedLobbies", fields: [creatorId], references: [id])
+  opponentId    String?
+  opponent      User?       @relation("JoinedLobbies", fields: [opponentId], references: [id])
+  creatorSquad  Json?
+  opponentSquad Json?
+  status        LobbyStatus @default(WAITING)
+  createdAt     DateTime    @default(now())
+  expiresAt     DateTime
+
+  matchResult   MatchResult?
+
+  @@index([status, createdAt])
+  @@index([creatorId])
+}
+
+model MatchResult {
+  id         String   @id @default(cuid())
+  lobbyId    String   @unique
+  lobby      Lobby    @relation(fields: [lobbyId], references: [id])
+  player1Id  String
+  player2Id  String
+  winnerId   String?
+  scoreline  String
+  simulation Json?
+  createdAt  DateTime @default(now())
 }
