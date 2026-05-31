@@ -628,11 +628,11 @@ export default function FootballPitch({
       </div>
     )}
 
-    <div className="flex flex-row gap-2 sm:gap-4 w-full max-w-3xl mx-auto">
+    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full max-w-3xl mx-auto">
       {/* Pitch */}
-      <div className="relative w-[42%] sm:w-52 lg:w-64 xl:w-72 shrink-0">
+      <div className="relative w-full sm:w-52 lg:w-64 xl:w-72 shrink-0">
         <div
-          className="relative w-full overflow-hidden rounded-xl pt-[105%] sm:pt-[150%]"
+          className="relative w-full overflow-hidden rounded-xl pt-[62%] sm:pt-[150%]"
           style={{ background: "linear-gradient(180deg, #1a5c28 0%, #206b30 30%, #1e6b2e 50%, #206b30 70%, #1a5c28 100%)" }}
         >
           <div className="absolute inset-0">
@@ -722,15 +722,15 @@ export default function FootballPitch({
       </div>
 
       {/* Commentary + stats */}
-      <div className="flex-1 flex flex-col gap-1.5 sm:gap-2 min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col gap-1.5 sm:gap-2 sm:min-h-0 sm:overflow-hidden">
         <div className="flex items-center gap-1.5 shrink-0">
           <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
           <span className="text-zinc-400 text-[10px] sm:text-xs font-medium uppercase tracking-wider">Commentary</span>
           <span className="ml-auto text-zinc-500 text-[10px] sm:text-xs font-mono">{currentMinute}&apos;</span>
         </div>
 
-        {/* Scrollable feed — flex-1 so it fills remaining height between header and stats */}
-        <div className="flex flex-col gap-1 sm:gap-1.5 overflow-y-auto flex-1 min-h-0 pr-0.5">
+        {/* Scrollable feed — capped to 2 items on mobile, flex-1 on sm+ */}
+        <div className="flex flex-col gap-1 sm:gap-1.5 overflow-y-auto max-h-28 sm:max-h-none sm:flex-1 sm:min-h-0 pr-0.5">
           {feed.length === 0 && <div className="text-zinc-600 text-xs italic">Waiting for kick off…</div>}
           {feed.map((ev, i) => (
             <div
