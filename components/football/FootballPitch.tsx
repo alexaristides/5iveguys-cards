@@ -5,7 +5,9 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import type { AssignedPlayer, Formation, MatchEvent, MatchSimulation, Rarity } from "@/lib/football";
 import { FORMATIONS, getPlayerRating } from "@/lib/football";
 
-const MATCH_DURATION = 32; // seconds of real time
+const MATCH_DURATION = 32;
+
+// ── Pitch position maps ───────────────────────────────────────────────────────
 
 type PosMap = { GK: number[][]; DEF: number[][]; MID: number[][]; ATT: number[][] };
 
@@ -18,7 +20,12 @@ const USER_POSITIONS: Record<Formation, PosMap> = {
 
 function mirrorY(map: PosMap): PosMap {
   const m = (y: number) => 100 - y;
-  return { GK: map.GK.map(([x,y])=>[x,m(y)]), DEF: map.DEF.map(([x,y])=>[x,m(y)]), MID: map.MID.map(([x,y])=>[x,m(y)]), ATT: map.ATT.map(([x,y])=>[x,m(y)]) };
+  return {
+    GK:  map.GK.map(([x,y])  => [x,m(y)]),
+    DEF: map.DEF.map(([x,y]) => [x,m(y)]),
+    MID: map.MID.map(([x,y]) => [x,m(y)]),
+    ATT: map.ATT.map(([x,y]) => [x,m(y)]),
+  };
 }
 
 const CPU_POSITIONS: Record<Formation, PosMap> = Object.fromEntries(
@@ -30,6 +37,110 @@ function getCoord(player: AssignedPlayer, formation: Formation, team: "user" | "
   const coords = map[player.position];
   return (coords[player.posIndex] ?? coords[0]) as [number, number];
 }
+
+// ── Tactical position shifts based on match phase ─────────────────────────────
+// Returns [extraX, extraY] offsets. Y: negative = toward CPU goal (up), positive = toward user goal (down).
+
+function getPositionOffset(
+  player: AssignedPlayer,
+  team: "user" | "cpu",
+  phase: string,
+  baseX: number,
+): [number, number] {
+  const [dY, cmpX] = (() => {
+    if (team === "user") {
+      if (phase === "user-attack") {
+        if (player.position === "ATT") return [-11, 0];
+        if (player.position === "MID") return [-5, 0];
+        if (player.position === "DEF") return [-1, 0];
+        return [0, 0]; // GK
+      }
+      if (phase === "cpu-attack") {
+        if (player.position === "ATT") return [5, 0];
+        if (player.position === "MID") return [5, 0];
+        if (player.position === "DEF") return [6, (50 - baseX) * 0.18]; // compress toward centre
+        return [0, (50 - baseX) * 0.12]; // GK also centres slightly
+      }
+    } else {
+      // CPU team — inverted Y
+      if (phase === "cpu-attack") {
+        if (player.position === "ATT") return [11, 0];
+        if (player.position === "MID") return [5, 0];
+        if (player.position === "DEF") return [1, 0];
+        return [0, 0];
+      }
+      if (phase === "user-attack") {
+        if (player.position === "ATT") return [-5, 0];
+        if (player.position === "MID") return [-5, 0];
+        if (player.position === "DEF") return [-6, (50 - baseX) * 0.18];
+        return [0, (50 - baseX) * 0.12];
+      }
+    }
+    return [0, 0];
+  })();
+  return [cmpX, dY];
+}
+
+// ── Ball event zones (pre-computed per event to avoid per-frame random jitter) ─
+
+function computeEventZone(ev: MatchEvent): { x: number; y: number } {
+  const rx = (a: number, b: number) => a + Math.random() * (b - a);
+  switch (ev.type) {
+    case "kickoff": case "halftime": case "fulltime":
+      return { x: 50, y: 50 };
+    case "goal":
+      return ev.team === "user"
+        ? { x: rx(38, 62), y: 3 }
+        : { x: rx(38, 62), y: 97 };
+    case "save":
+      return ev.team === "user"
+        ? { x: rx(35, 65), y: 14 }
+        : { x: rx(35, 65), y: 86 };
+    case "nearpost":
+      return ev.team === "user"
+        ? { x: Math.random() > 0.5 ? rx(28, 38) : rx(62, 72), y: 8 }
+        : { x: Math.random() > 0.5 ? rx(28, 38) : rx(62, 72), y: 92 };
+    case "miss":
+      return ev.team === "user"
+        ? { x: Math.random() > 0.5 ? rx(15, 30) : rx(70, 85), y: 10 }
+        : { x: Math.random() > 0.5 ? rx(15, 30) : rx(70, 85), y: 90 };
+    case "tackle": case "clearance":
+      return ev.phase === "user-attack"
+        ? { x: rx(30, 70), y: rx(22, 32) }
+        : { x: rx(30, 70), y: rx(68, 78) };
+    case "counter":
+      return ev.team === "user"
+        ? { x: rx(35, 65), y: rx(35, 45) }
+        : { x: rx(35, 65), y: rx(55, 65) };
+    case "freekick": case "yellowcard":
+      return ev.phase === "user-attack"
+        ? { x: rx(30, 70), y: rx(28, 38) }
+        : { x: rx(30, 70), y: rx(62, 72) };
+    case "possession":
+      return { x: rx(35, 65), y: rx(42, 58) };
+    default:
+      return { x: 50, y: 50 };
+  }
+}
+
+// ── Momentum delta per event ──────────────────────────────────────────────────
+
+function momentumDelta(ev: MatchEvent): number {
+  const u = (n: number) => ev.team === "user" ? n : -n;
+  switch (ev.type) {
+    case "goal":       return u(35);
+    case "nearpost":   return u(10);
+    case "save":       return u(-6);   // shot saved → defending team's momentum
+    case "miss":       return u(-8);
+    case "counter":    return u(12);
+    case "possession": return u(4);
+    case "tackle":     return u(-6);   // tackled = lost ball
+    case "clearance":  return u(-4);
+    default:           return 0;
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 const RARITY_RING: Record<Rarity, string> = {
   common: "ring-zinc-400", rare: "ring-blue-400", epic: "ring-purple-400", legendary: "ring-amber-400",
@@ -48,84 +159,117 @@ const EVENT_ICON: Record<string, string> = {
   freekick: "🎯", yellowcard: "🟨", nearpost: "🔔", counter: "⚡",
 };
 
-function getBallTarget(event: MatchEvent, tick: number): { x: number; y: number } {
-  const j = (n: number) => n + Math.sin(tick * 2.3 + n) * 2.5;
-  switch (event.type) {
-    case "kickoff": case "halftime": case "fulltime": case "possession":
-      return { x: 50, y: 50 };
-    case "goal":
-      return event.team === "user" ? { x: j(50), y: 5 } : { x: j(50), y: 95 };
-    case "save": case "miss": case "nearpost":
-      return event.phase === "user-attack" ? { x: j(50), y: j(18) } : { x: j(50), y: j(82) };
-    case "counter":
-      return event.phase === "user-attack" ? { x: j(45), y: j(35) } : { x: j(45), y: j(65) };
-    default:
-      return event.phase === "user-attack" ? { x: j(48), y: j(30) } : event.phase === "cpu-attack" ? { x: j(48), y: j(70) } : { x: j(50), y: j(50) };
-  }
-}
-
-function getHalftimeTip(userScore: number, cpuScore: number): string {
-  const d = userScore - cpuScore;
-  if (d >= 3)  return "You're cruising — switch to Defensive to protect your lead!";
-  if (d === 2) return "Two goals up — consider sitting deeper in the second half!";
-  if (d === 1) return "One ahead — keep it tight and hit them on the counter!";
-  if (d === -1) return "One down — push forward, but don't leave yourself exposed!";
-  if (d <= -2) return "Time to go Attacking — you need goals in the second half!";
+function getHalftimeTip(u: number, c: number): string {
+  const d = u - c;
+  if (d >= 3)  return "You're cruising — hold Defensive in the second half!";
+  if (d === 2) return "Two goals up — consider sitting deeper to protect the lead!";
+  if (d === 1) return "One ahead — stay compact and hit them on the counter!";
+  if (d === -1) return "One down — time to take more risks in the second half!";
+  if (d <= -2) return "Go Attacking — you need goals in the second half!";
   return "Level pegging — the second half will decide everything!";
 }
 
-// ── CPU reveal screen ─────────────────────────────────────────────────────────
+// ── CpuReveal with card flip animation ───────────────────────────────────────
 
 function CpuReveal({
   cpuLineup, cpuFormation, onStart,
 }: { cpuLineup: AssignedPlayer[]; cpuFormation: Formation; onStart: () => void }) {
-  const [countdown, setCountdown] = useState(4);
+  const [revealedCount, setRevealedCount] = useState(0);
+  const [countdown, setCountdown]         = useState(5);
 
+  // Reveal cards one by one every 350ms
   useEffect(() => {
+    if (revealedCount >= cpuLineup.length) return;
+    const t = setTimeout(() => setRevealedCount((c) => c + 1), 350);
+    return () => clearTimeout(t);
+  }, [revealedCount, cpuLineup.length]);
+
+  // Countdown starts after all cards revealed
+  useEffect(() => {
+    if (revealedCount < cpuLineup.length) return;
     if (countdown <= 0) { onStart(); return; }
     const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
     return () => clearTimeout(t);
-  }, [countdown, onStart]);
+  }, [countdown, revealedCount, cpuLineup.length, onStart]);
 
   return (
-    <div className="w-full max-w-sm mx-auto animate-fade-in">
+    <div className="w-full max-w-sm mx-auto">
       <div className="text-center mb-5">
         <div className="text-zinc-500 text-xs font-semibold uppercase tracking-widest mb-1">Your Opponent</div>
         <h2 className="text-2xl font-black text-white">{FORMATIONS[cpuFormation].label}</h2>
         <p className="text-red-400 text-sm font-medium">{FORMATIONS[cpuFormation].desc}</p>
       </div>
 
+      {/* Card flip reveal */}
       <div className="space-y-2 mb-5">
-        {cpuLineup.map((p) => (
-          <div key={p.card.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-zinc-900/60 border border-zinc-800">
-            <div className="relative w-10 h-14 rounded-lg overflow-hidden ring-1 ring-red-500/40 shrink-0">
-              <Image src={p.card.imageUrl} alt={p.card.name} fill className="object-cover" sizes="40px" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${POS_COLOR[p.position]}`}>
-                  {p.position}
-                </span>
-                <span className="text-white text-sm font-semibold truncate">{p.card.name}</span>
+        {cpuLineup.map((p, i) => {
+          const isRevealed = i < revealedCount;
+          return (
+            <div
+              key={p.card.id}
+              style={{ perspective: "800px" }}
+            >
+              <div
+                style={{
+                  transformStyle: "preserve-3d",
+                  transform: isRevealed ? "rotateY(0deg)" : "rotateY(-180deg)",
+                  transition: "transform 0.4s cubic-bezier(0.4,0,0.2,1)",
+                  position: "relative",
+                  minHeight: "60px",
+                }}
+              >
+                {/* Front (card face) */}
+                <div
+                  style={{ backfaceVisibility: "hidden" }}
+                  className="flex items-center gap-3 px-3 py-2 rounded-xl bg-zinc-900/60 border border-zinc-800"
+                >
+                  <div className="relative w-10 h-14 rounded-lg overflow-hidden ring-1 ring-red-500/40 shrink-0">
+                    <Image src={p.card.imageUrl} alt={p.card.name} fill className="object-cover" sizes="40px" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${POS_COLOR[p.position]}`}>
+                        {p.position}
+                      </span>
+                      <span className="text-white text-sm font-semibold truncate">{p.card.name}</span>
+                    </div>
+                    <div className="text-zinc-500 text-xs mt-0.5">
+                      {ATTR_ICON[p.card.attribute]} {p.card.attribute} · <span className="capitalize">{p.card.rarity}</span>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-white font-black text-lg leading-none">{getPlayerRating(p.card, p.position)}</div>
+                    <div className="text-zinc-600 text-[10px]">OVR</div>
+                  </div>
+                </div>
+                {/* Back (card back — dark green) */}
+                <div
+                  style={{
+                    backfaceVisibility: "hidden",
+                    transform: "rotateY(180deg)",
+                    position: "absolute",
+                    inset: 0,
+                  }}
+                  className="rounded-xl bg-green-900/60 border border-green-700/40 flex items-center justify-center"
+                >
+                  <span className="text-green-700 text-2xl">⚽</span>
+                </div>
               </div>
-              <div className="text-zinc-500 text-xs mt-0.5">
-                {ATTR_ICON[p.card.attribute]} {p.card.attribute} · <span className="capitalize">{p.card.rarity}</span>
-              </div>
             </div>
-            <div className="text-right shrink-0">
-              <div className="text-white font-black text-lg leading-none">{getPlayerRating(p.card, p.position)}</div>
-              <div className="text-zinc-600 text-[10px]">OVR</div>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <button
         onClick={onStart}
-        className="w-full py-4 rounded-2xl bg-green-700 hover:bg-green-600 text-white font-bold text-lg flex items-center justify-center gap-2 transition-all active:scale-95"
+        className="w-full py-4 rounded-2xl bg-green-700 hover:bg-green-600 text-white font-bold text-lg flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
       >
         <span>⚽</span>
-        {countdown > 0 ? `Kick Off in ${countdown}…` : "Kick Off!"}
+        {revealedCount < cpuLineup.length
+          ? "Revealing lineup…"
+          : countdown > 0
+          ? `Kick Off in ${countdown}…`
+          : "Kick Off!"}
       </button>
     </div>
   );
@@ -147,25 +291,53 @@ export default function FootballPitch({
 }: Props) {
   const { events } = simulation;
 
-  // Pre-match reveal
-  const [matchStarted, setMatchStarted] = useState(false);
-
-  // Animation state
-  const startRef      = useRef<number | null>(null);
-  const lastEventRef  = useRef(-1);
-  const tickRef       = useRef(0);
-  const pausedRef     = useRef(false);
-  const pauseWallRef  = useRef(0);
-
+  const [matchStarted, setMatchStarted]     = useState(false);
   const [elapsed, setElapsed]               = useState(0);
   const [ball, setBall]                     = useState({ x: 50, y: 50 });
-  const [score, setScore]                   = useState({ user: 0, cpu: 0 });
+  const [currentMinute, setCurrentMinute]   = useState(0);
   const [feed, setFeed]                     = useState<MatchEvent[]>([]);
   const [goalFlash, setGoalFlash]           = useState<"user" | "cpu" | null>(null);
-  const [flashCardId, setFlashCardId]       = useState<string | null>(null);
-  const [currentMinute, setCurrentMinute]   = useState(0);
+  const [spotlightCardId, setSpotlightCardId] = useState<string | null>(null);
+  const [possessorCardId, setPossessorCardId] = useState<string | null>(null);
   const [playerOffsets, setPlayerOffsets]   = useState<Record<string, { x: number; y: number }>>({});
   const [showHalftime, setShowHalftime]     = useState(false);
+  const [activePhase, setActivePhase]       = useState<string>("kickoff");
+
+  // Momentum: -100 (full CPU) to +100 (full user). Display: 0-100.
+  const momentumRef = useRef(0);
+  const [displayMomentum, setDisplayMomentum] = useState(50);
+
+  // Live match stats
+  const statsRef = useRef({ userShots: 0, cpuShots: 0, userSaves: 0, cpuSaves: 0, userPoss: 0, cpuPoss: 0 });
+  const [liveStats, setLiveStats]           = useState(statsRef.current);
+
+  // RAF control refs
+  const startRef         = useRef<number | null>(null);
+  const lastEventRef     = useRef(-1);
+  const tickRef          = useRef(0);
+  const halftimePausedRef = useRef(false);
+  const momentPausedRef  = useRef(false);
+  const pauseWallRef     = useRef(0);
+
+  // Ball bezier path
+  const ballPathRef  = useRef<{ fx:number;fy:number;tx:number;ty:number;cx:number;cy:number;t0:number;dur:number } | null>(null);
+  const ballPosRef   = useRef({ x: 50, y: 50 });
+  const eventZoneRef = useRef({ x: 50, y: 50 });
+  const queueBallRef = useRef<{ x: number; y: number } | null>(null); // queued after goal reset
+
+  function launchBall(toX: number, toY: number, gameTime: number) {
+    const { x: fx, y: fy } = ballPosRef.current;
+    const dx = toX - fx, dy = toY - fy;
+    const dist = Math.hypot(dx, dy) || 1;
+    const arc  = 0.28;
+    ballPathRef.current = {
+      fx, fy, tx: toX, ty: toY,
+      cx: (fx + toX) / 2 + (-dy / dist) * dist * arc,
+      cy: (fy + toY) / 2 + (dx  / dist) * dist * arc,
+      t0: gameTime,
+      dur: Math.max(0.22, Math.min(0.65, dist / 75)),
+    };
+  }
 
   useEffect(() => {
     const offsets: Record<string, { x: number; y: number }> = {};
@@ -175,17 +347,15 @@ export default function FootballPitch({
     setPlayerOffsets(offsets);
   }, [userLineup, cpuLineup]);
 
-  // Halftime top performer
   const halftimePerformer = useMemo(() => {
     const htIdx = events.findIndex((e) => e.type === "halftime");
     if (htIdx < 0) return null;
     const cardMap = new Map<string, { name: string; imageUrl: string }>();
     userLineup.forEach((p) => cardMap.set(p.card.id, { name: p.card.name, imageUrl: p.card.imageUrl }));
-
     const inv = new Map<string, { name: string; goals: number; assists: number; imageUrl: string }>();
     for (const ev of events.slice(0, htIdx)) {
       if (ev.type !== "goal" || ev.team !== "user") continue;
-      for (const [id, type] of [[ev.scorerCardId, "goal"], [ev.assisterCardId, "assist"]] as [string | undefined, string][]) {
+      for (const [id, type] of [[ev.scorerCardId, "goal"], [ev.assisterCardId, "assist"]] as [string|undefined, string][]) {
         if (!id) continue;
         const card = cardMap.get(id);
         if (!card) continue;
@@ -203,9 +373,9 @@ export default function FootballPitch({
   }, [events, userLineup]);
 
   function handleResumeSecondHalf() {
-    const pauseDuration = performance.now() - pauseWallRef.current;
-    startRef.current! += pauseDuration;
-    pausedRef.current = false;
+    const d = performance.now() - pauseWallRef.current;
+    startRef.current! += d;
+    halftimePausedRef.current = false;
     setShowHalftime(false);
   }
 
@@ -216,46 +386,125 @@ export default function FootballPitch({
     function frame(ts: number) {
       if (startRef.current === null) startRef.current = ts;
 
-      if (pausedRef.current) {
+      if (halftimePausedRef.current || momentPausedRef.current) {
         rafId.current = requestAnimationFrame(frame);
         return;
       }
 
       const elapsedSecs = Math.min((ts - startRef.current) / 1000, MATCH_DURATION);
       tickRef.current = elapsedSecs;
-      const matchMinute = (elapsedSecs / MATCH_DURATION) * 90;
+      const gameMin = (elapsedSecs / MATCH_DURATION) * 90;
       setElapsed(elapsedSecs);
-      setCurrentMinute(Math.round(matchMinute));
+      setCurrentMinute(Math.round(gameMin));
 
+      // Find active event
       let activeIdx = 0;
       for (let i = 0; i < events.length; i++) {
-        if (events[i].minute <= matchMinute) activeIdx = i;
+        if (events[i].minute <= gameMin) activeIdx = i;
       }
 
+      // Handle newly fired events
       if (activeIdx > lastEventRef.current) {
         lastEventRef.current = activeIdx;
         const ev = events[activeIdx];
-        setScore({ user: ev.scoreUser, cpu: ev.scoreCpu });
-        setFeed((prev) => [ev, ...prev].slice(0, 10));
 
+        setFeed((prev) => [ev, ...prev].slice(0, 12));
+        setActivePhase(ev.phase);
+
+        // Ball zone for this event
+        const zone = computeEventZone(ev);
+        eventZoneRef.current = zone;
+        launchBall(zone.x, zone.y, elapsedSecs);
+
+        // Momentum
+        const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+        momentumRef.current = clamp(momentumRef.current * 0.88 + momentumDelta(ev), -100, 100);
+        setDisplayMomentum(50 + momentumRef.current / 2);
+
+        // Live stats
+        const s = { ...statsRef.current };
+        const shotTypes = ["goal", "save", "miss", "nearpost"] as const;
+        if ((shotTypes as readonly string[]).includes(ev.type)) {
+          if (ev.team === "user") s.userShots++; else s.cpuShots++;
+        }
+        if (ev.type === "save") {
+          if (ev.team === "user") s.cpuSaves++; else s.userSaves++;
+        }
+        if (ev.type === "possession" || ev.type === "counter") {
+          if (ev.team === "user") s.userPoss++; else s.cpuPoss++;
+        }
+        statsRef.current = s;
+        setLiveStats({ ...s });
+
+        // Possessor ring
+        const possLineup   = ev.team === "user" ? userLineup : cpuLineup;
+        const defLineup    = ev.team === "user" ? cpuLineup  : userLineup;
+        let possCard: AssignedPlayer | undefined;
+        if (ev.type === "save" || ev.type === "clearance") {
+          possCard = defLineup.find((p) => p.position === (ev.type === "save" ? "GK" : "DEF"));
+        } else if (ev.type === "tackle") {
+          possCard = defLineup.find((p) => p.position === "DEF");
+        } else if (ev.type === "possession") {
+          possCard = possLineup.find((p) => p.position === "MID");
+        } else {
+          possCard = possLineup.find((p) => p.position === "ATT") ?? possLineup.find((p) => p.position === "MID");
+        }
+        setPossessorCardId(possCard?.card.id ?? null);
+
+        // Spotlight on big events
         if (ev.type === "goal") {
           setGoalFlash(ev.team);
-          setFlashCardId(ev.scorerCardId ?? null);
-          setTimeout(() => { setGoalFlash(null); setFlashCardId(null); }, 2000);
-        }
-
-        if (ev.type === "halftime") {
-          pausedRef.current = true;
+          setSpotlightCardId(ev.scorerCardId ?? null);
+          // Dramatic 2s pause
+          momentPausedRef.current = true;
+          const momentStart = performance.now();
+          setTimeout(() => {
+            const d = performance.now() - momentStart;
+            startRef.current! += d;
+            momentPausedRef.current = false;
+            setGoalFlash(null);
+            setSpotlightCardId(null);
+            setPossessorCardId(null);
+            // Queue ball to center after goal
+            queueBallRef.current = { x: 50, y: 50 };
+          }, 2000);
+        } else if (ev.type === "save") {
+          const savingGk = defLineup.find((p) => p.position === "GK");
+          setSpotlightCardId(savingGk?.card.id ?? null);
+          setTimeout(() => setSpotlightCardId(null), 1500);
+        } else if (ev.type === "halftime") {
+          halftimePausedRef.current = true;
           pauseWallRef.current = performance.now();
           setShowHalftime(true);
         }
       }
 
-      const target = getBallTarget(events[activeIdx], elapsedSecs);
-      setBall((prev) => ({
-        x: prev.x + (target.x - prev.x) * 0.08,
-        y: prev.y + (target.y - prev.y) * 0.08,
-      }));
+      // Queued ball reset (after goal pause ends)
+      if (queueBallRef.current && !momentPausedRef.current) {
+        const q = queueBallRef.current;
+        queueBallRef.current = null;
+        launchBall(q.x, q.y, elapsedSecs);
+      }
+
+      // Ball bezier
+      if (ballPathRef.current) {
+        const p = ballPathRef.current;
+        const rawT = (elapsedSecs - p.t0) / p.dur;
+        const t = Math.max(0, Math.min(1, rawT));
+        const u = 1 - t;
+        const x = u*u*p.fx + 2*u*t*p.cx + t*t*p.tx;
+        const y = u*u*p.fy + 2*u*t*p.cy + t*t*p.ty;
+        ballPosRef.current = { x, y };
+        setBall({ x, y });
+        if (t >= 1) ballPathRef.current = null;
+      } else {
+        // Gentle drift toward event zone when path is done
+        const z = eventZoneRef.current;
+        const nx = ballPosRef.current.x + (z.x - ballPosRef.current.x) * 0.015;
+        const ny = ballPosRef.current.y + (z.y - ballPosRef.current.y) * 0.015;
+        ballPosRef.current = { x: nx, y: ny };
+        setBall({ x: nx, y: ny });
+      }
 
       if (elapsedSecs < MATCH_DURATION) {
         rafId.current = requestAnimationFrame(frame);
@@ -266,43 +515,52 @@ export default function FootballPitch({
 
     rafId.current = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(rafId.current);
-  }, [events, onComplete, matchStarted]);
+  }, [events, onComplete, matchStarted, userLineup, cpuLineup]);
 
   const progress = (elapsed / MATCH_DURATION) * 100;
+  const htScore  = simulation.halftimeScore;
+
+  // Possession % from stats
+  const totalPoss = liveStats.userPoss + liveStats.cpuPoss;
+  const userPossPct = totalPoss > 0 ? Math.round((liveStats.userPoss / totalPoss) * 100) : 50;
+
+  // ── Player token ──────────────────────────────────────────────────────────
 
   function PlayerToken({ player, formation, team }: { player: AssignedPlayer; formation: Formation; team: "user" | "cpu" }) {
     const [bx, by] = getCoord(player, formation, team);
-    const phase = playerOffsets[player.card.id] ?? { x: 0, y: 0 };
-    const ox = Math.sin(elapsed * 1.2 + phase.x) * 1.2;
-    const oy = Math.sin(elapsed * 0.9 + phase.y) * 1.0;
-    const activePhase = events[lastEventRef.current]?.phase;
+    const phase     = playerOffsets[player.card.id] ?? { x: 0, y: 0 };
+    const wobbleX   = Math.sin(elapsed * 1.1 + phase.x) * 1.1;
+    const wobbleY   = Math.sin(elapsed * 0.85 + phase.y) * 0.9;
+    const [extraX, extraY] = getPositionOffset(player, team, activePhase, bx);
 
-    // Attackers push forward during their team's attack
-    let extraY = 0;
-    if (team === "user" && activePhase === "user-attack" && player.position === "ATT") extraY = -2.5;
-    if (team === "cpu"  && activePhase === "cpu-attack"  && player.position === "ATT") extraY = 2.5;
-
-    // Goal scorer moves toward goal
-    const isScorer = flashCardId === player.card.id;
-    let goalPushY = 0;
-    if (isScorer) {
-      goalPushY = team === "user" ? -6 : 6;
-    }
+    const isSpotlight  = spotlightCardId === player.card.id;
+    const isPossessor  = possessorCardId === player.card.id && !isSpotlight;
+    const isGoalScorer = isSpotlight && goalFlash !== null;
 
     return (
       <div
-        className={`absolute ${isScorer ? "z-30" : "z-10"}`}
+        className={`absolute ${isSpotlight ? "z-30" : "z-10"}`}
         style={{
-          left: `${bx + ox}%`,
-          top: `${by + oy + extraY + goalPushY}%`,
+          left: `${bx + wobbleX + extraX}%`,
+          top:  `${by + wobbleY + extraY}%`,
           transform: "translate(-50%, -50%)",
-          transition: isScorer ? "top 0.4s ease-out, left 0.4s ease-out" : "top 0.7s ease-out, left 0.7s ease-out",
+          transition: isGoalScorer
+            ? "top 0.4s ease-out, left 0.4s ease-out"
+            : "top 0.7s cubic-bezier(0.4,0,0.2,1), left 0.7s cubic-bezier(0.4,0,0.2,1)",
         }}
       >
+        {/* Possessor ring */}
+        {isPossessor && (
+          <div className="absolute inset-0 rounded-full ring-2 ring-white/60 animate-pulse scale-125 z-10" />
+        )}
+        {/* Spotlight ring */}
+        {isSpotlight && (
+          <div className="absolute inset-0 rounded-full ring-4 ring-yellow-400 animate-pulse scale-150 z-10" />
+        )}
         <div
-          className={`relative w-6 h-6 sm:w-8 sm:h-8 rounded-full ring-2 overflow-hidden shadow-lg transition-all duration-300
+          className={`relative rounded-full ring-2 overflow-hidden shadow-lg transition-all duration-300
             ${RARITY_RING[player.card.rarity]}
-            ${isScorer ? "scale-150 ring-4 ring-yellow-400 shadow-yellow-400/60" : ""}
+            ${isSpotlight ? "w-10 h-10 sm:w-12 sm:h-12" : "w-6 h-6 sm:w-8 sm:h-8"}
           `}
           title={`${player.card.name} (${player.position})`}
         >
@@ -313,23 +571,21 @@ export default function FootballPitch({
             className="object-cover object-top"
             sizes="32px"
           />
-          {/* Team colour tint */}
-          <div className={`absolute inset-0 pointer-events-none ${team === "user" ? "bg-blue-500/25" : "bg-red-500/30"}`} />
+          <div className={`absolute inset-0 pointer-events-none ${team === "user" ? "bg-blue-500/20" : "bg-red-500/25"}`} />
         </div>
       </div>
     );
   }
 
-  // ── Pre-match reveal ────────────────────────────────────────────────────────
+  // ── Pre-match CPU reveal ──────────────────────────────────────────────────
+
   if (!matchStarted) {
     return <CpuReveal cpuLineup={cpuLineup} cpuFormation={cpuFormation} onStart={() => setMatchStarted(true)} />;
   }
 
-  const htScore = simulation.halftimeScore;
-
   return (
     <>
-    {/* Halftime modal — fixed so it never clips the pitch on any screen size */}
+    {/* Halftime fixed modal */}
     {showHalftime && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
         <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700 shadow-2xl p-6 text-center">
@@ -361,6 +617,7 @@ export default function FootballPitch({
         </div>
       </div>
     )}
+
     <div className="flex flex-col lg:flex-row gap-4 w-full max-w-3xl mx-auto">
       {/* Pitch */}
       <div className="relative w-full lg:w-64 xl:w-72 shrink-0">
@@ -369,6 +626,7 @@ export default function FootballPitch({
           style={{ paddingTop: "150%", background: "linear-gradient(180deg, #1a5c28 0%, #206b30 30%, #1e6b2e 50%, #206b30 70%, #1a5c28 100%)" }}
         >
           <div className="absolute inset-0">
+            {/* Pitch markings */}
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className={i % 2 === 0 ? "absolute inset-x-0 bg-black/[0.04]" : "absolute inset-x-0"}
                 style={{ top: `${i * 12.5}%`, height: "12.5%" }} />
@@ -387,64 +645,86 @@ export default function FootballPitch({
               style={{ width: "22%", left: "39%", top: 0, height: "4%" }} />
             <div className="absolute border border-white/40 border-b-0 bg-white/5"
               style={{ width: "22%", left: "39%", bottom: 0, height: "4%" }} />
-
             <div className="absolute top-[4.5%] left-1/2 -translate-x-1/2 text-red-300/70 text-[8px] font-bold uppercase tracking-widest">CPU</div>
             <div className="absolute bottom-[4.5%] left-1/2 -translate-x-1/2 text-blue-300/70 text-[8px] font-bold uppercase tracking-widest">YOU</div>
 
+            {/* Players */}
             {userLineup.map((p) => <PlayerToken key={p.card.id} player={p} formation={userFormation} team="user" />)}
             {cpuLineup.map((p)  => <PlayerToken key={p.card.id} player={p} formation={cpuFormation}  team="cpu"  />)}
 
             {/* Ball */}
-            <div className="absolute w-3.5 h-3.5 rounded-full bg-white shadow-lg shadow-white/60 z-20"
-              style={{ left: `${ball.x}%`, top: `${ball.y}%`, transform: "translate(-50%, -50%)" }} />
+            <div
+              className="absolute rounded-full bg-white shadow-lg shadow-white/60 z-20"
+              style={{
+                width: "4%", aspectRatio: "1",
+                left: `${ball.x}%`, top: `${ball.y}%`,
+                transform: "translate(-50%, -50%)",
+              }}
+            />
 
             {/* Goal flash */}
             {goalFlash && (
               <div className={`absolute inset-0 z-30 flex flex-col items-center justify-center pointer-events-none
-                ${goalFlash === "user" ? "bg-blue-500/25" : "bg-red-500/25"}`}>
-                <span className="text-4xl font-black text-white drop-shadow-lg animate-bounce">GOAL!</span>
-                <span className="text-xs text-white/80 font-bold mt-1">
-                  {goalFlash === "user" ? "YOU SCORED!" : "CPU SCORED"}
-                </span>
+                ${goalFlash === "user" ? "bg-green-500/30" : "bg-red-500/25"}`}>
+                <div className="bg-black/60 rounded-2xl px-4 py-2">
+                  <span className="text-3xl font-black text-white drop-shadow-lg animate-bounce block text-center">
+                    {goalFlash === "user" ? "⚽ GOAL!" : "CPU GOAL"}
+                  </span>
+                  <div className="text-center text-white/60 text-xs mt-1 font-bold">
+                    {feed[0]?.scoreUser ?? 0} – {feed[0]?.scoreCpu ?? 0}
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* Scoreboard — derived from feed[0] so score and commentary are always in sync */}
-            <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-3 py-1.5 bg-black/55 backdrop-blur-sm">
-              <div className="flex items-center gap-1">
-                <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[7px] font-bold">Y</div>
-                <span className="text-white text-xs font-bold">{feed[0]?.scoreUser ?? 0}</span>
+            {/* Scoreboard */}
+            <div className="absolute top-0 left-0 right-0 z-20 bg-black/55 backdrop-blur-sm">
+              <div className="flex items-center justify-between px-3 py-1.5">
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[7px] font-bold">Y</div>
+                  <span className="text-white text-xs font-bold">{feed[0]?.scoreUser ?? 0}</span>
+                </div>
+                <div className="text-white/60 text-[9px] font-mono">{currentMinute}&apos;</div>
+                <div className="flex items-center gap-1">
+                  <span className="text-white text-xs font-bold">{feed[0]?.scoreCpu ?? 0}</span>
+                  <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center text-white text-[7px] font-bold">C</div>
+                </div>
               </div>
-              <div className="text-white/60 text-[9px] font-mono">{currentMinute}&apos;</div>
-              <div className="flex items-center gap-1">
-                <span className="text-white text-xs font-bold">{feed[0]?.scoreCpu ?? 0}</span>
-                <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center text-white text-[7px] font-bold">C</div>
+              {/* Momentum bar */}
+              <div className="px-2 pb-1.5 flex items-center gap-1">
+                <span className="text-blue-400/60 text-[7px] font-bold shrink-0">YOU</span>
+                <div className="flex-1 h-1 rounded-full overflow-hidden bg-red-900/60">
+                  <div
+                    className="h-full bg-blue-500/80 transition-all duration-1000 rounded-full"
+                    style={{ width: `${displayMomentum}%` }}
+                  />
+                </div>
+                <span className="text-red-400/60 text-[7px] font-bold shrink-0">CPU</span>
               </div>
             </div>
 
+            {/* Progress bar */}
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/10 z-20">
               <div className="h-full bg-white/40 transition-all duration-100" style={{ width: `${progress}%` }} />
             </div>
-
-            {/* Halftime — rendered as fixed modal outside the pitch so it doesn't clip on mobile */}
           </div>
         </div>
       </div>
 
-      {/* Commentary feed */}
-      <div className="flex-1 flex flex-col gap-2">
+      {/* Commentary + stats */}
+      <div className="flex-1 flex flex-col gap-2 min-h-0">
         <div className="flex items-center gap-2 mb-1">
           <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
           <span className="text-zinc-400 text-xs font-medium uppercase tracking-wider">Live Commentary</span>
           <span className="ml-auto text-zinc-500 text-xs font-mono">{currentMinute}&apos;</span>
         </div>
 
-        <div className="flex flex-col gap-1.5 overflow-hidden">
+        <div className="flex flex-col gap-1.5 overflow-hidden flex-1">
           {feed.length === 0 && <div className="text-zinc-600 text-sm italic">Waiting for kick off…</div>}
           {feed.map((ev, i) => (
             <div
               key={`${ev.minute}-${i}`}
-              className={`flex items-start gap-2 px-3 py-2 rounded-lg text-sm transition-all
+              className={`flex items-start gap-2 px-3 py-2 rounded-lg text-sm
                 ${i === 0 ? "bg-zinc-800/80 border border-zinc-700/50" : "bg-zinc-900/50"}
                 ${ev.type === "goal" && ev.team === "user" ? "!border-blue-500/50 !bg-blue-900/20" : ""}
                 ${ev.type === "goal" && ev.team === "cpu"  ? "!border-red-500/50  !bg-red-900/20"  : ""}
@@ -465,7 +745,36 @@ export default function FootballPitch({
           ))}
         </div>
 
-        <div className="mt-auto pt-3 flex flex-wrap gap-2">
+        {/* Live match stats */}
+        <div className="mt-2 rounded-xl bg-zinc-900/60 border border-zinc-800 px-3 py-2">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <div className="text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Shots</div>
+              <div className="text-white text-xs font-bold">
+                <span className="text-blue-400">{liveStats.userShots}</span>
+                <span className="text-zinc-600 mx-1">–</span>
+                <span className="text-red-400">{liveStats.cpuShots}</span>
+              </div>
+            </div>
+            <div>
+              <div className="text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Saves</div>
+              <div className="text-white text-xs font-bold">
+                <span className="text-blue-400">{liveStats.userSaves}</span>
+                <span className="text-zinc-600 mx-1">–</span>
+                <span className="text-red-400">{liveStats.cpuSaves}</span>
+              </div>
+            </div>
+            <div>
+              <div className="text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Poss</div>
+              <div className="text-white text-xs font-bold">
+                <span className="text-blue-400">{userPossPct}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Rarity legend */}
+        <div className="pt-1 flex flex-wrap gap-2">
           {(["legendary", "epic", "rare", "common"] as const).map((r) => (
             <div key={r} className="flex items-center gap-1 text-xs text-zinc-500">
               <div className={`w-2.5 h-2.5 rounded-full ring-1 ${RARITY_RING[r]} bg-zinc-700`} />

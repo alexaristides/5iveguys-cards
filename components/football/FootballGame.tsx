@@ -80,6 +80,7 @@ const RARITY_BADGE: Record<string, string> = {
 
 export default function FootballGame() {
   const [phase, setPhase]           = useState<Phase>("setup");
+  const [shareCopied, setShareCopied] = useState(false);
   const [ownedCards, setOwnedCards] = useState<FootballCard[]>([]);
   const [formation, setFormation]   = useState<Formation>("2-2-2");
   const [lineup, setLineup]         = useState<LineupSlot[]>(() => buildSlots("2-2-2"));
@@ -206,7 +207,25 @@ export default function FootballGame() {
     } catch {}
   }
 
-  function handlePlayAgain() { setPhase("setup"); setSimulation(null); }
+  function handlePlayAgain() { setPhase("setup"); setSimulation(null); setShareCopied(false); }
+
+  function handleShare() {
+    if (!simulation) return;
+    const { result, userScore, cpuScore, userOverall } = simulation;
+    const outcome =
+      result === "win"  ? `beat CPU ${userScore}–${cpuScore}` :
+      result === "draw" ? `drew with CPU ${userScore}–${cpuScore}` :
+                          `lost to CPU ${cpuScore}–${userScore}`;
+    const text = `I just ${outcome} with a ${Math.round(userOverall)} OVR squad on 5iveG Cards ⚽🃏`;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      navigator.share({ text }).catch(() => {});
+    } else {
+      navigator.clipboard?.writeText(text).then(() => {
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2500);
+      });
+    }
+  }
 
   const filledCount = lineup.filter((s) => s.card !== null).length;
   const canKickOff  = filledCount === 7;
@@ -348,12 +367,15 @@ export default function FootballGame() {
                   <div className="text-red-400 text-[10px] font-bold mb-1">CPU</div>
                   {simulation.events
                     .filter((ev) => ev.type === "goal" && ev.team === "cpu")
-                    .map((ev, i) => (
-                      <div key={i} className="text-zinc-300 text-xs py-0.5">
-                        ⚽ <span className="font-semibold text-zinc-400">CPU</span>{" "}
-                        <span className="text-zinc-600">{ev.minute}&apos;</span>
-                      </div>
-                    ))}
+                    .map((ev, i) => {
+                      const scorer = cpuLineup.find((p) => p.card.id === ev.scorerCardId)?.card.name ?? "CPU";
+                      return (
+                        <div key={i} className="text-zinc-300 text-xs py-0.5">
+                          ⚽ <span className="font-semibold text-zinc-400">{scorer}</span>{" "}
+                          <span className="text-zinc-600">{ev.minute}&apos;</span>
+                        </div>
+                      );
+                    })}
                 </div>
               )}
             </div>
@@ -405,12 +427,24 @@ export default function FootballGame() {
           </div>
         </div>
 
-        <button
-          onClick={handlePlayAgain}
-          className="w-full py-4 rounded-2xl bg-green-700 hover:bg-green-600 text-white font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-900/40"
-        >
-          <span>⚽</span> Play Again
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handlePlayAgain}
+            className="flex-1 py-4 rounded-2xl bg-green-700 hover:bg-green-600 text-white font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-900/40"
+          >
+            <span>⚽</span> Play Again
+          </button>
+          <button
+            onClick={handleShare}
+            className={`px-5 py-4 rounded-2xl font-bold text-sm transition-all flex items-center gap-1.5
+              ${shareCopied
+                ? "bg-green-900/60 border border-green-600 text-green-300"
+                : "bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-zinc-500"
+              }`}
+          >
+            {shareCopied ? "✓ Copied!" : "Share"}
+          </button>
+        </div>
       </div>
     );
   }
