@@ -570,7 +570,7 @@ export default function FootballPitch({
         <div
           className={`relative rounded-full ring-2 overflow-hidden shadow-lg transition-all duration-300
             ${RARITY_RING[player.card.rarity]}
-            ${isSpotlight ? "w-10 h-10 sm:w-12 sm:h-12" : "w-6 h-6 sm:w-8 sm:h-8"}
+            ${isSpotlight ? "w-11 h-11 sm:w-12 sm:h-12" : "w-8 h-8 sm:w-8 sm:h-8"}
           `}
           title={`${player.card.name} (${player.position})`}
         >
@@ -632,7 +632,7 @@ export default function FootballPitch({
       {/* Pitch */}
       <div className="relative w-full sm:w-52 lg:w-64 xl:w-72 shrink-0">
         <div
-          className="relative w-full overflow-hidden rounded-xl pt-[62%] sm:pt-[150%]"
+          className="relative w-full overflow-hidden rounded-xl pt-[85%] sm:pt-[150%]"
           style={{ background: "linear-gradient(180deg, #1a5c28 0%, #206b30 30%, #1e6b2e 50%, #206b30 70%, #1a5c28 100%)" }}
         >
           <div className="absolute inset-0">
