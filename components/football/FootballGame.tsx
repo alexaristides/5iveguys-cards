@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type Formation,
@@ -47,19 +48,16 @@ const LS_KEY = "fball_team";
 
 function saveToStorage(formation: Formation, slots: LineupSlot[]) {
   try {
-    const data = {
+    localStorage.setItem(LS_KEY, JSON.stringify({
       formation,
-      slots: slots
-        .filter((s) => s.card !== null)
-        .map((s) => ({ position: s.position, posIndex: s.posIndex, cardId: s.card!.id })),
-    };
-    localStorage.setItem(LS_KEY, JSON.stringify(data));
+      slots: slots.filter((s) => s.card !== null).map((s) => ({
+        position: s.position, posIndex: s.posIndex, cardId: s.card!.id,
+      })),
+    }));
   } catch {}
 }
 
-function loadFromStorage(
-  cards: FootballCard[],
-): { formation: Formation; lineup: LineupSlot[] } | null {
+function loadFromStorage(cards: FootballCard[]): { formation: Formation; lineup: LineupSlot[] } | null {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return null;
@@ -68,30 +66,31 @@ function loadFromStorage(
     const lineup = buildSlots(formation);
     for (const saved of slots) {
       const card = cardMap.get(saved.cardId) ?? null;
-      const slot = lineup.find(
-        (s) => s.position === saved.position && s.posIndex === saved.posIndex,
-      );
+      const slot = lineup.find((s) => s.position === saved.position && s.posIndex === saved.posIndex);
       if (slot) slot.card = card;
     }
     return { formation, lineup };
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
+const RARITY_BADGE: Record<string, string> = {
+  common: "bg-zinc-700/80 text-zinc-300", rare: "bg-blue-900/60 text-blue-300",
+  epic: "bg-purple-900/60 text-purple-300", legendary: "bg-amber-900/60 text-amber-400",
+};
+
 export default function FootballGame() {
-  const [phase, setPhase] = useState<Phase>("setup");
+  const [phase, setPhase]           = useState<Phase>("setup");
   const [ownedCards, setOwnedCards] = useState<FootballCard[]>([]);
-  const [formation, setFormation] = useState<Formation>("2-2-2");
-  const [lineup, setLineup] = useState<LineupSlot[]>(() => buildSlots("2-2-2"));
+  const [formation, setFormation]   = useState<Formation>("2-2-2");
+  const [lineup, setLineup]         = useState<LineupSlot[]>(() => buildSlots("2-2-2"));
   const [userLineup, setUserLineup] = useState<AssignedPlayer[]>([]);
-  const [cpuLineup, setCpuLineup] = useState<AssignedPlayer[]>([]);
+  const [cpuLineup, setCpuLineup]   = useState<AssignedPlayer[]>([]);
   const [cpuFormation, setCpuFormation] = useState<Formation>("2-2-2");
   const [simulation, setSimulation] = useState<MatchSimulation | null>(null);
-  const [stats, setStats] = useState<MatchStats>({ wins: 0, losses: 0, draws: 0 });
+  const [stats, setStats]           = useState<MatchStats>({ wins: 0, losses: 0, draws: 0 });
   const [loadingCards, setLoadingCards] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [savedMsg, setSavedMsg] = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [savedMsg, setSavedMsg]     = useState(false);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   void saveTimer;
@@ -108,24 +107,17 @@ export default function FootballGame() {
         if (!item.card || seen.has(item.card.id)) continue;
         seen.add(item.card.id);
         cards.push({
-          id: item.card.id,
-          name: item.card.name,
+          id: item.card.id, name: item.card.name,
           rarity: item.card.rarity as FootballCard["rarity"],
           attribute: (item.card.attribute ?? "Skill") as FootballCard["attribute"],
-          imageUrl: item.card.imageUrl,
-          kit: item.card.kit ?? null,
+          imageUrl: item.card.imageUrl, kit: item.card.kit ?? null,
         });
       }
       setOwnedCards(cards);
 
-      // Restore saved lineup: localStorage first (instant), then DB
       const local = loadFromStorage(cards);
-      if (local) {
-        setFormation(local.formation);
-        setLineup(local.lineup);
-      }
+      if (local) { setFormation(local.formation); setLineup(local.lineup); }
 
-      // Check DB for cross-device persistence
       const teamRes = await fetch("/api/football/team");
       if (teamRes.ok) {
         const { team } = await teamRes.json();
@@ -134,18 +126,14 @@ export default function FootballGame() {
           const cardMap = new Map(cards.map((c) => [c.id, c]));
           for (const saved of (team.slots as SavedSlot[])) {
             const card = cardMap.get(saved.cardId) ?? null;
-            const slot = dbLineup.find(
-              (s) => s.position === saved.position && s.posIndex === saved.posIndex,
-            );
+            const slot = dbLineup.find((s) => s.position === saved.position && s.posIndex === saved.posIndex);
             if (slot) slot.card = card;
           }
           setFormation(team.formation as Formation);
           setLineup(dbLineup);
         }
       }
-    } finally {
-      setLoadingCards(false);
-    }
+    } finally { setLoadingCards(false); }
   }, []);
 
   const fetchStats = useCallback(async () => {
@@ -156,19 +144,14 @@ export default function FootballGame() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchCards();
-    fetchStats();
-  }, [fetchCards, fetchStats]);
+  useEffect(() => { fetchCards(); fetchStats(); }, [fetchCards, fetchStats]);
 
   function handleLineupChange(next: LineupSlot[]) {
     setLineup(next);
     saveToStorage(formation, next);
   }
 
-  function handleFormationChange(f: Formation) {
-    setFormation(f);
-  }
+  function handleFormationChange(f: Formation) { setFormation(f); }
 
   async function saveTeamToDb(fm: Formation, slots: LineupSlot[]) {
     setSaving(true);
@@ -178,17 +161,15 @@ export default function FootballGame() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           formation: fm,
-          slots: slots
-            .filter((s) => s.card !== null)
-            .map((s) => ({ position: s.position, posIndex: s.posIndex, cardId: s.card!.id })),
+          slots: slots.filter((s) => s.card !== null).map((s) => ({
+            position: s.position, posIndex: s.posIndex, cardId: s.card!.id,
+          })),
         }),
       });
       saveToStorage(fm, slots);
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2500);
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   }
 
   function handleKickOff() {
@@ -199,7 +180,7 @@ export default function FootballGame() {
     setUserLineup(assigned);
     setCpuLineup(cpuAssigned);
     setCpuFormation(cpuFm);
-    setSimulation(simulateMatch(assigned, cpuAssigned));
+    setSimulation(simulateMatch(assigned, cpuAssigned, formation, cpuFm));
     setPhase("playing");
 
     saveTeamToDb(formation, lineup);
@@ -225,19 +206,15 @@ export default function FootballGame() {
     } catch {}
   }
 
-  function handlePlayAgain() {
-    setPhase("setup");
-    setSimulation(null);
-  }
+  function handlePlayAgain() { setPhase("setup"); setSimulation(null); }
 
   const filledCount = lineup.filter((s) => s.card !== null).length;
-  const canKickOff = filledCount === 7;
+  const canKickOff  = filledCount === 7;
 
   // ── Setup ──────────────────────────────────────────────────────────────────
   if (phase === "setup") {
     return (
       <div className="max-w-sm mx-auto">
-        {/* Record + save row */}
         <div className="flex items-center gap-3 mb-5">
           <div className="flex gap-3 text-sm font-bold">
             <span className="text-green-400">{stats.wins}W</span>
@@ -245,19 +222,13 @@ export default function FootballGame() {
             <span className="text-zinc-500">{stats.draws}D</span>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            {savedMsg && (
-              <span className="text-green-400 text-xs animate-fade-in">Team saved ✓</span>
-            )}
+            {savedMsg && <span className="text-green-400 text-xs">Team saved ✓</span>}
             <button
               onClick={() => saveTeamToDb(formation, lineup)}
               disabled={saving || filledCount === 0}
               className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 disabled:opacity-40 transition-all flex items-center gap-1.5"
             >
-              {saving ? (
-                <span className="w-3 h-3 border border-zinc-500 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <span>💾</span>
-              )}
+              {saving ? <span className="w-3 h-3 border border-zinc-500 border-t-transparent rounded-full animate-spin" /> : <span>💾</span>}
               Save Team
             </button>
           </div>
@@ -307,9 +278,7 @@ export default function FootballGame() {
       <div className="w-full">
         <div className="text-center mb-4">
           <h2 className="text-zinc-300 text-sm font-semibold uppercase tracking-wider">Match in Progress</h2>
-          <p className="text-zinc-600 text-xs mt-0.5">
-            {formation} vs {cpuFormation}
-          </p>
+          <p className="text-zinc-600 text-xs mt-0.5">{formation} vs {cpuFormation}</p>
         </div>
         <FootballPitch
           simulation={simulation}
@@ -325,7 +294,7 @@ export default function FootballGame() {
 
   // ── Result ─────────────────────────────────────────────────────────────────
   if (phase === "result" && simulation) {
-    const { userScore, cpuScore, result, userOverall, cpuOverall } = simulation;
+    const { userScore, cpuScore, result, userOverall, cpuOverall, mvp } = simulation;
     const cfg = {
       win:  { label: "Victory!", color: "text-green-400", bg: "from-green-900/25 to-transparent", emoji: "🏆" },
       loss: { label: "Defeat",   color: "text-red-400",   bg: "from-red-900/25 to-transparent",   emoji: "😞" },
@@ -334,13 +303,12 @@ export default function FootballGame() {
 
     return (
       <div className="max-w-sm mx-auto text-center">
-        <div className={`rounded-2xl bg-gradient-to-b ${cfg.bg} border border-zinc-800 p-8 mb-6`}>
+        {/* Score card */}
+        <div className={`rounded-2xl bg-gradient-to-b ${cfg.bg} border border-zinc-800 p-8 mb-5`}>
           <div className="text-6xl mb-3">{cfg.emoji}</div>
           <h2 className={`text-3xl font-black mb-3 ${cfg.color}`}>{cfg.label}</h2>
           <div className="text-5xl font-black text-white mb-5">
-            {userScore}
-            <span className="text-zinc-600 text-3xl mx-2">–</span>
-            {cpuScore}
+            {userScore}<span className="text-zinc-600 text-3xl mx-2">–</span>{cpuScore}
           </div>
           <div className="flex justify-center gap-8 text-sm text-zinc-500">
             <div>
@@ -354,6 +322,36 @@ export default function FootballGame() {
           </div>
         </div>
 
+        {/* Man of the Match */}
+        {mvp && (
+          <div className="mb-5 rounded-2xl bg-amber-900/15 border border-amber-700/40 p-5">
+            <div className="text-amber-400 text-[10px] font-bold uppercase tracking-widest mb-3">⭐ Man of the Match</div>
+            <div className="flex items-center gap-4">
+              <div className="relative w-16 h-20 rounded-xl overflow-hidden ring-2 ring-amber-500/60 shrink-0">
+                <Image src={mvp.imageUrl} alt={mvp.name} fill className="object-cover" sizes="64px" />
+              </div>
+              <div className="text-left">
+                <div className="text-white font-black text-lg leading-tight">{mvp.name}</div>
+                <div className="flex gap-3 mt-2">
+                  {mvp.goals > 0 && (
+                    <div>
+                      <div className="text-green-400 font-black text-xl leading-none">{mvp.goals}</div>
+                      <div className="text-zinc-600 text-[10px]">Goal{mvp.goals > 1 ? "s" : ""}</div>
+                    </div>
+                  )}
+                  {mvp.assists > 0 && (
+                    <div>
+                      <div className="text-blue-400 font-black text-xl leading-none">{mvp.assists}</div>
+                      <div className="text-zinc-600 text-[10px]">Assist{mvp.assists > 1 ? "s" : ""}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Season record */}
         <div className="flex justify-center gap-8 mb-7">
           <div className="text-center">
             <div className="text-2xl font-black text-green-400">{stats.wins}</div>
@@ -373,8 +371,7 @@ export default function FootballGame() {
           onClick={handlePlayAgain}
           className="w-full py-4 rounded-2xl bg-green-700 hover:bg-green-600 text-white font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-900/40"
         >
-          <span>⚽</span>
-          Play Again
+          <span>⚽</span> Play Again
         </button>
       </div>
     );
