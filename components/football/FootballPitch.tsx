@@ -729,7 +729,7 @@ export default function FootballPitch({
           <span className="ml-auto text-zinc-500 text-xs font-mono">{currentMinute}&apos;</span>
         </div>
 
-        <div className="flex flex-col gap-1.5 overflow-hidden flex-1">
+        <div className="flex flex-col gap-1.5 overflow-y-auto h-56 lg:h-72 pr-1">
           {feed.length === 0 && <div className="text-zinc-600 text-sm italic">Waiting for kick off…</div>}
           {feed.map((ev, i) => (
             <div

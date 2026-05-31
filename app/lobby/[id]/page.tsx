@@ -348,13 +348,15 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
             </div>
           ) : (
             <>
-              <FormationPitchSelector
-                ownedCards={ownedCards}
-                formation={formation}
-                lineup={lineup}
-                onFormationChange={(f) => setFormation(f)}
-                onLineupChange={(s) => setLineup(s)}
-              />
+              <div className="max-w-[300px] mx-auto">
+                <FormationPitchSelector
+                  ownedCards={ownedCards}
+                  formation={formation}
+                  lineup={lineup}
+                  onFormationChange={(f) => setFormation(f)}
+                  onLineupChange={(s) => setLineup(s)}
+                />
+              </div>
               {submitError && <p className="text-red-400 text-sm text-center mt-3">{submitError}</p>}
               <button
                 onClick={handleSubmitSquad}

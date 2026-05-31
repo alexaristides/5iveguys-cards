@@ -175,6 +175,7 @@ export default function DashboardPage() {
   // Active section tab
   const [activeTab, setActiveTab] = useState<"channels" | "collection" | "discover" | "cards" | "game">("channels");
   const [showInactive, setShowInactive] = useState(false);
+  const [gameMode, setGameMode] = useState<"sp" | "pvp">("sp");
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/");
@@ -490,11 +491,41 @@ export default function DashboardPage() {
         {/* ── Game tab ── */}
         {activeTab === "game" && (
           <div>
-            <div className="mb-6">
-              <h2 className="text-xl font-bold text-white">Game</h2>
-              <p className="text-zinc-500 text-sm mt-1">Pick your best squad from all your cards and play a 7v7 match</p>
+            {/* SP / PvP toggle */}
+            <div className="flex gap-1 mb-6 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1 w-fit">
+              <button
+                onClick={() => setGameMode("sp")}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                  gameMode === "sp" ? "bg-green-700 text-white shadow" : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                ⚽ Single Player
+              </button>
+              <button
+                onClick={() => setGameMode("pvp")}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                  gameMode === "pvp" ? "bg-green-700 text-white shadow" : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                ⚔️ PvP
+              </button>
             </div>
-            <FootballGame />
+
+            {gameMode === "sp" && <FootballGame />}
+
+            {gameMode === "pvp" && (
+              <div className="max-w-xl">
+                <p className="text-zinc-500 text-sm mb-5">
+                  Challenge another player to a live 1v1 match — both pick squads, then watch the same simulation unfold in real time.
+                </p>
+                <Link
+                  href="/game?tab=pvp"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-green-700 hover:bg-green-600 text-white font-bold transition-all shadow-lg shadow-green-900/30"
+                >
+                  ⚔️ Open PvP Lobby
+                </Link>
+              </div>
+            )}
           </div>
         )}
 
