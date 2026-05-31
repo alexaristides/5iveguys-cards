@@ -9,6 +9,7 @@ import { dbCardToCard, Rarity } from "@/lib/cards";
 import CardDisplay from "@/components/CardDisplay";
 import CardRatingsLeaderboard from "@/components/CardRatingsLeaderboard";
 import FootballGame from "@/components/football/FootballGame";
+import GameLeaderboard from "@/components/football/GameLeaderboard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -175,7 +176,7 @@ export default function DashboardPage() {
   // Active section tab
   const [activeTab, setActiveTab] = useState<"channels" | "collection" | "discover" | "cards" | "game">("channels");
   const [showInactive, setShowInactive] = useState(false);
-  const [gameMode, setGameMode] = useState<"sp" | "pvp">("sp");
+  const [gameMode, setGameMode] = useState<"sp" | "pvp" | "leaderboard">("sp");
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/");
@@ -491,7 +492,7 @@ export default function DashboardPage() {
         {/* ── Game tab ── */}
         {activeTab === "game" && (
           <div>
-            {/* SP / PvP toggle */}
+            {/* Mode tabs: SP / PvP / Leaderboard */}
             <div className="flex gap-1 mb-6 bg-zinc-800 border border-zinc-600 rounded-xl p-1 w-fit">
               <button
                 onClick={() => setGameMode("sp")}
@@ -509,6 +510,14 @@ export default function DashboardPage() {
               >
                 ⚔️ PvP
               </button>
+              <button
+                onClick={() => setGameMode("leaderboard")}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                  gameMode === "leaderboard" ? "bg-green-700 text-white shadow" : "text-zinc-200 hover:text-white hover:bg-zinc-700"
+                }`}
+              >
+                🏆 Leaderboard
+              </button>
             </div>
 
             {gameMode === "sp" && <FootballGame />}
@@ -524,6 +533,18 @@ export default function DashboardPage() {
                 >
                   ⚔️ Open PvP Lobby
                 </Link>
+              </div>
+            )}
+
+            {gameMode === "leaderboard" && (
+              <div className="max-w-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-white font-bold text-lg">Game Leaderboard</h3>
+                    <p className="text-zinc-500 text-xs mt-0.5">Ranked by wins · all-time</p>
+                  </div>
+                </div>
+                <GameLeaderboard />
               </div>
             )}
           </div>
