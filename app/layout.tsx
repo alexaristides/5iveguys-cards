@@ -13,6 +13,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8007695182175927"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className="bg-app min-h-screen">
         <Providers>{children}</Providers>
       </body>
