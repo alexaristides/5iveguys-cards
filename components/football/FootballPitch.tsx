@@ -628,9 +628,9 @@ export default function FootballPitch({
       </div>
     )}
 
-    <div className="flex flex-col lg:flex-row gap-4 w-full max-w-3xl mx-auto">
+    <div className="flex flex-row gap-2 sm:gap-4 w-full max-w-3xl mx-auto">
       {/* Pitch */}
-      <div className="relative w-full lg:w-64 xl:w-72 shrink-0">
+      <div className="relative w-[42%] sm:w-52 lg:w-64 xl:w-72 shrink-0">
         <div
           className="relative w-full overflow-hidden rounded-xl"
           style={{ paddingTop: "150%", background: "linear-gradient(180deg, #1a5c28 0%, #206b30 30%, #1e6b2e 50%, #206b30 70%, #1a5c28 100%)" }}
@@ -721,70 +721,71 @@ export default function FootballPitch({
         </div>
       </div>
 
-      {/* Commentary + stats — on desktop, cap to exact pitch height so the page doesn't grow */}
-      <div className="flex-1 flex flex-col gap-2 min-h-0 lg:h-96 xl:h-[432px] lg:overflow-hidden">
-        <div className="flex items-center gap-2 mb-1 shrink-0">
-          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-zinc-400 text-xs font-medium uppercase tracking-wider">Live Commentary</span>
-          <span className="ml-auto text-zinc-500 text-xs font-mono">{currentMinute}&apos;</span>
+      {/* Commentary + stats */}
+      <div className="flex-1 flex flex-col gap-1.5 sm:gap-2 min-h-0 overflow-hidden">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+          <span className="text-zinc-400 text-[10px] sm:text-xs font-medium uppercase tracking-wider">Commentary</span>
+          <span className="ml-auto text-zinc-500 text-[10px] sm:text-xs font-mono">{currentMinute}&apos;</span>
         </div>
 
-        <div className="flex flex-col gap-1.5 overflow-y-auto h-48 lg:flex-1 lg:h-auto pr-1">
-          {feed.length === 0 && <div className="text-zinc-600 text-sm italic">Waiting for kick off…</div>}
+        {/* Scrollable feed — flex-1 so it fills remaining height between header and stats */}
+        <div className="flex flex-col gap-1 sm:gap-1.5 overflow-y-auto flex-1 min-h-0 pr-0.5">
+          {feed.length === 0 && <div className="text-zinc-600 text-xs italic">Waiting for kick off…</div>}
           {feed.map((ev, i) => (
             <div
               key={`${ev.minute}-${i}`}
-              className={`flex items-start gap-2 px-3 py-2 rounded-lg text-sm
+              className={`flex items-start gap-1.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg
                 ${i === 0 ? "bg-zinc-800/80 border border-zinc-700/50" : "bg-zinc-900/50"}
                 ${ev.type === "goal" && ev.team === "user" ? "!border-blue-500/50 !bg-blue-900/20" : ""}
                 ${ev.type === "goal" && ev.team === "cpu"  ? "!border-red-500/50  !bg-red-900/20"  : ""}
                 ${ev.type === "yellowcard" ? "!border-yellow-700/30 !bg-yellow-900/10" : ""}
               `}
             >
-              <span className="shrink-0 text-base leading-none mt-0.5">{EVENT_ICON[ev.type] ?? "●"}</span>
+              <span className="shrink-0 text-sm leading-none mt-0.5">{EVENT_ICON[ev.type] ?? "●"}</span>
               <div className="flex-1 min-w-0">
-                <span className="text-zinc-500 text-xs font-mono mr-1.5">{ev.minute}&apos;</span>
-                <span className={`text-sm ${ev.type === "goal" ? "font-semibold text-white" : "text-zinc-300"}`}>
+                <span className="text-zinc-500 text-[10px] font-mono mr-1">{ev.minute}&apos;</span>
+                <span className={`text-[11px] sm:text-xs leading-snug ${ev.type === "goal" ? "font-semibold text-white" : "text-zinc-300"}`}>
                   {ev.description}
                 </span>
               </div>
               {(ev.type === "goal" || ev.type === "halftime" || ev.type === "fulltime") && (
-                <span className="shrink-0 text-xs font-bold text-white/70 ml-1">{ev.scoreUser}–{ev.scoreCpu}</span>
+                <span className="shrink-0 text-[10px] font-bold text-white/70">{ev.scoreUser}–{ev.scoreCpu}</span>
               )}
             </div>
           ))}
         </div>
 
         {/* Live match stats */}
-        <div className="mt-2 rounded-xl bg-zinc-900/60 border border-zinc-800 px-3 py-2 shrink-0">
-          <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-lg sm:rounded-xl bg-zinc-900/60 border border-zinc-800 px-2 sm:px-3 py-1.5 sm:py-2 shrink-0">
+          <div className="grid grid-cols-3 gap-1 text-center">
             <div>
-              <div className="text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Shots</div>
-              <div className="text-white text-xs font-bold">
+              <div className="text-[8px] sm:text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Shots</div>
+              <div className="text-[10px] sm:text-xs font-bold">
                 <span className="text-blue-400">{liveStats.userShots}</span>
-                <span className="text-zinc-600 mx-1">–</span>
+                <span className="text-zinc-600 mx-0.5">–</span>
                 <span className="text-red-400">{liveStats.cpuShots}</span>
               </div>
             </div>
             <div>
-              <div className="text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Saves</div>
-              <div className="text-white text-xs font-bold">
+              <div className="text-[8px] sm:text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Saves</div>
+              <div className="text-[10px] sm:text-xs font-bold">
                 <span className="text-blue-400">{liveStats.userSaves}</span>
-                <span className="text-zinc-600 mx-1">–</span>
+                <span className="text-zinc-600 mx-0.5">–</span>
                 <span className="text-red-400">{liveStats.cpuSaves}</span>
               </div>
             </div>
             <div>
-              <div className="text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Poss</div>
-              <div className="text-white text-xs font-bold">
+              <div className="text-[8px] sm:text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Poss</div>
+              <div className="text-[10px] sm:text-xs font-bold">
                 <span className="text-blue-400">{userPossPct}%</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Rarity legend */}
-        <div className="pt-1 flex flex-wrap gap-2 shrink-0">
+        {/* Rarity legend — hidden on mobile to save space */}
+        <div className="hidden sm:flex flex-wrap gap-2 shrink-0">
           {(["legendary", "epic", "rare", "common"] as const).map((r) => (
             <div key={r} className="flex items-center gap-1 text-xs text-zinc-500">
               <div className={`w-2.5 h-2.5 rounded-full ring-1 ${RARITY_RING[r]} bg-zinc-700`} />
