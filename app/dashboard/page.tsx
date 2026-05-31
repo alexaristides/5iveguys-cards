@@ -492,11 +492,11 @@ export default function DashboardPage() {
         {activeTab === "game" && (
           <div>
             {/* SP / PvP toggle */}
-            <div className="flex gap-1 mb-6 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1 w-fit">
+            <div className="flex gap-1 mb-6 bg-zinc-800 border border-zinc-600 rounded-xl p-1 w-fit">
               <button
                 onClick={() => setGameMode("sp")}
                 className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                  gameMode === "sp" ? "bg-green-700 text-white shadow" : "text-zinc-400 hover:text-white"
+                  gameMode === "sp" ? "bg-green-700 text-white shadow" : "text-zinc-200 hover:text-white hover:bg-zinc-700"
                 }`}
               >
                 ⚽ Single Player
@@ -504,7 +504,7 @@ export default function DashboardPage() {
               <button
                 onClick={() => setGameMode("pvp")}
                 className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                  gameMode === "pvp" ? "bg-green-700 text-white shadow" : "text-zinc-400 hover:text-white"
+                  gameMode === "pvp" ? "bg-green-700 text-white shadow" : "text-zinc-200 hover:text-white hover:bg-zinc-700"
                 }`}
               >
                 ⚔️ PvP
