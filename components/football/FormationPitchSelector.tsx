@@ -103,12 +103,19 @@ export default function FormationPitchSelector({
   function handleAutofill() {
     const fresh = buildSlots(formation);
     const used = new Set<string>();
+    const ALL_POS: Position[] = ["GK", "DEF", "MID", "ATT"];
+
     const result = fresh.map((slot) => {
-      let best: FootballCard | null = null, bestR = -Infinity;
+      let best: FootballCard | null = null, bestScore = -Infinity;
       for (const card of ownedCards) {
         if (used.has(card.id)) continue;
-        const r = getPlayerRating(card, slot.position);
-        if (r > bestR) { bestR = r; best = card; }
+        const posRating = getPlayerRating(card, slot.position);
+        // Bonus if this slot is the card's best (or near-best) position.
+        // Prevents e.g. a legendary ATT being auto-filled into GK.
+        const maxRating = Math.max(...ALL_POS.map((p) => getPlayerRating(card, p)));
+        const optimalBonus = posRating >= maxRating - 3 ? 6 : 0;
+        const score = posRating + optimalBonus;
+        if (score > bestScore) { bestScore = score; best = card; }
       }
       if (best) { used.add(best.id); return { ...slot, card: best }; }
       return slot;

@@ -328,6 +328,39 @@ export default function FootballPitch({
   const htScore = simulation.halftimeScore;
 
   return (
+    <>
+    {/* Halftime modal — fixed so it never clips the pitch on any screen size */}
+    {showHalftime && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700 shadow-2xl p-6 text-center">
+          <div className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest mb-2">Half Time</div>
+          <div className="text-white text-4xl font-black mb-4">{htScore.user}–{htScore.cpu}</div>
+          {halftimePerformer && (
+            <div className="mb-4 flex items-center gap-3 bg-zinc-800/60 rounded-xl px-3 py-2.5 text-left">
+              <div className="relative w-10 h-10 rounded-full overflow-hidden ring-2 ring-amber-500/60 shrink-0">
+                <Image src={halftimePerformer.imageUrl} alt={halftimePerformer.name} fill className="object-cover object-top" sizes="40px" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-zinc-400 text-[9px] uppercase tracking-wider mb-0.5">Best so far</div>
+                <div className="text-white text-sm font-bold truncate">{halftimePerformer.name}</div>
+                <div className="text-amber-400 text-xs mt-0.5">
+                  {halftimePerformer.goals > 0 && `${halftimePerformer.goals} goal${halftimePerformer.goals > 1 ? "s" : ""}`}
+                  {halftimePerformer.goals > 0 && halftimePerformer.assists > 0 && " · "}
+                  {halftimePerformer.assists > 0 && `${halftimePerformer.assists} assist${halftimePerformer.assists > 1 ? "s" : ""}`}
+                </div>
+              </div>
+            </div>
+          )}
+          <p className="text-zinc-400 text-sm mb-5 leading-relaxed">{getHalftimeTip(htScore.user, htScore.cpu)}</p>
+          <button
+            onClick={handleResumeSecondHalf}
+            className="w-full py-3 rounded-xl bg-green-700 hover:bg-green-600 text-white text-sm font-bold transition-all active:scale-95"
+          >
+            ⚽ Second Half
+          </button>
+        </div>
+      </div>
+    )}
     <div className="flex flex-col lg:flex-row gap-4 w-full max-w-3xl mx-auto">
       {/* Pitch */}
       <div className="relative w-full lg:w-64 xl:w-72 shrink-0">
@@ -376,15 +409,15 @@ export default function FootballPitch({
               </div>
             )}
 
-            {/* Scoreboard */}
+            {/* Scoreboard — derived from feed[0] so score and commentary are always in sync */}
             <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-3 py-1.5 bg-black/55 backdrop-blur-sm">
               <div className="flex items-center gap-1">
                 <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[7px] font-bold">Y</div>
-                <span className="text-white text-xs font-bold">{score.user}</span>
+                <span className="text-white text-xs font-bold">{feed[0]?.scoreUser ?? 0}</span>
               </div>
               <div className="text-white/60 text-[9px] font-mono">{currentMinute}&apos;</div>
               <div className="flex items-center gap-1">
-                <span className="text-white text-xs font-bold">{score.cpu}</span>
+                <span className="text-white text-xs font-bold">{feed[0]?.scoreCpu ?? 0}</span>
                 <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center text-white text-[7px] font-bold">C</div>
               </div>
             </div>
@@ -393,37 +426,7 @@ export default function FootballPitch({
               <div className="h-full bg-white/40 transition-all duration-100" style={{ width: `${progress}%` }} />
             </div>
 
-            {/* Halftime overlay */}
-            {showHalftime && (
-              <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-                <div className="w-full max-w-[220px] rounded-2xl bg-zinc-900 border border-zinc-700 p-4 text-center">
-                  <div className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest mb-2">Half Time</div>
-                  <div className="text-white text-3xl font-black mb-1">{htScore.user}–{htScore.cpu}</div>
-                  {halftimePerformer && (
-                    <div className="mb-3 flex items-center gap-2 bg-zinc-800/60 rounded-xl px-2 py-1.5 text-left">
-                      <div className="relative w-8 h-8 rounded-full overflow-hidden ring-1 ring-amber-500/60 shrink-0">
-                        <Image src={halftimePerformer.imageUrl} alt={halftimePerformer.name} fill className="object-cover object-top" sizes="32px" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-white text-[10px] font-bold truncate">{halftimePerformer.name}</div>
-                        <div className="text-amber-400 text-[9px]">
-                          {halftimePerformer.goals > 0 && `${halftimePerformer.goals}G`}
-                          {halftimePerformer.goals > 0 && halftimePerformer.assists > 0 && " · "}
-                          {halftimePerformer.assists > 0 && `${halftimePerformer.assists}A`}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <p className="text-zinc-400 text-[10px] mb-3 leading-relaxed">{getHalftimeTip(htScore.user, htScore.cpu)}</p>
-                  <button
-                    onClick={handleResumeSecondHalf}
-                    className="w-full py-2 rounded-xl bg-green-700 hover:bg-green-600 text-white text-xs font-bold transition-all"
-                  >
-                    ⚽ Second Half
-                  </button>
-                </div>
-              </div>
-            )}
+            {/* Halftime — rendered as fixed modal outside the pitch so it doesn't clip on mobile */}
           </div>
         </div>
       </div>
@@ -472,5 +475,6 @@ export default function FootballPitch({
         </div>
       </div>
     </div>
+    </>
   );
 }

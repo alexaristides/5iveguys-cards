@@ -290,6 +290,18 @@ export function simulateMatch(
   let halftimeUser = 0, halftimeCpu = 0;
   const involvements = new Map<string, PlayerInvolvement>();
 
+  // No-repeat commentary: track recently used index per pool (by identity)
+  const poolHistory = new Map<Tpl[], number[]>();
+  function pick(pool: Tpl[], a: string, b: string): string {
+    const used = poolHistory.get(pool) ?? [];
+    const candidates = pool.map((_, i) => i).filter((i) => !used.includes(i));
+    const from = candidates.length > 0 ? candidates : pool.map((_, i) => i);
+    const idx = from[Math.floor(Math.random() * from.length)];
+    const next = [...used, idx].slice(-(Math.max(2, Math.floor(pool.length * 0.6))));
+    poolHistory.set(pool, next);
+    return pool[idx](a, b);
+  }
+
   function trackInv(card: FootballCard, type: "goal" | "assist") {
     const e = involvements.get(card.id) ?? { cardId: card.id, name: card.name, goals: 0, assists: 0, imageUrl: card.imageUrl };
     if (type === "goal") e.goals++; else e.assists++;
@@ -337,7 +349,7 @@ export function simulateMatch(
     if (atkMod.extraPoss && Math.random() < 0.35) {
       const m1 = pickCard(atkLineup, "MID");
       const m2 = pickDifferent(atkLineup, m1?.card.id ?? null, "MID", "ATT");
-      push(minute, "possession", atk, rnd(POSSESSION_TEMPLATES)(name(m1), name(m2)), phase);
+      push(minute, "possession", atk, pick(POSSESSION_TEMPLATES, name(m1), name(m2)), phase);
       continue;
     }
 
@@ -347,7 +359,7 @@ export function simulateMatch(
       const attP = pickCard(atkLineup, "ATT", "MID");
       const isYellow = Math.random() < 0.4;
       push(minute, isYellow ? "yellowcard" : "freekick", atk === "user" ? "cpu" : "user",
-        rnd(isYellow ? YELLOW_TEMPLATES : FREEKICK_TEMPLATES)(name(defP), name(attP)), phase);
+        pick(isYellow ? YELLOW_TEMPLATES : FREEKICK_TEMPLATES, name(defP), name(attP)), phase);
       continue;
     }
 
@@ -362,7 +374,7 @@ export function simulateMatch(
       const isTackle = Math.random() > 0.45;
       push(minute, isTackle ? "tackle" : "clearance",
         atk === "user" ? "cpu" : "user",
-        rnd(isTackle ? TACKLE_TEMPLATES : CLEARANCE_TEMPLATES)(name(defP), name(attP)), phase);
+        pick(isTackle ? TACKLE_TEMPLATES : CLEARANCE_TEMPLATES, name(defP), name(attP)), phase);
       continue;
     }
 
@@ -418,21 +430,18 @@ export function simulateMatch(
         if (assisterPlayer) trackInv(assisterPlayer.card, "assist");
       }
 
-      push(minute, "goal", atk, `⚽ GOAL! ${rnd(goalTemplates)(sc, as)}`, phase,
+      push(minute, "goal", atk, `⚽ GOAL! ${pick(goalTemplates, sc, as)}`, phase,
         scorerPlayer?.card.id, assisterPlayer?.card.id);
     } else {
       const r = Math.random();
       if (r < 0.42) {
-        push(minute, "save",     atk, `🧤 ${rnd(SAVE_TEMPLATES)(gk, sc)}`, phase);
+        push(minute, "save",     atk, `🧤 ${pick(SAVE_TEMPLATES, gk, sc)}`, phase);
       } else if (r < 0.57) {
-        push(minute, "nearpost", atk, rnd(NEARPOST_TEMPLATES)(sc, as), phase);
+        push(minute, "nearpost", atk, pick(NEARPOST_TEMPLATES, sc, as), phase);
       } else if (r < 0.70 && isCounterEvent) {
-        push(minute, "counter",  atk, rnd(COUNTER_TEMPLATES)(sc, as), phase);
+        push(minute, "counter",  atk, pick(COUNTER_TEMPLATES, sc, as), phase);
       } else {
-        const missDesc = def !== "A player"
-          ? rnd([...MISS_TEMPLATES, (s: string, _: string) => `${s} can't find the target — ${def} read it perfectly!`])(sc, as)
-          : rnd(MISS_TEMPLATES)(sc, as);
-        push(minute, "miss", atk, missDesc, phase);
+        push(minute, "miss", atk, pick(MISS_TEMPLATES, sc, as), phase);
       }
     }
   }

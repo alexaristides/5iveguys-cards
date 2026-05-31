@@ -322,6 +322,44 @@ export default function FootballGame() {
           </div>
         </div>
 
+        {/* Goalscorers */}
+        {(userScore > 0 || cpuScore > 0) && (
+          <div className="mb-5 rounded-xl bg-zinc-900/60 border border-zinc-800 px-4 py-3 text-left">
+            <div className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider mb-2">Goals</div>
+            <div className="flex gap-6">
+              {userScore > 0 && (
+                <div className="flex-1">
+                  <div className="text-blue-400 text-[10px] font-bold mb-1">YOU</div>
+                  {simulation.events
+                    .filter((ev) => ev.type === "goal" && ev.team === "user")
+                    .map((ev, i) => {
+                      const scorer = userLineup.find((p) => p.card.id === ev.scorerCardId)?.card.name ?? "—";
+                      return (
+                        <div key={i} className="text-zinc-300 text-xs py-0.5">
+                          ⚽ <span className="font-semibold">{scorer}</span>{" "}
+                          <span className="text-zinc-600">{ev.minute}&apos;</span>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+              {cpuScore > 0 && (
+                <div className="flex-1">
+                  <div className="text-red-400 text-[10px] font-bold mb-1">CPU</div>
+                  {simulation.events
+                    .filter((ev) => ev.type === "goal" && ev.team === "cpu")
+                    .map((ev, i) => (
+                      <div key={i} className="text-zinc-300 text-xs py-0.5">
+                        ⚽ <span className="font-semibold text-zinc-400">CPU</span>{" "}
+                        <span className="text-zinc-600">{ev.minute}&apos;</span>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Man of the Match */}
         {mvp && (
           <div className="mb-5 rounded-2xl bg-amber-900/15 border border-amber-700/40 p-5">
