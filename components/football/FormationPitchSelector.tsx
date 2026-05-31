@@ -20,28 +20,28 @@ type PosCoords = Record<Position, [number, number][]>;
 
 const SLOT_COORDS: Record<Formation, PosCoords> = {
   "2-2-2": {
-    GK:  [[50, 88]],
-    DEF: [[25, 74], [75, 74]],
-    MID: [[25, 58], [75, 58]],
-    ATT: [[33, 42], [67, 42]],
+    GK:  [[50, 82]],
+    DEF: [[25, 64], [75, 64]],
+    MID: [[25, 42], [75, 42]],
+    ATT: [[33, 18], [67, 18]],
   },
   "3-2-1": {
-    GK:  [[50, 88]],
-    DEF: [[16, 74], [50, 74], [84, 74]],
-    MID: [[33, 58], [67, 58]],
-    ATT: [[50, 42]],
+    GK:  [[50, 82]],
+    DEF: [[16, 64], [50, 64], [84, 64]],
+    MID: [[33, 42], [67, 42]],
+    ATT: [[50, 18]],
   },
   "1-3-2": {
-    GK:  [[50, 88]],
-    DEF: [[50, 74]],
-    MID: [[16, 58], [50, 58], [84, 58]],
-    ATT: [[33, 42], [67, 42]],
+    GK:  [[50, 82]],
+    DEF: [[50, 64]],
+    MID: [[16, 42], [50, 42], [84, 42]],
+    ATT: [[33, 18], [67, 18]],
   },
   "2-3-1": {
-    GK:  [[50, 88]],
-    DEF: [[28, 74], [72, 74]],
-    MID: [[16, 58], [50, 58], [84, 58]],
-    ATT: [[50, 42]],
+    GK:  [[50, 82]],
+    DEF: [[28, 64], [72, 64]],
+    MID: [[16, 42], [50, 42], [84, 42]],
+    ATT: [[50, 18]],
   },
 };
 
@@ -163,37 +163,33 @@ export default function FormationPitchSelector({
         </button>
       </div>
 
-      {/* Pitch */}
+      {/* Pitch – compact half-pitch (user side only) */}
       <div
         className="relative w-full overflow-hidden rounded-2xl shadow-2xl"
         style={{
-          paddingTop: "150%",
-          background: "linear-gradient(180deg, #173d20 0%, #1c5228 35%, #1e5a2a 50%, #1c5228 65%, #173d20 100%)",
+          paddingTop: "90%",
+          background: "linear-gradient(180deg, #1a4a22 0%, #1c5228 40%, #1e5a2a 65%, #1c5228 82%, #173d20 100%)",
         }}
       >
         <div className="absolute inset-0">
-          {Array.from({ length: 8 }).map((_, i) => (
+          {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className={i % 2 === 0 ? "absolute inset-x-0 bg-black/[0.05]" : "absolute inset-x-0"}
-              style={{ top: `${i * 12.5}%`, height: "12.5%" }} />
+              style={{ top: `${i * 16.67}%`, height: "16.67%" }} />
           ))}
+          {/* Outer border */}
           <div className="absolute inset-[3%] border border-white/20 rounded-sm" />
-          <div className="absolute left-[3%] right-[3%] border-t border-white/20" style={{ top: "50%" }} />
-          <div className="absolute rounded-full border border-white/20"
-            style={{ width: "22%", aspectRatio: "1", left: "39%", top: "calc(50% - 11%)" }} />
-          <div className="absolute w-1.5 h-1.5 rounded-full bg-white/30"
-            style={{ left: "50%", top: "50%", transform: "translate(-50%,-50%)" }} />
-          <div className="absolute border border-white/15 border-t-0"
-            style={{ width: "46%", left: "27%", top: "3%", height: "14%" }} />
-          <div className="absolute border border-white/15 border-b-0"
-            style={{ width: "46%", left: "27%", bottom: "3%", height: "14%" }} />
-          <div className="absolute bg-white/8 border border-white/30 border-t-0"
-            style={{ width: "20%", left: "40%", top: 0, height: "3.5%" }} />
-          <div className="absolute bg-white/8 border border-white/30 border-b-0"
-            style={{ width: "20%", left: "40%", bottom: 0, height: "3.5%" }} />
-          <div className="absolute left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/30 text-white/25 text-[9px] font-bold uppercase tracking-widest"
-            style={{ top: "22%" }}>
-            CPU Team
+          {/* Halfway line (top edge = opponent's half) */}
+          <div className="absolute left-[3%] right-[3%] border-t border-white/25 border-dashed" style={{ top: "3%" }} />
+          <div className="absolute left-1/2 -translate-x-1/2 px-2 py-0.5 text-white/20 text-[8px] font-bold uppercase tracking-widest whitespace-nowrap"
+            style={{ top: "4%" }}>
+            ← opponent half →
           </div>
+          {/* Bottom penalty box */}
+          <div className="absolute border border-white/15 border-b-0"
+            style={{ width: "46%", left: "27%", bottom: "3%", height: "20%" }} />
+          {/* Bottom goal */}
+          <div className="absolute bg-white/8 border border-white/30 border-b-0"
+            style={{ width: "20%", left: "40%", bottom: 0, height: "4%" }} />
 
           {/* Player slots */}
           {lineup.map((slot, slotIdx) => {
