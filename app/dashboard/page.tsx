@@ -491,9 +491,9 @@ export default function DashboardPage() {
 
         {/* ── Game tab ── */}
         {activeTab === "game" && (
-          <div>
+          <div className="flex flex-col items-center w-full">
             {/* Mode tabs: SP / PvP / Leaderboard */}
-            <div className="flex gap-1 mb-6 bg-zinc-800 border border-zinc-600 rounded-xl p-1 w-fit">
+            <div className="flex gap-1 mb-6 bg-zinc-800 border border-zinc-600 rounded-xl p-1 self-start sm:self-center">
               <button
                 onClick={() => setGameMode("sp")}
                 className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
@@ -520,10 +520,10 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            {gameMode === "sp" && <FootballGame />}
+            {gameMode === "sp" && <div className="w-full"><FootballGame /></div>}
 
             {gameMode === "pvp" && (
-              <div className="max-w-xl">
+              <div className="max-w-xl w-full">
                 <p className="text-zinc-500 text-sm mb-5">
                   Challenge another player to a live 1v1 match — both pick squads, then watch the same simulation unfold in real time.
                 </p>
@@ -537,7 +537,7 @@ export default function DashboardPage() {
             )}
 
             {gameMode === "leaderboard" && (
-              <div className="max-w-lg">
+              <div className="max-w-lg w-full">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-white font-bold text-lg">Game Leaderboard</h3>
