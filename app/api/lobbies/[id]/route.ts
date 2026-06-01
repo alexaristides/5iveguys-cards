@@ -11,8 +11,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const lobby = await prisma.lobby.findUnique({
     where: { id },
     include: {
-      creator: { select: { id: true, name: true, image: true } },
-      opponent: { select: { id: true, name: true, image: true } },
+      creator: { select: { id: true, name: true, image: true, teamName: true } },
+      opponent: { select: { id: true, name: true, image: true, teamName: true } },
       matchResult: true,
     },
   });

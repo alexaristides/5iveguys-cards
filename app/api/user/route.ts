@@ -3,6 +3,22 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
+export async function PATCH(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await req.json() as { teamName?: string };
+  const raw = (body.teamName ?? "").trim().slice(0, 30);
+  const teamName = raw.length > 0 ? raw : null;
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: { teamName },
+  });
+
+  return NextResponse.json({ teamName });
+}
+
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -23,6 +39,7 @@ export async function GET(req: NextRequest) {
       totalEarned: user.totalEarned,
       cardCount: user.cards.length,
       cards: user.cards,
+      teamName: user.teamName,
       youtubeSync: null,
     });
   }

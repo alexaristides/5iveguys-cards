@@ -18,6 +18,9 @@ export default function SettingsPage() {
   const router = useRouter();
   const [account, setAccount] = useState<AccountData | null>(null);
   const [userPoints, setUserPoints] = useState(0);
+  const [teamName, setTeamName] = useState("");
+  const [teamNameSaving, setTeamNameSaving] = useState(false);
+  const [teamNameSaved, setTeamNameSaved] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/");
@@ -29,12 +32,30 @@ export default function SettingsPage() {
       fetch("/api/user"),
     ]);
     if (accountRes.ok) setAccount(await accountRes.json());
-    if (userRes.ok) setUserPoints((await userRes.json()).points);
+    if (userRes.ok) {
+      const data = await userRes.json();
+      setUserPoints(data.points);
+      setTeamName(data.teamName ?? "");
+    }
   }, []);
 
   useEffect(() => {
     if (status === "authenticated") fetchData();
   }, [status, fetchData]);
+
+  async function saveTeamName() {
+    setTeamNameSaving(true);
+    const res = await fetch("/api/user", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamName }),
+    });
+    setTeamNameSaving(false);
+    if (res.ok) {
+      setTeamNameSaved(true);
+      setTimeout(() => setTeamNameSaved(false), 2000);
+    }
+  }
 
   if (status === "loading" || !account) {
     return (
@@ -69,6 +90,30 @@ export default function SettingsPage() {
               <p className="text-zinc-500 text-sm truncate">{account.email ?? "—"}</p>
             </div>
           </div>
+        </section>
+
+        {/* Team name */}
+        <section className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-6 mb-4">
+          <h2 className="text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-4">Team Name</h2>
+          <p className="text-zinc-500 text-xs mb-4">Shown instead of your name during PvP matches.</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={teamName}
+              onChange={(e) => { setTeamName(e.target.value.slice(0, 30)); setTeamNameSaved(false); }}
+              placeholder="e.g. Red Devils FC"
+              maxLength={30}
+              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:border-purple-500"
+            />
+            <button
+              onClick={saveTeamName}
+              disabled={teamNameSaving}
+              className="px-4 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-600 text-white text-sm font-semibold transition-all disabled:opacity-50"
+            >
+              {teamNameSaved ? "Saved!" : teamNameSaving ? "…" : "Save"}
+            </button>
+          </div>
+          <p className="text-zinc-600 text-xs mt-2 text-right">{teamName.length}/30</p>
         </section>
 
         {/* YouTube permissions */}

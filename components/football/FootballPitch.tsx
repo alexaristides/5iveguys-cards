@@ -675,7 +675,7 @@ export default function FootballPitch({
               style={{ width: "22%", left: "39%", top: 0, height: "4%" }} />
             <div className="absolute border border-white/40 border-b-0 bg-white/5"
               style={{ width: "22%", left: "39%", bottom: 0, height: "4%" }} />
-            <div className="absolute top-[4.5%] left-1/2 -translate-x-1/2 text-red-300/70 text-[8px] font-bold uppercase tracking-widest">CPU</div>
+            <div className="absolute top-[4.5%] left-1/2 -translate-x-1/2 text-red-300/70 text-[8px] font-bold uppercase tracking-widest">{cpuLabel}</div>
             <div className="absolute bottom-[4.5%] left-1/2 -translate-x-1/2 text-blue-300/70 text-[8px] font-bold uppercase tracking-widest">YOU</div>
 
             {/* Players */}
@@ -708,7 +708,7 @@ export default function FootballPitch({
                 ${goalFlash === "user" ? "bg-green-500/30" : "bg-red-500/25"}`}>
                 <div className="bg-black/60 rounded-2xl px-4 py-2">
                   <span className="text-3xl font-black text-white drop-shadow-lg animate-bounce block text-center">
-                    {goalFlash === "user" ? "⚽ GOAL!" : "CPU GOAL"}
+                    {goalFlash === "user" ? "⚽ GOAL!" : `${cpuLabel} GOAL`}
                   </span>
                   <div className="text-center text-white/60 text-xs mt-1 font-bold">
                     {feed[0]?.scoreUser ?? 0} – {feed[0]?.scoreCpu ?? 0}
@@ -739,7 +739,7 @@ export default function FootballPitch({
                     style={{ width: `${displayMomentum}%` }}
                   />
                 </div>
-                <span className="text-red-400/60 text-[7px] font-bold shrink-0">CPU</span>
+                <span className="text-red-400/60 text-[7px] font-bold shrink-0">{cpuLabel}</span>
               </div>
             </div>
 

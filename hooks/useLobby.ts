@@ -8,6 +8,7 @@ export interface LobbyPlayer {
   id: string;
   name: string | null;
   image: string | null;
+  teamName: string | null;
 }
 
 export interface StoredSimulation {

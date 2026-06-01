@@ -218,8 +218,12 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   const filledCount = lineup.filter((s) => s.card !== null).length;
   const canSubmit = filledCount === 7;
 
-  const myName = role === "creator" ? lobby?.creator.name : lobby?.opponent?.name;
-  const opponentName = role === "creator" ? lobby?.opponent?.name : lobby?.creator.name;
+  const myName = role === "creator"
+    ? (lobby?.creator.teamName ?? lobby?.creator.name)
+    : (lobby?.opponent?.teamName ?? lobby?.opponent?.name);
+  const opponentName = role === "creator"
+    ? (lobby?.opponent?.teamName ?? lobby?.opponent?.name)
+    : (lobby?.creator.teamName ?? lobby?.creator.name);
   const opponentAvatar = role === "creator" ? lobby?.opponent?.image : lobby?.creator.image;
 
   // ── Render ──────────────────────────────────────────────────────────────────
