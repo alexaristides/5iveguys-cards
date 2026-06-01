@@ -51,8 +51,15 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
   }
 
+  const userId = session.user.id;
+
+  const existingVote = await prisma.cardVote.findUnique({
+    where: { userId_cardId: { userId, cardId } },
+    select: { userId: true },
+  });
+
   const data = {
-    userId: session.user.id,
+    userId,
     cardId,
     attack: body.attack,
     defense: body.defense,
@@ -67,8 +74,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     clutch: body.clutch,
   };
 
+  const isFirstVote = !existingVote;
+
   await prisma.cardVote.upsert({
-    where: { userId_cardId: { userId: session.user.id, cardId } },
+    where: { userId_cardId: { userId, cardId } },
     create: data,
     update: {
       attack: body.attack, defense: body.defense, speed: body.speed,
@@ -77,6 +86,19 @@ export async function POST(req: NextRequest, { params }: Params) {
       celebration: body.celebration, clutch: body.clutch,
     },
   });
+
+  if (isFirstVote) {
+    const card = await prisma.card.findUnique({ where: { id: cardId }, select: { channelId: true } });
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: { points: { increment: 10 }, totalEarned: { increment: 10 } },
+      }),
+      prisma.pointsEvent.create({
+        data: { userId, channelId: card?.channelId ?? null, type: "card_rating", points: 10 },
+      }),
+    ]);
+  }
 
   // Write a rating snapshot so leaderboard history is trackable
   const allVotes = await prisma.cardVote.findMany({
@@ -92,5 +114,5 @@ export async function POST(req: NextRequest, { params }: Params) {
     });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, pointsEarned: isFirstVote ? 10 : 0 });
 }

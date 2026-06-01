@@ -72,6 +72,7 @@ export default function CardModal({ card, onClose }: CardModalProps) {
   const [draft, setDraft] = useState<StatsMap>(DEFAULT_STATS);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [pointsFlash, setPointsFlash] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [voteOpen, setVoteOpen] = useState(false);
 
@@ -120,9 +121,14 @@ export default function CardModal({ card, onClose }: CardModalProps) {
         body: JSON.stringify(draft),
       });
       if (res.ok) {
+        const data = await res.json();
         setUserVote(draft);
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
+        if (data.pointsEarned > 0) {
+          setPointsFlash(true);
+          setTimeout(() => setPointsFlash(false), 3000);
+        }
         await fetchVotes();
       }
     } finally {
@@ -317,6 +323,12 @@ export default function CardModal({ card, onClose }: CardModalProps) {
                   >
                     {saved ? "Saved!" : saving ? "Saving…" : userVote ? "Update Vote" : "Submit Vote"}
                   </button>
+
+                  {pointsFlash && (
+                    <div className="mt-2 text-center text-green-400 text-xs font-semibold animate-bounce">
+                      +10 points for rating!
+                    </div>
+                  )}
                 </div>
               )}
             </div>
