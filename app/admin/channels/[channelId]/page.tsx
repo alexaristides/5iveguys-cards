@@ -26,6 +26,7 @@ interface DbCard {
   backImageUrl: string | null;
   attribute: string | null;
   description: string | null;
+  position: string | null;
   availableInPacks: boolean;
 }
 
@@ -40,9 +41,23 @@ const RARITY_STYLES: Record<string, string> = {
   legendary: "text-amber-300 bg-amber-900/40 border-amber-700",
 };
 
+const POSITIONS = ["GK", "DEF", "CDM", "CM", "CAM", "LW", "RW", "ST"] as const;
+type Position = typeof POSITIONS[number];
+
+const POSITION_COLORS: Record<Position, string> = {
+  GK:  "bg-amber-900/60 text-amber-300 border-amber-700/60",
+  DEF: "bg-blue-900/60 text-blue-300 border-blue-700/60",
+  CDM: "bg-cyan-900/60 text-cyan-300 border-cyan-700/60",
+  CM:  "bg-green-900/60 text-green-300 border-green-700/60",
+  CAM: "bg-lime-900/60 text-lime-300 border-lime-700/60",
+  LW:  "bg-orange-900/60 text-orange-300 border-orange-700/60",
+  RW:  "bg-orange-900/60 text-orange-300 border-orange-700/60",
+  ST:  "bg-red-900/60 text-red-300 border-red-700/60",
+};
+
 const BLANK_CARD = {
   name: "", kit: "", rarity: "common", imageUrl: "",
-  backImageUrl: "", attribute: "Skill", description: "", availableInPacks: true,
+  backImageUrl: "", attribute: "Skill", description: "", position: "", availableInPacks: true,
 };
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -158,7 +173,7 @@ export default function AdminChannelPage() {
       name: card.name, kit: card.kit ?? "", rarity: card.rarity,
       imageUrl: card.imageUrl, backImageUrl: card.backImageUrl ?? "",
       attribute: card.attribute ?? "Skill", description: card.description ?? "",
-      availableInPacks: card.availableInPacks,
+      position: card.position ?? "", availableInPacks: card.availableInPacks,
     });
     setCardError(null);
     setCardModal(card);
@@ -412,6 +427,20 @@ export default function AdminChannelPage() {
                       ))}
                     </select>
 
+                    {/* Inline position selector */}
+                    <select
+                      value={card.position ?? ""}
+                      disabled={patchingCard === card.id}
+                      onChange={(e) => patchCard(card.id, { position: e.target.value || null })}
+                      className={`w-full px-2 py-1 rounded-lg text-xs font-bold border outline-none cursor-pointer transition-colors bg-transparent
+                        ${card.position ? (POSITION_COLORS[card.position as Position] ?? "text-zinc-300 bg-zinc-700/60 border-zinc-600") : "text-zinc-500 border-zinc-700 bg-zinc-800/60"}`}
+                    >
+                      <option value="" className="bg-zinc-900 text-zinc-400">— Position —</option>
+                      {POSITIONS.map((p) => (
+                        <option key={p} value={p} className="bg-zinc-900 text-white">{p}</option>
+                      ))}
+                    </select>
+
                     {/* In packs toggle */}
                     <button
                       onClick={() => patchCard(card.id, { availableInPacks: !card.availableInPacks })}
@@ -514,6 +543,36 @@ export default function AdminChannelPage() {
                     <option key={a} value={a}>{a}</option>
                   ))}
                 </select>
+              </div>
+            </div>
+
+            {/* Position picker */}
+            <div>
+              <label className="text-zinc-400 text-xs mb-2 block">Position</label>
+              <div className="flex flex-wrap gap-2">
+                {POSITIONS.map((pos) => (
+                  <button
+                    key={pos}
+                    type="button"
+                    onClick={() => setCardForm((f) => ({ ...f, position: f.position === pos ? "" : pos }))}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all
+                      ${(cardForm as typeof BLANK_CARD).position === pos
+                        ? (POSITION_COLORS[pos] ?? "bg-purple-900/60 text-purple-300 border-purple-600")
+                        : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-white"
+                      }`}
+                  >
+                    {pos}
+                  </button>
+                ))}
+                {(cardForm as typeof BLANK_CARD).position && (
+                  <button
+                    type="button"
+                    onClick={() => setCardForm((f) => ({ ...f, position: "" }))}
+                    className="px-2 py-1.5 rounded-lg text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                  >
+                    clear
+                  </button>
+                )}
               </div>
             </div>
 
