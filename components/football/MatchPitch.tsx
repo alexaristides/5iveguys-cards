@@ -8,9 +8,6 @@ import { sampleTimeline } from "@/lib/match-playback";
 
 const DEFAULT_HALF_SEC = 28;
 
-const RARITY_RING: Record<Rarity, string> = {
-  common: "ring-zinc-400", rare: "ring-blue-400", epic: "ring-purple-400", legendary: "ring-amber-400",
-};
 const EVENT_ICON: Record<string, string> = {
   goal: "⚽", save: "🧤", miss: "💨", tackle: "💪", clearance: "↗", kickoff: "🏁",
   halftime: "⏸", fulltime: "🔔", possession: "●", freekick: "🎯", yellowcard: "🟨", nearpost: "🔔", counter: "⚡",
@@ -151,13 +148,16 @@ export default function MatchPitch({
         <div className="relative w-full overflow-hidden rounded-xl pt-[120%] sm:pt-[150%]"
           style={{ background: "linear-gradient(180deg, #1a5c28 0%, #206b30 30%, #1e6b2e 50%, #206b30 70%, #1a5c28 100%)" }}>
           <div className="absolute inset-0">
+            {/* Team end zones: red = opponent (top), blue = you (bottom) */}
+            <div className="absolute top-0 left-0 right-0 h-[18%] bg-gradient-to-b from-red-500/25 to-transparent pointer-events-none" />
+            <div className="absolute bottom-0 left-0 right-0 h-[18%] bg-gradient-to-t from-blue-500/25 to-transparent pointer-events-none" />
             <div className="absolute inset-[4%] border border-white/25 rounded-sm" />
             <div className="absolute left-[4%] right-[4%] border-t border-white/25" style={{ top: "50%" }} />
             <div className="absolute rounded-full border border-white/25" style={{ width: "22%", aspectRatio: "1", left: "39%", top: "calc(50% - 11%)" }} />
             <div className="absolute border border-white/20 border-t-0" style={{ width: "46%", left: "27%", top: "4%", height: "15%" }} />
             <div className="absolute border border-white/20 border-b-0" style={{ width: "46%", left: "27%", bottom: "4%", height: "15%" }} />
-            <div className="absolute top-[4.5%] left-1/2 -translate-x-1/2 text-red-300/70 text-[8px] font-bold uppercase tracking-widest">{cpuLabel}</div>
-            <div className="absolute bottom-[4.5%] left-1/2 -translate-x-1/2 text-blue-300/70 text-[8px] font-bold uppercase tracking-widest">{userLabel}</div>
+            <div className="absolute top-[4.5%] left-1/2 -translate-x-1/2 z-[5] px-1.5 py-0.5 rounded bg-red-600/85 text-white text-[8px] font-bold uppercase tracking-widest shadow">{cpuLabel}</div>
+            <div className="absolute bottom-[4.5%] left-1/2 -translate-x-1/2 z-[5] px-1.5 py-0.5 rounded bg-blue-600/85 text-white text-[8px] font-bold uppercase tracking-widest shadow">{userLabel}</div>
 
             {cardList.map((info) => {
               const isPossessor = possessorId === info.id;
@@ -172,10 +172,10 @@ export default function MatchPitch({
                 >
                   {isPossessor && <div className="absolute inset-0 rounded-full ring-2 ring-white/60 animate-pulse scale-125 z-10" />}
                   {isSpotlight && <div className="absolute inset-0 rounded-full ring-4 ring-yellow-400 animate-pulse scale-150 z-10" />}
-                  <div className={`relative rounded-full ring-2 overflow-hidden shadow-lg ${RARITY_RING[info.rarity]} ${isSpotlight ? "w-12 h-12" : "w-10 h-10 sm:w-8 sm:h-8"}`}
+                  <div className={`relative rounded-full ring-[3px] overflow-hidden shadow-lg ${info.team === "user" ? "ring-blue-400" : "ring-red-500"} ${isSpotlight ? "w-12 h-12" : "w-10 h-10 sm:w-8 sm:h-8"}`}
                     title={`${info.name} (${info.position})`}>
                     <Image src={info.imageUrl} alt={info.name} fill className="object-cover object-center" sizes="40px" />
-                    <div className={`absolute inset-0 pointer-events-none ${info.team === "user" ? "bg-blue-500/20" : "bg-red-500/25"}`} />
+                    <div className={`absolute inset-0 pointer-events-none ${info.team === "user" ? "bg-blue-500/35" : "bg-red-600/40"}`} />
                   </div>
                 </div>
               );
