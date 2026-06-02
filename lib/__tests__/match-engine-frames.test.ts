@@ -17,8 +17,8 @@ describe("momentsToFrames", () => {
   const { moments } = simulateHalfLogic(input("frames"), 1, { user: 0, cpu: 0 });
   const frames = momentsToFrames(moments, 6);
 
-  it("emits 6 frames per moment", () => {
-    expect(frames.length).toBe(moments.length * 6);
+  it("emits at least 6 motion frames per moment (plus dead-ball holds)", () => {
+    expect(frames.length).toBeGreaterThanOrEqual(moments.length * 6);
   });
 
   it("includes all 14 players in every frame", () => {

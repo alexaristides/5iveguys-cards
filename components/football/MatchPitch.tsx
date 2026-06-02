@@ -6,12 +6,28 @@ import type { AssignedPlayer, MatchEvent, Rarity } from "@/lib/football";
 import type { MatchFrame } from "@/lib/match-engine";
 import { sampleTimeline } from "@/lib/match-playback";
 
-const DEFAULT_HALF_SEC = 28;
+const FPS = 6.5; // motion frames per second — sets the constant speed of play; pauses add real time
 
 const EVENT_ICON: Record<string, string> = {
   goal: "⚽", save: "🧤", miss: "💨", tackle: "💪", clearance: "↗", kickoff: "🏁",
   halftime: "⏸", fulltime: "🔔", possession: "●", freekick: "🎯", yellowcard: "🟨", nearpost: "🔔", counter: "⚡",
+  corner: "🚩", throwin: "🙌", goalkick: "🥅", redcard: "🟥",
 };
+
+function statusFor(ev: MatchEvent): { label: string; team: "user" | "cpu" } {
+  switch (ev.type) {
+    case "goal": case "save": case "miss": case "nearpost": case "corner": case "freekick":
+      return { team: ev.team, label: "attacking" };
+    case "tackle": case "clearance":
+      return { team: ev.team, label: "wins it back" };
+    case "redcard": return { team: ev.team, label: "red card!" };
+    case "yellowcard": return { team: ev.team, label: "free kick" };
+    case "goalkick": return { team: ev.team, label: "goal kick" };
+    case "throwin": return { team: ev.team, label: "throw-in" };
+    case "kickoff": return { team: ev.team, label: "kick off" };
+    default: return { team: ev.team, label: "in possession" };
+  }
+}
 
 type Phase = "playing1" | "halftime-wait" | "playing2" | "done";
 
@@ -20,7 +36,6 @@ interface Props {
   cpuLineup: AssignedPlayer[];
   firstHalfFrames: MatchFrame[];
   secondHalfFrames: MatchFrame[] | null;
-  halfDurationSec?: number;
   userLabel?: string;
   cpuLabel?: string;
   /** Called when the first half finishes playing. Parent shows the halftime UI + computes the 2nd half. */
@@ -33,7 +48,7 @@ interface CardInfo { id: string; name: string; imageUrl: string; rarity: Rarity;
 
 export default function MatchPitch({
   userLineup, cpuLineup, firstHalfFrames, secondHalfFrames,
-  halfDurationSec = DEFAULT_HALF_SEC, userLabel = "YOU", cpuLabel = "CPU",
+  userLabel = "YOU", cpuLabel = "CPU",
   onHalftime, onComplete,
 }: Props) {
   const [phase, setPhase] = useState<Phase>("playing1");
@@ -44,6 +59,7 @@ export default function MatchPitch({
   const [goalFlash, setGoalFlash] = useState<"user" | "cpu" | null>(null);
   const [spotlightId, setSpotlightId] = useState<string | null>(null);
   const [stats, setStats] = useState({ userShots: 0, cpuShots: 0, userPoss: 0, cpuPoss: 0 });
+  const [status, setStatus] = useState<{ label: string; team: "user" | "cpu" } | null>(null);
 
   const cardList = useMemo(() => {
     const arr: CardInfo[] = [];
@@ -62,10 +78,9 @@ export default function MatchPitch({
   const pRef = useRef(0);                // 0..1 progress within the current half
   const lastTsRef = useRef<number | null>(null);
   const firedRef = useRef(-1);
-  const durationRef = useRef(halfDurationSec);
-  useEffect(() => { durationRef.current = halfDurationSec; }, [halfDurationSec]);
 
   function applyEvent(ev: MatchEvent) {
+    setStatus(statusFor(ev));
     setFeed((prev) => [ev, ...prev].slice(0, 12));
     setScore({ user: ev.scoreUser, cpu: ev.scoreCpu });
     setStats((s) => {
@@ -96,6 +111,7 @@ export default function MatchPitch({
     if (phase !== "playing1" && phase !== "playing2") return;
     const frames = phase === "playing1" ? firstHalfFrames : (secondHalfFrames ?? []);
     if (frames.length === 0) return;
+    const durationSec = frames.length / FPS; // constant speed; more frames (pauses) = more real time
     pRef.current = 0;
     lastTsRef.current = null;
     firedRef.current = -1;
@@ -106,7 +122,7 @@ export default function MatchPitch({
       const dt = ts - lastTsRef.current;
       lastTsRef.current = ts;
 
-      pRef.current = Math.min(1, pRef.current + dt / (durationRef.current * 1000));
+      pRef.current = Math.min(1, pRef.current + dt / (durationSec * 1000));
 
       const s = sampleTimeline(frames, pRef.current, 1); // duration=1 → progress = pRef
       paint(s.players, s.ball);
@@ -215,6 +231,13 @@ export default function MatchPitch({
       </div>
 
       <div className="flex-1 flex flex-col gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-2 shrink-0 rounded-lg bg-zinc-900/70 border border-zinc-800 px-2.5 py-1.5">
+          <span className={`w-2.5 h-2.5 rounded-full ${status?.team === "cpu" ? "bg-red-400" : "bg-blue-400"}`} />
+          <span className={`text-xs font-bold ${status?.team === "cpu" ? "text-red-300" : "text-blue-300"}`}>
+            {status ? (status.team === "user" ? userLabel : cpuLabel) : userLabel}
+          </span>
+          <span className="text-zinc-400 text-xs">{status?.label ?? "kick off"}</span>
+        </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
           <span className="text-zinc-400 text-[10px] sm:text-xs font-medium uppercase tracking-wider">Commentary</span>

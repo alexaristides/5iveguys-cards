@@ -86,6 +86,29 @@ export const POSSESSION_TEMPLATES: Tpl[] = [
   (m1, m2) => `${m1} finds ${m2} in space — recycling possession well!`,
 ];
 
+export const CORNER_TEMPLATES: Tpl[] = [
+  (taker, tgt) => `Corner kick! ${taker} swings it into a crowded box looking for ${tgt}…`,
+  (taker, tgt) => `${taker} stands over the corner and whips it toward ${tgt} at the near post…`,
+  (taker, tgt) => `Corner to come — ${taker} delivers it deep for ${tgt}…`,
+];
+
+export const THROWIN_TEMPLATES: Tpl[] = [
+  (taker, tgt) => `Throw-in taken quickly by ${taker}, finding ${tgt}.`,
+  (taker, tgt) => `${taker} launches the throw down the line to ${tgt}.`,
+  (taker, tgt) => `${taker} keeps it alive from the touchline, ${tgt} collects.`,
+];
+
+export const GOALKICK_TEMPLATES: Tpl[] = [
+  (gk, _b) => `${gk} restarts play with the goal kick.`,
+  (gk, _b) => `Goal kick. ${gk} sends it long downfield.`,
+  (gk, _b) => `${gk} takes his time over the goal kick to settle things down.`,
+];
+
+export const REDCARD_TEMPLATES: Tpl[] = [
+  (def, att) => `RED CARD! ${def} is sent off for a reckless lunge on ${att}!`,
+  (def, att) => `${def} sees red — a dreadful challenge on ${att} leaves his team a man down!`,
+];
+
 export interface Commentary {
   pick: (pool: Tpl[], a: string, b: string) => string;
 }

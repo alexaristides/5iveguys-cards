@@ -118,7 +118,8 @@ export function calcTeamStats(lineup: AssignedPlayer[]): TeamStats {
 export type MatchEventType =
   | "kickoff" | "goal" | "save" | "miss" | "tackle" | "clearance"
   | "halftime" | "fulltime" | "possession" | "freekick" | "yellowcard"
-  | "nearpost" | "counter";
+  | "nearpost" | "counter"
+  | "corner" | "throwin" | "goalkick" | "redcard";
 
 export interface MatchEvent {
   minute: number;
