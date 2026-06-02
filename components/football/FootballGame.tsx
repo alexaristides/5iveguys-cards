@@ -10,11 +10,19 @@ import {
   type MatchSimulation,
   buildSlots,
   slotsToLineup,
-  simulateMatch,
   pickCpuLineup,
+  FORMATIONS,
 } from "@/lib/football";
+import {
+  simulateFirstHalf,
+  simulateSecondHalf,
+  pickCpuSecondHalfFormation,
+  type HalfResult,
+  type MatchFrame,
+} from "@/lib/match-engine";
+import { nanoid } from "nanoid";
 import FormationPitchSelector from "./FormationPitchSelector";
-import FootballPitch from "./FootballPitch";
+import MatchPitch from "./MatchPitch";
 
 type Phase = "setup" | "playing" | "result";
 
@@ -88,7 +96,12 @@ export default function FootballGame() {
   const [userLineup, setUserLineup] = useState<AssignedPlayer[]>([]);
   const [cpuLineup, setCpuLineup]   = useState<AssignedPlayer[]>([]);
   const [cpuFormation, setCpuFormation] = useState<Formation>("2-2-2");
-  const [simulation, setSimulation] = useState<MatchSimulation | null>(null);
+  const [firstHalf, setFirstHalf]   = useState<HalfResult | null>(null);
+  const [secondHalfFrames, setSecondHalfFrames] = useState<MatchFrame[] | null>(null);
+  const [summary, setSummary]       = useState<MatchSimulation | null>(null);
+  const [showHalftime, setShowHalftime] = useState(false);
+  const [secondHalfFormation, setSecondHalfFormation] = useState<Formation>("2-2-2");
+  const [skipSignal, setSkipSignal] = useState(0);
   const [stats, setStats]           = useState<MatchStats>({ wins: 0, losses: 0, draws: 0 });
   const [loadingCards, setLoadingCards] = useState(true);
   const [saving, setSaving]         = useState(false);
@@ -96,6 +109,15 @@ export default function FootballGame() {
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   void saveTimer;
+
+  // Refs so playback callbacks always read current values.
+  const seedRef = useRef("");
+  const firstHalfRef = useRef<HalfResult | null>(null);
+  const summaryRef = useRef<MatchSimulation | null>(null);
+  const userLineupRef = useRef<AssignedPlayer[]>([]);
+  const cpuLineupRef = useRef<AssignedPlayer[]>([]);
+  const cpuFormationRef = useRef<Formation>("2-2-2");
+  const secondHalfFormationRef = useRef<Formation>("2-2-2");
 
   const fetchCards = useCallback(async () => {
     setLoadingCards(true);
@@ -180,40 +202,98 @@ export default function FootballGame() {
     if (assigned.length < 7) return;
 
     const { formation: cpuFm, lineup: cpuAssigned } = pickCpuLineup();
-    setUserLineup(assigned);
-    setCpuLineup(cpuAssigned);
-    setCpuFormation(cpuFm);
-    setSimulation(simulateMatch(assigned, cpuAssigned, formation, cpuFm));
+    const seed = nanoid();
+    const h1 = simulateFirstHalf({
+      userLineup: assigned, cpuLineup: cpuAssigned,
+      userFormation: formation, cpuFormation: cpuFm, seed,
+    });
+
+    setUserLineup(assigned); userLineupRef.current = assigned;
+    setCpuLineup(cpuAssigned); cpuLineupRef.current = cpuAssigned;
+    setCpuFormation(cpuFm); cpuFormationRef.current = cpuFm;
+    seedRef.current = seed;
+    setFirstHalf(h1); firstHalfRef.current = h1;
+    setSecondHalfFrames(null);
+    setSummary(null); summaryRef.current = null;
+    setSecondHalfFormation(formation); secondHalfFormationRef.current = formation;
+    setSkipSignal(0);
+    setShowHalftime(false);
     setPhase("playing");
 
     saveTeamToDb(formation, lineup);
   }
 
-  async function handleMatchComplete() {
-    if (!simulation) return;
+  function computeSecondHalf(userFm: Formation): MatchSimulation {
+    const h1 = firstHalfRef.current!;
+    const cpuFm2 = pickCpuSecondHalfFormation(cpuFormationRef.current, h1.endScore.cpu, h1.endScore.user, seedRef.current);
+    const { frames, summary: s } = simulateSecondHalf({
+      userLineup: userLineupRef.current,
+      cpuLineup: cpuLineupRef.current,
+      userFormation: userFm,
+      cpuFormation: cpuFm2,
+      seed: seedRef.current,
+      halftimeScore: h1.endScore,
+      involvements: new Map(h1.involvements),
+      firstHalfEvents: h1.events,
+    });
+    summaryRef.current = s;
+    setSummary(s);
+    setSecondHalfFrames(frames);
+    return s;
+  }
+
+  async function finishMatch(s: MatchSimulation) {
     setPhase("result");
     try {
       await fetch("/api/football", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userCardIds: userLineup.map((p) => p.card.id),
-          cpuCardIds: cpuLineup.map((p) => p.card.id),
+          userCardIds: userLineupRef.current.map((p) => p.card.id),
+          cpuCardIds: cpuLineupRef.current.map((p) => p.card.id),
           formation,
-          userScore: simulation.userScore,
-          cpuScore: simulation.cpuScore,
-          result: simulation.result,
+          userScore: s.userScore,
+          cpuScore: s.cpuScore,
+          result: s.result,
         }),
       });
       await fetchStats();
     } catch {}
   }
 
-  function handlePlayAgain() { setPhase("setup"); setSimulation(null); setShareCopied(false); }
+  function handleHalftimeReached() { setShowHalftime(true); }
+
+  function handleStartSecondHalf() {
+    secondHalfFormationRef.current = secondHalfFormation;
+    setShowHalftime(false);
+    computeSecondHalf(secondHalfFormation); // sets secondHalfFrames → MatchPitch resumes
+  }
+
+  function handleSkipToResult() {
+    const s = summaryRef.current ?? computeSecondHalf(secondHalfFormationRef.current);
+    setShowHalftime(false);
+    finishMatch(s);
+  }
+
+  function handleSkipPlayback() { setSkipSignal((n) => n + 1); }
+
+  function handleMatchComplete() {
+    const s = summaryRef.current;
+    if (s) finishMatch(s);
+  }
+
+  function handlePlayAgain() {
+    setPhase("setup");
+    setSummary(null); summaryRef.current = null;
+    setFirstHalf(null); firstHalfRef.current = null;
+    setSecondHalfFrames(null);
+    setShowHalftime(false);
+    setShareCopied(false);
+  }
 
   function handleShare() {
-    if (!simulation) return;
-    const { result, userScore, cpuScore, userOverall } = simulation;
+    if (!summary) return;
+    const { result, userScore, cpuScore, userOverall } = summary;
     const outcome =
       result === "win"  ? `beat CPU ${userScore}–${cpuScore}` :
       result === "draw" ? `drew with CPU ${userScore}–${cpuScore}` :
@@ -294,28 +374,76 @@ export default function FootballGame() {
   }
 
   // ── Playing ────────────────────────────────────────────────────────────────
-  if (phase === "playing" && simulation) {
+  if (phase === "playing" && firstHalf) {
     return (
       <div className="w-full">
-        <div className="text-center mb-4">
-          <h2 className="text-zinc-300 text-sm font-semibold uppercase tracking-wider">Match in Progress</h2>
-          <p className="text-zinc-600 text-xs mt-0.5">{formation} vs {cpuFormation}</p>
+        <div className="text-center mb-4 flex items-center justify-center gap-3">
+          <div>
+            <h2 className="text-zinc-300 text-sm font-semibold uppercase tracking-wider">Match in Progress</h2>
+            <p className="text-zinc-600 text-xs mt-0.5">{secondHalfFormation} vs {cpuFormation}</p>
+          </div>
+          <button
+            onClick={handleSkipPlayback}
+            className="ml-2 text-xs px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
+          >
+            Skip ⏭
+          </button>
         </div>
-        <FootballPitch
-          simulation={simulation}
+
+        <MatchPitch
           userLineup={userLineup}
           cpuLineup={cpuLineup}
-          userFormation={formation}
-          cpuFormation={cpuFormation}
+          firstHalfFrames={firstHalf.frames}
+          secondHalfFrames={secondHalfFrames}
+          skipSignal={skipSignal}
+          onHalftime={handleHalftimeReached}
           onComplete={handleMatchComplete}
         />
+
+        {showHalftime && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700 shadow-2xl p-6 text-center">
+              <div className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest mb-2">Half Time</div>
+              <div className="text-white text-4xl font-black mb-4">{firstHalf.endScore.user}–{firstHalf.endScore.cpu}</div>
+              <div className="text-zinc-400 text-xs uppercase tracking-wider mb-2">Second-half formation</div>
+              <div className="grid grid-cols-2 gap-2 mb-5">
+                {(["2-2-2", "3-2-1", "1-3-2", "2-3-1"] as Formation[]).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setSecondHalfFormation(f)}
+                    className={`py-2 rounded-lg text-sm font-bold border transition-all ${
+                      secondHalfFormation === f
+                        ? "bg-green-700 border-green-500 text-white"
+                        : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500"
+                    }`}
+                  >
+                    {FORMATIONS[f].label}
+                    <span className="block text-[9px] font-normal text-zinc-400">{FORMATIONS[f].desc}</span>
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleStartSecondHalf}
+                className="w-full py-3 rounded-xl bg-green-700 hover:bg-green-600 text-white text-sm font-bold transition-all active:scale-95 mb-2"
+              >
+                ⚽ Second Half
+              </button>
+              <button
+                onClick={handleSkipToResult}
+                className="w-full py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 text-xs font-bold"
+              >
+                Skip to result
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   // ── Result ─────────────────────────────────────────────────────────────────
-  if (phase === "result" && simulation) {
-    const { userScore, cpuScore, result, userOverall, cpuOverall, mvp } = simulation;
+  if (phase === "result" && summary) {
+    const { userScore, cpuScore, result, userOverall, cpuOverall, mvp } = summary;
     const cfg = {
       win:  { label: "Victory!", color: "text-green-400", bg: "from-green-900/25 to-transparent", emoji: "🏆" },
       loss: { label: "Defeat",   color: "text-red-400",   bg: "from-red-900/25 to-transparent",   emoji: "😞" },
@@ -351,7 +479,7 @@ export default function FootballGame() {
               {userScore > 0 && (
                 <div className="flex-1">
                   <div className="text-blue-400 text-[10px] font-bold mb-1">YOU</div>
-                  {simulation.events
+                  {summary.events
                     .filter((ev) => ev.type === "goal" && ev.team === "user")
                     .map((ev, i) => {
                       const scorer = userLineup.find((p) => p.card.id === ev.scorerCardId)?.card.name ?? "—";
@@ -367,7 +495,7 @@ export default function FootballGame() {
               {cpuScore > 0 && (
                 <div className="flex-1">
                   <div className="text-red-400 text-[10px] font-bold mb-1">CPU</div>
-                  {simulation.events
+                  {summary.events
                     .filter((ev) => ev.type === "goal" && ev.team === "cpu")
                     .map((ev, i) => {
                       const scorer = cpuLineup.find((p) => p.card.id === ev.scorerCardId)?.card.name ?? "CPU";
