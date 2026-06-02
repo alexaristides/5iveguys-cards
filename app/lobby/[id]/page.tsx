@@ -1,21 +1,21 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import seedrandom from "seedrandom";
 import { QRCodeSVG } from "qrcode.react";
 import {
   type Formation, type FootballCard, type LineupSlot, type AssignedPlayer,
   type MatchSimulation,
-  buildSlots, slotsToLineup, simulateMatch,
+  buildSlots, slotsToLineup, assignPositions, FORMATIONS,
 } from "@/lib/football";
+import { simulateFirstHalf, simulateSecondHalf, type HalfResult, type MatchFrame } from "@/lib/match-engine";
+import { mirrorTape } from "@/lib/match-playback";
 import { useLobby, type StoredSimulation } from "@/hooks/useLobby";
-import { useMatchSync } from "@/hooks/useMatchSync";
 import FormationPitchSelector from "@/components/football/FormationPitchSelector";
-import FootballPitch from "@/components/football/FootballPitch";
+import MatchPitch from "@/components/football/MatchPitch";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   const router = useRouter();
   const userId = session?.user?.id;
 
-  const { lobby, phase, role, opponentSquadLocked, joinLobby, setPhase } = useLobby(
+  const { lobby, phase, role, opponentSquadLocked, halftimeData, joinLobby, setPhase } = useLobby(
     lobbyId,
     sessionStatus === "loading" ? undefined : userId,
   );
@@ -76,21 +76,21 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   const [pvpRecord, setPvpRecord] = useState<PvPRecord | null>(null);
 
   // Match state
-  const [simulation, setSimulation] = useState<MatchSimulation | null>(null);
+  const [firstHalf, setFirstHalf] = useState<HalfResult | null>(null);
+  const [secondHalfFrames, setSecondHalfFrames] = useState<MatchFrame[] | null>(null);
+  const [summary, setSummary] = useState<MatchSimulation | null>(null);
   const [creatorLineup, setCreatorLineup] = useState<AssignedPlayer[]>([]);
   const [opponentLineup, setOpponentLineup] = useState<AssignedPlayer[]>([]);
   const [creatorFormation, setCreatorFormation] = useState<Formation>("2-2-2");
   const [opponentFormation, setOpponentFormation] = useState<Formation>("2-2-2");
+  const [showHalftime, setShowHalftime] = useState(false);
+  const [secondHalfFormation, setSecondHalfFormation] = useState<Formation>("2-2-2");
+  const [halftimeSubmitted, setHalftimeSubmitted] = useState(false);
+  const halftimeSubmittedRef = useRef(false);
+  const secondHalfFormationRef = useRef<Formation>("2-2-2");
 
   // Countdown
   const [countdown, setCountdown] = useState<number | null>(null);
-
-  // Match sync (creator publishes ticks, opponent subscribes)
-  const { publishEvent } = useMatchSync({
-    lobbyId,
-    isCreator: role === "creator",
-    enabled: phase === "match",
-  });
 
   // Redirect if unauthenticated
   useEffect(() => {
@@ -121,23 +121,27 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
       .finally(() => setLoadingCards(false));
   }, [phase, ownedCards.length, loadingCards]);
 
-  // When both squads locked, fetch the simulation and run countdown
-  const buildSimulation = useCallback((stored: StoredSimulation) => {
-    const rng = seedrandom(lobbyId);
-    const sim = simulateMatch(
-      stored.creatorLineup, stored.opponentLineup,
-      stored.creatorFormation, stored.opponentFormation, rng,
-    );
-    setSimulation(sim);
+  // When both squads locked, build the first half locally and run countdown
+  const buildFirstHalf = useCallback((stored: StoredSimulation) => {
     setCreatorLineup(stored.creatorLineup);
     setOpponentLineup(stored.opponentLineup);
     setCreatorFormation(stored.creatorFormation);
     setOpponentFormation(stored.opponentFormation);
-  }, [lobbyId]);
+    const mine = role === "creator" ? stored.creatorFormation : stored.opponentFormation;
+    setSecondHalfFormation(mine);
+    secondHalfFormationRef.current = mine;
+    setFirstHalf(simulateFirstHalf({
+      userLineup: stored.creatorLineup,
+      cpuLineup: stored.opponentLineup,
+      userFormation: stored.creatorFormation,
+      cpuFormation: stored.opponentFormation,
+      seed: lobbyId,
+    }));
+  }, [lobbyId, role]);
 
   useEffect(() => {
     if (phase !== "countdown" || !lobby?.matchResult?.simulation) return;
-    buildSimulation(lobby.matchResult.simulation);
+    buildFirstHalf(lobby.matchResult.simulation as StoredSimulation);
 
     // 3-2-1 countdown, then start match
     setCountdown(3);
@@ -146,14 +150,17 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
       setTimeout(() => { setCountdown(n - 1); tick(n - 1); }, 1000);
     };
     tick(3);
-  }, [phase, lobby?.matchResult, buildSimulation, setPhase]);
+  }, [phase, lobby?.matchResult, buildFirstHalf, setPhase]);
 
   // When the match was already played (FINISHED on page load), show result
   useEffect(() => {
-    if (phase === "result" && lobby?.matchResult?.simulation && !simulation) {
-      buildSimulation(lobby.matchResult.simulation);
+    if (phase === "result" && lobby?.matchResult?.simulation && !summary) {
+      const st = lobby.matchResult.simulation as StoredSimulation;
+      setCreatorLineup(st.creatorLineup);
+      setOpponentLineup(st.opponentLineup);
+      if (st.summary) setSummary(st.summary);
     }
-  }, [phase, lobby?.matchResult, simulation, buildSimulation]);
+  }, [phase, lobby?.matchResult, summary]);
 
   async function handleJoin() {
     const ok = await joinLobby();
@@ -204,6 +211,43 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
       }
     } catch { /* non-critical */ }
     setPhase("result");
+  }
+
+  // When both 2nd-half formations arrive, compute the second half locally.
+  useEffect(() => {
+    if (!halftimeData || !firstHalf || secondHalfFrames) return;
+    const { creatorFormation2, opponentFormation2 } = halftimeData;
+    const { frames, summary: s } = simulateSecondHalf({
+      userLineup: assignPositions(creatorLineup.map((p) => p.card), creatorFormation2),
+      cpuLineup: assignPositions(opponentLineup.map((p) => p.card), opponentFormation2),
+      userFormation: creatorFormation2,
+      cpuFormation: opponentFormation2,
+      seed: lobbyId,
+      halftimeScore: firstHalf.endScore,
+      involvements: new Map(firstHalf.involvements),
+      firstHalfEvents: firstHalf.events,
+    });
+    setSummary(s);
+    setSecondHalfFrames(frames);
+    setShowHalftime(false);
+  }, [halftimeData, firstHalf, secondHalfFrames, creatorLineup, opponentLineup, lobbyId]);
+
+  const submitHalftime = useCallback(async (f: Formation) => {
+    if (halftimeSubmittedRef.current) return;
+    halftimeSubmittedRef.current = true;
+    setHalftimeSubmitted(true);
+    try {
+      await fetch(`/api/lobbies/${lobbyId}/halftime`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ formation: f }),
+      });
+    } catch { /* the 30s auto-submit on the other side keeps things moving */ }
+  }, [lobbyId]);
+
+  function handleHalftimeReached() {
+    setShowHalftime(true);
+    // Auto-submit current pick after 30s so a slow/AFK player can't stall the sync.
+    setTimeout(() => submitHalftime(secondHalfFormationRef.current), 30000);
   }
 
   function copyLink() {
@@ -452,18 +496,19 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   }
 
   // ── Match ───────────────────────────────────────────────────────────────────
-  if (phase === "match" && simulation) {
+  if (phase === "match" && firstHalf) {
     const userIsCreator = role === "creator";
-    const userLineup  = userIsCreator ? creatorLineup  : opponentLineup;
-    const cpuLineupPv = userIsCreator ? opponentLineup : creatorLineup;
-    const uForm       = userIsCreator ? creatorFormation  : opponentFormation;
-    const cForm       = userIsCreator ? opponentFormation : creatorFormation;
-    const uLabel      = myName ?? "You";
-    const cLabel      = opponentName ?? "Opponent";
+    const uLabel = myName ?? "You";
+    const cLabel = opponentName ?? "Opponent";
+    const userLineupPv = userIsCreator ? creatorLineup : opponentLineup;
+    const cpuLineupPv  = userIsCreator ? opponentLineup : creatorLineup;
+    const firstFrames  = userIsCreator ? firstHalf.frames : mirrorTape(firstHalf.frames);
+    const secondFrames = secondHalfFrames ? (userIsCreator ? secondHalfFrames : mirrorTape(secondHalfFrames)) : null;
+    const htMy  = userIsCreator ? firstHalf.endScore.user : firstHalf.endScore.cpu;
+    const htOpp = userIsCreator ? firstHalf.endScore.cpu : firstHalf.endScore.user;
 
     return pageWrapper(
       <div className="w-full">
-        {/* Player header */}
         <div className="flex items-center justify-between mb-4 px-2">
           <div className="flex items-center gap-2">
             <Avatar src={session?.user?.image} name={myName} size={8} />
@@ -476,18 +521,49 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
           </div>
         </div>
 
-        <FootballPitch
-          simulation={simulation}
-          userLineup={userLineup}
+        <MatchPitch
+          userLineup={userLineupPv}
           cpuLineup={cpuLineupPv}
-          userFormation={uForm}
-          cpuFormation={cForm}
-          skipReveal
+          firstHalfFrames={firstFrames}
+          secondHalfFrames={secondFrames}
           userLabel={uLabel}
           cpuLabel={cLabel}
-          onEventFired={publishEvent}
+          onHalftime={handleHalftimeReached}
           onComplete={handleMatchComplete}
         />
+
+        {showHalftime && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-700 shadow-2xl p-6 text-center">
+              <div className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest mb-2">Half Time</div>
+              <div className="text-white text-4xl font-black mb-4">{htMy}–{htOpp}</div>
+              {!halftimeSubmitted ? (
+                <>
+                  <div className="text-zinc-400 text-xs uppercase tracking-wider mb-2">Second-half formation</div>
+                  <div className="grid grid-cols-2 gap-2 mb-5">
+                    {(["2-2-2", "3-2-1", "1-3-2", "2-3-1"] as Formation[]).map((f) => (
+                      <button key={f}
+                        onClick={() => { setSecondHalfFormation(f); secondHalfFormationRef.current = f; }}
+                        className={`py-2 rounded-lg text-sm font-bold border transition-all ${secondHalfFormation === f ? "bg-green-700 border-green-500 text-white" : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500"}`}>
+                        {FORMATIONS[f].label}
+                        <span className="block text-[9px] font-normal text-zinc-400">{FORMATIONS[f].desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => submitHalftime(secondHalfFormation)}
+                    className="w-full py-3 rounded-xl bg-green-700 hover:bg-green-600 text-white text-sm font-bold transition-all active:scale-95">
+                    Confirm
+                  </button>
+                </>
+              ) : (
+                <div className="flex items-center justify-center gap-2 text-zinc-400 text-sm py-4">
+                  <div className="w-4 h-4 border-2 border-zinc-600 border-t-zinc-400 rounded-full animate-spin" />
+                  Waiting for opponent…
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -496,8 +572,8 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   if (phase === "result") {
     const mr = lobby?.matchResult;
     const userIsCreator = role === "creator";
-    const myScore  = simulation ? (userIsCreator ? simulation.userScore : simulation.cpuScore)  : 0;
-    const oppScore = simulation ? (userIsCreator ? simulation.cpuScore  : simulation.userScore) : 0;
+    const myScore  = summary ? (userIsCreator ? summary.userScore : summary.cpuScore)  : 0;
+    const oppScore = summary ? (userIsCreator ? summary.cpuScore  : summary.userScore) : 0;
     const winnerId = mr?.winnerId ?? null;
     const myId = userId;
     const iWon   = myId && winnerId === myId;
@@ -530,14 +606,14 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
         </div>
 
         {/* Goals */}
-        {simulation && (myScore > 0 || oppScore > 0) && (
+        {summary && (myScore > 0 || oppScore > 0) && (
           <div className="mb-5 rounded-xl bg-zinc-900/60 border border-zinc-800 px-4 py-3 text-left">
             <div className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider mb-2">Goals</div>
             <div className="flex gap-6">
               {myScore > 0 && (
                 <div className="flex-1">
                   <div className="text-blue-400 text-[10px] font-bold mb-1">YOU</div>
-                  {simulation.events
+                  {summary.events
                     .filter((ev) => ev.type === "goal" && ((userIsCreator && ev.team === "user") || (!userIsCreator && ev.team === "cpu")))
                     .map((ev, i) => {
                       const scorer = (userIsCreator ? creatorLineup : opponentLineup).find((p) => p.card.id === ev.scorerCardId)?.card.name ?? "—";
@@ -553,7 +629,7 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
               {oppScore > 0 && (
                 <div className="flex-1">
                   <div className="text-red-400 text-[10px] font-bold mb-1">OPPONENT</div>
-                  {simulation.events
+                  {summary.events
                     .filter((ev) => ev.type === "goal" && ((userIsCreator && ev.team === "cpu") || (!userIsCreator && ev.team === "user")))
                     .map((ev, i) => {
                       const scorer = (userIsCreator ? opponentLineup : creatorLineup).find((p) => p.card.id === ev.scorerCardId)?.card.name ?? "—";
