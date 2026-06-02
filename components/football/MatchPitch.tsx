@@ -215,6 +215,9 @@ export default function MatchPitch({
                     <Image src={info.imageUrl} alt={info.name} fill className="object-cover object-center" sizes="40px" />
                     <div className={`absolute inset-0 pointer-events-none ${info.team === "user" ? "bg-blue-500/35" : "bg-red-600/40"}`} />
                   </div>
+                  <div className="absolute left-1/2 top-full -translate-x-1/2 mt-0.5 max-w-[64px] truncate rounded bg-black/55 px-1 text-center text-white text-[7px] sm:text-[8px] font-semibold leading-tight pointer-events-none">
+                    {info.name}
+                  </div>
                 </div>
               );
             })}
