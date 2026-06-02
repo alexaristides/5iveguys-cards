@@ -11,6 +11,7 @@ import {
   buildSlots,
   slotsToLineup,
   pickCpuLineup,
+  calcTeamStats,
   FORMATIONS,
 } from "@/lib/football";
 import {
@@ -101,6 +102,7 @@ export default function FootballGame() {
   const [summary, setSummary]       = useState<MatchSimulation | null>(null);
   const [showHalftime, setShowHalftime] = useState(false);
   const [secondHalfFormation, setSecondHalfFormation] = useState<Formation>("2-2-2");
+  const [difficulty, setDifficulty] = useState<"easy" | "even" | "hard">("even");
   const [stats, setStats]           = useState<MatchStats>({ wins: 0, losses: 0, draws: 0 });
   const [loadingCards, setLoadingCards] = useState(true);
   const [saving, setSaving]         = useState(false);
@@ -200,7 +202,9 @@ export default function FootballGame() {
     const assigned = slotsToLineup(lineup);
     if (assigned.length < 7) return;
 
-    const { formation: cpuFm, lineup: cpuAssigned } = pickCpuLineup();
+    const userOverall = calcTeamStats(assigned).overall;
+    const offset = difficulty === "easy" ? -7 : difficulty === "hard" ? 7 : 0;
+    const { formation: cpuFm, lineup: cpuAssigned } = pickCpuLineup(userOverall + offset);
     const seed = nanoid();
     const h1 = simulateFirstHalf({
       userLineup: assigned, cpuLineup: cpuAssigned,
@@ -344,6 +348,23 @@ export default function FootballGame() {
               onFormationChange={handleFormationChange}
               onLineupChange={handleLineupChange}
             />
+
+            <div className="flex items-center justify-center gap-2 mt-4">
+              <span className="text-zinc-500 text-xs">Opponent</span>
+              {(["easy", "even", "hard"] as const).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setDifficulty(d)}
+                  className={`text-xs px-3 py-1.5 rounded-lg border capitalize transition-all ${
+                    difficulty === d
+                      ? "bg-green-700 border-green-500 text-white"
+                      : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500"
+                  }`}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
 
             <button
               onClick={handleKickOff}

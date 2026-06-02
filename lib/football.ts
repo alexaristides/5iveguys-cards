@@ -419,12 +419,31 @@ export function slotsToLineup(slots: LineupSlot[]): AssignedPlayer[] {
 
 const RANDOM_FORMATIONS: Formation[] = ["2-2-2", "3-2-1", "1-3-2", "2-3-1"];
 
-export function pickCpuLineup(): { formation: Formation; lineup: AssignedPlayer[] } {
+function makeCpuSquad(): { formation: Formation; lineup: AssignedPlayer[]; overall: number } {
   const formation = RANDOM_FORMATIONS[Math.floor(Math.random() * RANDOM_FORMATIONS.length)];
   const pool = [...CARDS].sort(() => Math.random() - 0.5).slice(0, 7);
   const cards: FootballCard[] = pool.map((c) => ({
     id: c.id, name: c.name ?? "CPU", rarity: c.rarity,
     attribute: c.attribute, imageUrl: c.image, kit: c.kit,
   }));
-  return { formation, lineup: assignPositions(cards, formation) };
+  const lineup = assignPositions(cards, formation);
+  return { formation, lineup, overall: calcTeamStats(lineup).overall };
+}
+
+/**
+ * Pick a CPU squad. With no target, a fully random draw (legacy behaviour).
+ * With a target overall, samples several random squads and returns the one
+ * whose overall is closest — used to scale CPU strength to the player's team.
+ */
+export function pickCpuLineup(targetOverall?: number): { formation: Formation; lineup: AssignedPlayer[] } {
+  if (targetOverall === undefined) {
+    const { formation, lineup } = makeCpuSquad();
+    return { formation, lineup };
+  }
+  let best = makeCpuSquad();
+  for (let i = 0; i < 40; i++) {
+    const c = makeCpuSquad();
+    if (Math.abs(c.overall - targetOverall) < Math.abs(best.overall - targetOverall)) best = c;
+  }
+  return { formation: best.formation, lineup: best.lineup };
 }
