@@ -162,8 +162,15 @@ export function simulateHalfLogic(
         const [bx, by] = homeCoordOf(p, t);
         const [dx, dy] = phaseShift(t, atk, p.position, bx);
         let x = clamp(bx + dx, 4, 96), y = clamp(by + dy, 4, 96);
-        if (p.card.id === possessorId) { x += (ball.x - x) * 0.6; y += (ball.y - y) * 0.6; }
-        out[p.card.id] = { x: Math.round(x), y: Math.round(y) };
+        if (p.card.id === possessorId) {
+          x += (ball.x - x) * 0.6; y += (ball.y - y) * 0.6;
+        } else if (t !== atk && p.position !== "GK") {
+          // Defending: press the ball-carrier, harder the closer you already are.
+          const dist = Math.hypot(ball.x - x, ball.y - y);
+          const press = 0.55 * (1 - clamp(dist / 50, 0, 1));
+          x += (ball.x - x) * press; y += (ball.y - y) * press;
+        }
+        out[p.card.id] = { x: Math.round(clamp(x, 4, 96)), y: Math.round(clamp(y, 4, 96)) };
       }
     }
     return out;
