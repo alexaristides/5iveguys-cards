@@ -6,7 +6,7 @@ import type { AssignedPlayer, MatchEvent, Rarity } from "@/lib/football";
 import type { MatchFrame } from "@/lib/match-engine";
 import { sampleTimeline } from "@/lib/match-playback";
 
-const DEFAULT_HALF_SEC = 15;
+const DEFAULT_HALF_SEC = 22;
 
 const RARITY_RING: Record<Rarity, string> = {
   common: "ring-zinc-400", rare: "ring-blue-400", epic: "ring-purple-400", legendary: "ring-amber-400",
