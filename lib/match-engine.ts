@@ -61,6 +61,8 @@ const TUNING = {
 
 // ── Geometry helpers ──────────────────────────────────────────────────────────
 
+type SetPiece = "corner";
+
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)); }
 function goalYFor(team: "user" | "cpu") { return team === "user" ? 4 : 96; }
 function isFinalThird(team: "user" | "cpu", y: number) { return team === "user" ? y < 33 : y > 67; }
@@ -120,8 +122,41 @@ export function simulateHalfLogic(
     involvements.set(card.id, e);
   }
 
-  function computeTargets(atk: "user" | "cpu", ball: { x: number; y: number }, possessorId: string | null): Record<string, { x: number; y: number }> {
+  function computeTargets(atk: "user" | "cpu", ball: { x: number; y: number }, possessorId: string | null, setPiece?: SetPiece): Record<string, { x: number; y: number }> {
     const out: Record<string, { x: number; y: number }> = {};
+
+    if (setPiece === "corner") {
+      const def: "user" | "cpu" = atk === "user" ? "cpu" : "user";
+      const goalY = goalYFor(atk);            // the goal being attacked
+      const into = atk === "user" ? 1 : -1;   // from that goal line toward midfield
+
+      // Attacking side: taker stays at the flag (the possessor), everyone else floods the box.
+      const atkOutfield = lineupOf(atk).filter((p) => p.position !== "GK" && p.card.id !== possessorId);
+      atkOutfield.forEach((p, i) => {
+        const spread = atkOutfield.length <= 1 ? 0.5 : i / (atkOutfield.length - 1);
+        const x = 30 + spread * 40;                 // 30..70 across the box
+        const y = goalY + into * (8 + (i % 3) * 4); // staggered 8..16 out from the line
+        out[p.card.id] = { x: Math.round(clamp(x, 6, 94)), y: Math.round(clamp(y, 6, 94)) };
+      });
+      for (const p of lineupOf(atk)) {
+        if (out[p.card.id]) continue;
+        if (p.card.id === possessorId) out[p.card.id] = { x: Math.round(ball.x), y: Math.round(ball.y) };
+        else { const [hx, hy] = homeCoordOf(p, atk); out[p.card.id] = { x: Math.round(hx), y: Math.round(hy) }; } // GK holds back
+      }
+
+      // Defending side: drop into the box to mark, keeper on the line.
+      const defOutfield = lineupOf(def).filter((p) => p.position !== "GK");
+      defOutfield.forEach((p, i) => {
+        const spread = defOutfield.length <= 1 ? 0.5 : i / (defOutfield.length - 1);
+        const x = 26 + spread * 48;                 // 26..74
+        const y = goalY + into * (5 + (i % 2) * 5); // 5..10, just in front of their line
+        out[p.card.id] = { x: Math.round(clamp(x, 6, 94)), y: Math.round(clamp(y, 6, 94)) };
+      });
+      const dgk = lineupOf(def).find((p) => p.position === "GK");
+      if (dgk) out[dgk.card.id] = { x: 50, y: Math.round(clamp(goalY + into * 3, 4, 96)) };
+      return out;
+    }
+
     for (const t of ["user", "cpu"] as const) {
       for (const p of lineupOf(t)) {
         const [bx, by] = homeCoordOf(p, t);
@@ -137,10 +172,10 @@ export function simulateHalfLogic(
   function emit(
     minute: number, type: MatchEventType, team: "user" | "cpu", description: string,
     phase: MatchPhase, ball: { x: number; y: number }, possessorId: string | null,
-    scorerCardId?: string, assisterCardId?: string,
+    scorerCardId?: string, assisterCardId?: string, setPiece?: SetPiece,
   ) {
     const b = { x: clamp(Math.round(ball.x), 0, 100), y: clamp(Math.round(ball.y), 0, 100) };
-    moments.push({ minute, type, team, phase, description, ball: b, targets: computeTargets(team, b, possessorId), possessorId, scorerCardId, assisterCardId, scoreUser: userScore, scoreCpu: cpuScore });
+    moments.push({ minute, type, team, phase, description, ball: b, targets: computeTargets(team, b, possessorId, setPiece), possessorId, scorerCardId, assisterCardId, scoreUser: userScore, scoreCpu: cpuScore });
     events.push({ minute, type, team, description, scoreUser: userScore, scoreCpu: cpuScore, phase, scorerCardId, assisterCardId });
   }
 
@@ -161,26 +196,28 @@ export function simulateHalfLogic(
     const sigmoid = 1 / (1 + Math.exp(-advantage));
     let goalProb = clamp(sigmoid * TUNING.goalScale + (rng() - 0.5) * TUNING.goalNoise, TUNING.goalFloor, TUNING.goalCap);
     if (opts?.corner) goalProb *= 0.7; // headers from corners convert less often
+    const sp: SetPiece | undefined = opts?.corner ? "corner" : undefined;
     const gx = clamp(50 + (rng() - 0.5) * 20, 30, 70), gy = goalYFor(atkTeam);
     if (rng() < goalProb) {
       if (atkTeam === "user") userScore++; else cpuScore++;
       if (atkTeam === "user") { trackInv(scorer.card, "goal"); if (assister) trackInv(assister.card, "assist"); }
       const fam = scorer.card.attribute === "Pace" ? GOAL_PACE : scorer.card.attribute === "Power" ? GOAL_POWER : scorer.card.attribute === "Skill" ? GOAL_SKILL : GOAL_GENERIC;
-      emit(min, "goal", atkTeam, `⚽ GOAL! ${pick(fam, nameOf(scorer), nameOf(assister))}`, phase, { x: gx, y: gy }, scorer.card.id, scorer.card.id, assister?.card.id);
+      emit(min, "goal", atkTeam, `⚽ GOAL! ${pick(fam, nameOf(scorer), nameOf(assister))}`, phase, { x: gx, y: gy }, scorer.card.id, scorer.card.id, assister?.card.id, sp);
       return "goal";
     }
     const r = rng();
-    if (r < 0.45) { emit(min, "save", atkTeam, `🧤 ${pick(SAVE_TEMPLATES, nameOf(gk), nameOf(scorer))}`, phase, { x: gx, y: gy }, gk?.card.id ?? null); return "save"; }
-    if (r < 0.70) { emit(min, "nearpost", atkTeam, pick(NEARPOST_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id); return "nearpost"; }
-    emit(min, "miss", atkTeam, pick(MISS_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id); return "miss";
+    if (r < 0.45) { emit(min, "save", atkTeam, `🧤 ${pick(SAVE_TEMPLATES, nameOf(gk), nameOf(scorer))}`, phase, { x: gx, y: gy }, gk?.card.id ?? null, undefined, undefined, sp); return "save"; }
+    if (r < 0.70) { emit(min, "nearpost", atkTeam, pick(NEARPOST_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id, undefined, undefined, sp); return "nearpost"; }
+    emit(min, "miss", atkTeam, pick(MISS_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id, undefined, undefined, sp); return "miss";
   }
 
   function emitCorner(atkTeam: "user" | "cpu", min: number, phase: MatchPhase) {
     const taker = byPos(atkTeam, "MID", "ATT") ?? lineupOf(atkTeam)[0];
     const target = byPos(atkTeam, "ATT", "DEF") ?? taker;
     const gy = goalYFor(atkTeam);
-    const cx = rng() < 0.5 ? 6 : 94;
-    emit(min, "corner", atkTeam, pick(CORNER_TEMPLATES, nameOf(taker), nameOf(target)), phase, { x: cx, y: gy + (atkTeam === "user" ? 8 : -8) }, taker?.card.id ?? null);
+    const cx = rng() < 0.5 ? 4 : 96;                       // a corner flag
+    const cy = gy + (atkTeam === "user" ? 2 : -2);         // on the goal line
+    emit(min, "corner", atkTeam, pick(CORNER_TEMPLATES, nameOf(taker), nameOf(target)), phase, { x: cx, y: cy }, taker?.card.id ?? null, undefined, undefined, "corner");
   }
 
   function emitGoalKick(defTeam: "user" | "cpu", min: number) {
