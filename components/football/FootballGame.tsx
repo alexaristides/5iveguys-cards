@@ -101,8 +101,6 @@ export default function FootballGame() {
   const [summary, setSummary]       = useState<MatchSimulation | null>(null);
   const [showHalftime, setShowHalftime] = useState(false);
   const [secondHalfFormation, setSecondHalfFormation] = useState<Formation>("2-2-2");
-  const [skipSignal, setSkipSignal] = useState(0);
-  const [halfSec, setHalfSec]       = useState(28); // playback seconds per half
   const [stats, setStats]           = useState<MatchStats>({ wins: 0, losses: 0, draws: 0 });
   const [loadingCards, setLoadingCards] = useState(true);
   const [saving, setSaving]         = useState(false);
@@ -217,7 +215,6 @@ export default function FootballGame() {
     setSecondHalfFrames(null);
     setSummary(null); summaryRef.current = null;
     setSecondHalfFormation(formation); secondHalfFormationRef.current = formation;
-    setSkipSignal(0);
     setShowHalftime(false);
     setPhase("playing");
 
@@ -269,14 +266,6 @@ export default function FootballGame() {
     setShowHalftime(false);
     computeSecondHalf(secondHalfFormation); // sets secondHalfFrames → MatchPitch resumes
   }
-
-  function handleSkipToResult() {
-    const s = summaryRef.current ?? computeSecondHalf(secondHalfFormationRef.current);
-    setShowHalftime(false);
-    finishMatch(s);
-  }
-
-  function handleSkipPlayback() { setSkipSignal((n) => n + 1); }
 
   function handleMatchComplete() {
     const s = summaryRef.current;
@@ -378,31 +367,9 @@ export default function FootballGame() {
   if (phase === "playing" && firstHalf) {
     return (
       <div className="w-full">
-        <div className="text-center mb-3">
+        <div className="text-center mb-4">
           <h2 className="text-zinc-300 text-sm font-semibold uppercase tracking-wider">Match in Progress</h2>
           <p className="text-zinc-600 text-xs mt-0.5">{secondHalfFormation} vs {cpuFormation}</p>
-        </div>
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <div className="flex items-center gap-1 rounded-lg bg-zinc-900 border border-zinc-800 p-0.5">
-            <span className="text-zinc-500 text-[10px] px-1.5">Speed</span>
-            {([["Slow", 42], ["Normal", 28], ["Fast", 16]] as const).map(([label, sec]) => (
-              <button
-                key={label}
-                onClick={() => setHalfSec(sec)}
-                className={`text-[11px] px-2 py-1 rounded-md transition-all ${
-                  halfSec === sec ? "bg-green-700 text-white" : "text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={handleSkipPlayback}
-            className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
-          >
-            Skip ⏭
-          </button>
         </div>
 
         <MatchPitch
@@ -410,8 +377,6 @@ export default function FootballGame() {
           cpuLineup={cpuLineup}
           firstHalfFrames={firstHalf.frames}
           secondHalfFrames={secondHalfFrames}
-          halfDurationSec={halfSec}
-          skipSignal={skipSignal}
           onHalftime={handleHalftimeReached}
           onComplete={handleMatchComplete}
         />
@@ -440,15 +405,9 @@ export default function FootballGame() {
               </div>
               <button
                 onClick={handleStartSecondHalf}
-                className="w-full py-3 rounded-xl bg-green-700 hover:bg-green-600 text-white text-sm font-bold transition-all active:scale-95 mb-2"
+                className="w-full py-3 rounded-xl bg-green-700 hover:bg-green-600 text-white text-sm font-bold transition-all active:scale-95"
               >
                 ⚽ Second Half
-              </button>
-              <button
-                onClick={handleSkipToResult}
-                className="w-full py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 text-xs font-bold"
-              >
-                Skip to result
               </button>
             </div>
           </div>

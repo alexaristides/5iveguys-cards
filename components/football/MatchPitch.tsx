@@ -26,8 +26,6 @@ interface Props {
   halfDurationSec?: number;
   userLabel?: string;
   cpuLabel?: string;
-  /** Increment to fast-forward the current half to its end. */
-  skipSignal?: number;
   /** Called when the first half finishes playing. Parent shows the halftime UI + computes the 2nd half. */
   onHalftime: () => void;
   /** Called when the second half finishes playing. */
@@ -39,7 +37,7 @@ interface CardInfo { id: string; name: string; imageUrl: string; rarity: Rarity;
 export default function MatchPitch({
   userLineup, cpuLineup, firstHalfFrames, secondHalfFrames,
   halfDurationSec = DEFAULT_HALF_SEC, userLabel = "YOU", cpuLabel = "CPU",
-  skipSignal = 0, onHalftime, onComplete,
+  onHalftime, onComplete,
 }: Props) {
   const [phase, setPhase] = useState<Phase>("playing1");
   const [possessorId, setPossessorId] = useState<string | null>(null);
@@ -69,9 +67,6 @@ export default function MatchPitch({
   const firedRef = useRef(-1);
   const durationRef = useRef(halfDurationSec);
   useEffect(() => { durationRef.current = halfDurationSec; }, [halfDurationSec]);
-  const skipRef = useRef(0);
-  const lastSkipRef = useRef(0);
-  useEffect(() => { skipRef.current = skipSignal; }, [skipSignal]);
 
   function applyEvent(ev: MatchEvent) {
     setFeed((prev) => [ev, ...prev].slice(0, 12));
@@ -114,12 +109,7 @@ export default function MatchPitch({
       const dt = ts - lastTsRef.current;
       lastTsRef.current = ts;
 
-      if (skipRef.current !== lastSkipRef.current) {
-        lastSkipRef.current = skipRef.current;
-        pRef.current = 1;
-      } else {
-        pRef.current = Math.min(1, pRef.current + dt / (durationRef.current * 1000));
-      }
+      pRef.current = Math.min(1, pRef.current + dt / (durationRef.current * 1000));
 
       const s = sampleTimeline(frames, pRef.current, 1); // duration=1 → progress = pRef
       paint(s.players, s.ball);
