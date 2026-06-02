@@ -114,7 +114,8 @@ export default function MatchPitch({
     setStats((s) => {
       const next = { ...s };
       if (["goal", "save", "miss", "nearpost"].includes(ev.type)) { if (ev.team === "user") next.userShots++; else next.cpuShots++; }
-      if (ev.type === "possession" || ev.type === "counter") { if (ev.team === "user") next.userPoss++; else next.cpuPoss++; }
+      // Possession = building an attack OR winning the ball back (tackle/clearance is the defender gaining it).
+      if (["possession", "counter", "tackle", "clearance"].includes(ev.type)) { if (ev.team === "user") next.userPoss++; else next.cpuPoss++; }
       return next;
     });
     const p = popupFor(ev, cpuLabel);

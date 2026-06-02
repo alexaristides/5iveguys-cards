@@ -122,7 +122,7 @@ export function simulateHalfLogic(
     involvements.set(card.id, e);
   }
 
-  function computeTargets(atk: "user" | "cpu", ball: { x: number; y: number }, possessorId: string | null, setPiece?: SetPiece): Record<string, { x: number; y: number }> {
+  function computeTargets(atk: "user" | "cpu", ball: { x: number; y: number }, possessorId: string | null, setPiece?: SetPiece, cornerTaker?: { id: string; x: number; y: number }): Record<string, { x: number; y: number }> {
     const out: Record<string, { x: number; y: number }> = {};
 
     if (setPiece === "corner") {
@@ -130,8 +130,12 @@ export function simulateHalfLogic(
       const goalY = goalYFor(atk);            // the goal being attacked
       const into = atk === "user" ? 1 : -1;   // from that goal line toward midfield
 
-      // Attacking side: taker stays at the flag (the possessor), everyone else floods the box.
-      const atkOutfield = lineupOf(atk).filter((p) => p.position !== "GK" && p.card.id !== possessorId);
+      // The taker stays at the flag (either the current possessor on the cross,
+      // or the previously-recorded taker once the shot is being taken).
+      const takerId = cornerTaker?.id ?? possessorId;
+
+      // Attacking side: taker stays at the flag, everyone else floods the box.
+      const atkOutfield = lineupOf(atk).filter((p) => p.position !== "GK" && p.card.id !== possessorId && p.card.id !== takerId);
       atkOutfield.forEach((p, i) => {
         const spread = atkOutfield.length <= 1 ? 0.5 : i / (atkOutfield.length - 1);
         const x = 30 + spread * 40;                 // 30..70 across the box
@@ -140,7 +144,8 @@ export function simulateHalfLogic(
       });
       for (const p of lineupOf(atk)) {
         if (out[p.card.id]) continue;
-        if (p.card.id === possessorId) out[p.card.id] = { x: Math.round(ball.x), y: Math.round(ball.y) };
+        if (cornerTaker && p.card.id === cornerTaker.id) out[p.card.id] = { x: Math.round(cornerTaker.x), y: Math.round(cornerTaker.y) };
+        else if (p.card.id === possessorId) out[p.card.id] = { x: Math.round(ball.x), y: Math.round(ball.y) };
         else { const [hx, hy] = homeCoordOf(p, atk); out[p.card.id] = { x: Math.round(hx), y: Math.round(hy) }; } // GK holds back
       }
 
@@ -180,16 +185,17 @@ export function simulateHalfLogic(
     minute: number, type: MatchEventType, team: "user" | "cpu", description: string,
     phase: MatchPhase, ball: { x: number; y: number }, possessorId: string | null,
     scorerCardId?: string, assisterCardId?: string, setPiece?: SetPiece,
+    cornerTaker?: { id: string; x: number; y: number },
   ) {
     const b = { x: clamp(Math.round(ball.x), 0, 100), y: clamp(Math.round(ball.y), 0, 100) };
-    moments.push({ minute, type, team, phase, description, ball: b, targets: computeTargets(team, b, possessorId, setPiece), possessorId, scorerCardId, assisterCardId, scoreUser: userScore, scoreCpu: cpuScore });
+    moments.push({ minute, type, team, phase, description, ball: b, targets: computeTargets(team, b, possessorId, setPiece, cornerTaker), possessorId, scorerCardId, assisterCardId, scoreUser: userScore, scoreCpu: cpuScore });
     events.push({ minute, type, team, description, scoreUser: userScore, scoreCpu: cpuScore, phase, scorerCardId, assisterCardId });
   }
 
   // Resolve a shot; emits goal/save/nearpost/miss and returns the outcome type.
   function attemptShot(
     atkTeam: "user" | "cpu", min: number, phase: MatchPhase,
-    preferred: AssignedPlayer | null, opts?: { corner?: boolean },
+    preferred: AssignedPlayer | null, opts?: { corner?: boolean; cornerTaker?: { id: string; x: number; y: number } },
   ): MatchEventType {
     const defTeam: "user" | "cpu" = atkTeam === "user" ? "cpu" : "user";
     const aE = effOf(atkTeam), dE = effOf(defTeam);
@@ -204,27 +210,29 @@ export function simulateHalfLogic(
     let goalProb = clamp(sigmoid * TUNING.goalScale + (rng() - 0.5) * TUNING.goalNoise, TUNING.goalFloor, TUNING.goalCap);
     if (opts?.corner) goalProb *= 0.7; // headers from corners convert less often
     const sp: SetPiece | undefined = opts?.corner ? "corner" : undefined;
+    const ct = opts?.cornerTaker;
     const gx = clamp(50 + (rng() - 0.5) * 20, 30, 70), gy = goalYFor(atkTeam);
     if (rng() < goalProb) {
       if (atkTeam === "user") userScore++; else cpuScore++;
       if (atkTeam === "user") { trackInv(scorer.card, "goal"); if (assister) trackInv(assister.card, "assist"); }
       const fam = scorer.card.attribute === "Pace" ? GOAL_PACE : scorer.card.attribute === "Power" ? GOAL_POWER : scorer.card.attribute === "Skill" ? GOAL_SKILL : GOAL_GENERIC;
-      emit(min, "goal", atkTeam, `⚽ GOAL! ${pick(fam, nameOf(scorer), nameOf(assister))}`, phase, { x: gx, y: gy }, scorer.card.id, scorer.card.id, assister?.card.id, sp);
+      emit(min, "goal", atkTeam, `⚽ GOAL! ${pick(fam, nameOf(scorer), nameOf(assister))}`, phase, { x: gx, y: gy }, scorer.card.id, scorer.card.id, assister?.card.id, sp, ct);
       return "goal";
     }
     const r = rng();
-    if (r < 0.45) { emit(min, "save", atkTeam, `🧤 ${pick(SAVE_TEMPLATES, nameOf(gk), nameOf(scorer))}`, phase, { x: gx, y: gy }, gk?.card.id ?? null, undefined, undefined, sp); return "save"; }
-    if (r < 0.70) { emit(min, "nearpost", atkTeam, pick(NEARPOST_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id, undefined, undefined, sp); return "nearpost"; }
-    emit(min, "miss", atkTeam, pick(MISS_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id, undefined, undefined, sp); return "miss";
+    if (r < 0.45) { emit(min, "save", atkTeam, `🧤 ${pick(SAVE_TEMPLATES, nameOf(gk), nameOf(scorer))}`, phase, { x: gx, y: gy }, gk?.card.id ?? null, undefined, undefined, sp, ct); return "save"; }
+    if (r < 0.70) { emit(min, "nearpost", atkTeam, pick(NEARPOST_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id, undefined, undefined, sp, ct); return "nearpost"; }
+    emit(min, "miss", atkTeam, pick(MISS_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id, undefined, undefined, sp, ct); return "miss";
   }
 
-  function emitCorner(atkTeam: "user" | "cpu", min: number, phase: MatchPhase) {
+  function emitCorner(atkTeam: "user" | "cpu", min: number, phase: MatchPhase): { id: string; x: number; y: number } | undefined {
     const taker = byPos(atkTeam, "MID", "ATT") ?? lineupOf(atkTeam)[0];
     const target = byPos(atkTeam, "ATT", "DEF") ?? taker;
     const gy = goalYFor(atkTeam);
     const cx = rng() < 0.5 ? 4 : 96;                       // a corner flag
     const cy = gy + (atkTeam === "user" ? 2 : -2);         // on the goal line
     emit(min, "corner", atkTeam, pick(CORNER_TEMPLATES, nameOf(taker), nameOf(target)), phase, { x: cx, y: cy }, taker?.card.id ?? null, undefined, undefined, "corner");
+    return taker ? { id: taker.card.id, x: cx, y: cy } : undefined;
   }
 
   function emitGoalKick(defTeam: "user" | "cpu", min: number) {
@@ -247,9 +255,12 @@ export function simulateHalfLogic(
       startMin, endMin - 1,
     );
 
-    // Midfield contest decides who attacks
-    const uRoll = uEff.midfield + rng() * 22, cRoll = cEff.midfield + rng() * 22;
-    atk = uRoll > cRoll ? "user" : "cpu";
+    // Midfield contest decides who attacks — probabilistic so a stronger midfield
+    // tilts the share of attacks without ever monopolising them (no 100%–0% halves).
+    const midTotal = uEff.midfield + cEff.midfield;
+    const pUserRaw = midTotal > 0 ? uEff.midfield / midTotal : 0.5;
+    const pUser = clamp(0.5 + (pUserRaw - 0.5) * 0.7, 0.28, 0.72);
+    atk = rng() < pUser ? "user" : "cpu";
     const def: "user" | "cpu" = atk === "user" ? "cpu" : "user";
     const phase: MatchPhase = atk === "user" ? "user-attack" : "cpu-attack";
     const aEff = effOf(atk), dEff = effOf(def);
@@ -316,8 +327,8 @@ export function simulateHalfLogic(
       const t = attemptShot(atk, minute, phase, holder, {});
       if (t === "save" || t === "nearpost") {
         if (rng() < 0.6) {
-          emitCorner(atk, minute, phase);
-          const t2 = attemptShot(atk, minute, phase, byPos(atk, "ATT", "DEF"), { corner: true });
+          const corner = emitCorner(atk, minute, phase);
+          const t2 = attemptShot(atk, minute, phase, byPos(atk, "ATT", "DEF"), { corner: true, cornerTaker: corner });
           if (t2 !== "goal" && rng() < 0.5) emitGoalKick(def, minute);
         } else if (rng() < 0.6) {
           emitGoalKick(def, minute);
