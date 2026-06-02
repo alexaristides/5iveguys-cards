@@ -129,6 +129,7 @@ model Card {
   backImageUrl String?
   attribute        String?
   description      String?
+  position         String?
   availableInPacks Boolean  @default(true)
   createdAt        DateTime @default(now())
 

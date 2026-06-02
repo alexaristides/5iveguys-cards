@@ -11,6 +11,8 @@ export const CAP_COSTS: Record<Rarity, number> = {
   legendary: 60,
 };
 
+export type Position = "GK" | "DEF" | "CDM" | "CM" | "CAM" | "LW" | "RW" | "ST";
+
 export interface Card {
   id: string;
   name: string;
@@ -20,6 +22,7 @@ export interface Card {
   backImage?: string;
   rarity: Rarity;
   attribute: Attribute;
+  position?: Position;
   description?: string;
   /**
    * Draw weight within a rarity pool.
@@ -233,6 +236,7 @@ export interface DbCard {
   backImageUrl: string | null;
   attribute: string | null;
   description: string | null;
+  position?: string | null;
   availableInPacks?: boolean;
 }
 
@@ -253,6 +257,7 @@ export function dbCardToCard(dbCard: DbCard): Card {
     backImage: dbCard.backImageUrl ?? undefined,
     rarity: dbCard.rarity as Rarity,
     attribute: (dbCard.attribute ?? "Skill") as Attribute,
+    position: (dbCard.position as Position) ?? undefined,
     description: dbCard.description ?? undefined,
   };
 }

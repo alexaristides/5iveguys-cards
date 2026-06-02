@@ -4,6 +4,20 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 
+const POSITIONS = ["GK", "DEF", "CDM", "CM", "CAM", "LW", "RW", "ST"] as const;
+type Position = typeof POSITIONS[number];
+
+const POSITION_COLORS: Record<Position, string> = {
+  GK:  "bg-amber-900/60 text-amber-300 border-amber-700/60",
+  DEF: "bg-blue-900/60 text-blue-300 border-blue-700/60",
+  CDM: "bg-cyan-900/60 text-cyan-300 border-cyan-700/60",
+  CM:  "bg-green-900/60 text-green-300 border-green-700/60",
+  CAM: "bg-lime-900/60 text-lime-300 border-lime-700/60",
+  LW:  "bg-orange-900/60 text-orange-300 border-orange-700/60",
+  RW:  "bg-orange-900/60 text-orange-300 border-orange-700/60",
+  ST:  "bg-red-900/60 text-red-300 border-red-700/60",
+};
+
 interface DbCard {
   id: string;
   name: string;
@@ -13,6 +27,7 @@ interface DbCard {
   backImageUrl: string | null;
   attribute: string | null;
   description: string | null;
+  position: string | null;
   stats: Record<string, number>;
 }
 
@@ -23,7 +38,7 @@ const RARITY_COLORS: Record<string, string> = {
   legendary: "text-amber-400 border-amber-800",
 };
 
-const BLANK_CARD = { name: "", kit: "", rarity: "common", imageUrl: "", backImageUrl: "", attribute: "", description: "", pace: "70", power: "70", skill: "70" };
+const BLANK_CARD = { name: "", kit: "", rarity: "common", imageUrl: "", backImageUrl: "", attribute: "", description: "", position: "", pace: "70", power: "70", skill: "70" };
 
 export default function AdminCardsPage() {
   const params = useParams<{ channelId: string }>();
@@ -39,6 +54,7 @@ export default function AdminCardsPage() {
   const [form, setForm] = useState(BLANK_CARD);
   const [saving, setSaving] = useState(false);
   const [filterRarity, setFilterRarity] = useState("all");
+  const [filterPosition, setFilterPosition] = useState("all");
 
   const load = useCallback(async (s: string) => {
     if (!s) return;
@@ -73,6 +89,7 @@ export default function AdminCardsPage() {
       backImageUrl: card.backImageUrl ?? "",
       attribute: card.attribute ?? "",
       description: card.description ?? "",
+      position: card.position ?? "",
       pace: String(card.stats?.pace ?? 70),
       power: String(card.stats?.power ?? 70),
       skill: String(card.stats?.skill ?? 70),
@@ -98,6 +115,7 @@ export default function AdminCardsPage() {
       backImageUrl: form.backImageUrl || null,
       attribute: form.attribute || null,
       description: form.description || null,
+      position: form.position || null,
       stats: { pace: Number(form.pace), power: Number(form.power), skill: Number(form.skill) },
     };
 
@@ -134,7 +152,9 @@ export default function AdminCardsPage() {
     else setError("Failed to delete card");
   }
 
-  const displayed = filterRarity === "all" ? cards : cards.filter((c) => c.rarity === filterRarity);
+  const displayed = cards
+    .filter((c) => filterRarity === "all" || c.rarity === filterRarity)
+    .filter((c) => filterPosition === "all" || c.position === filterPosition || (filterPosition === "none" && !c.position));
 
   const FormPanel = (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -171,6 +191,34 @@ export default function AdminCardsPage() {
               <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
             ))}
           </select>
+        </div>
+        <div>
+          <label className="text-zinc-400 text-xs mb-1 block">Position</label>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {POSITIONS.map((pos) => (
+              <button
+                key={pos}
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, position: f.position === pos ? "" : pos }))}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all
+                  ${form.position === pos
+                    ? (POSITION_COLORS[pos] ?? "bg-purple-900/60 text-purple-300 border-purple-600")
+                    : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-white"
+                  }`}
+              >
+                {pos}
+              </button>
+            ))}
+            {form.position && (
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, position: "" }))}
+                className="px-2 py-1.5 rounded-lg text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                clear
+              </button>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-3 gap-3">
           {["pace", "power", "skill"].map((stat) => (
@@ -232,17 +280,34 @@ export default function AdminCardsPage() {
 
         {error && !editCard && !showAdd && <p className="text-sm rounded-xl p-4 bg-red-900/40 text-red-300">{error}</p>}
 
-        <div className="flex gap-2">
-          {["all", "common", "rare", "epic", "legendary"].map((r) => (
-            <button
-              key={r}
-              onClick={() => setFilterRarity(r)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all capitalize
-                ${filterRarity === r ? "bg-purple-900/60 border-purple-600 text-white" : "bg-zinc-900/60 border-zinc-700 text-zinc-400 hover:text-white"}`}
-            >
-              {r}
-            </button>
-          ))}
+        <div className="space-y-2">
+          <div className="flex gap-2 flex-wrap">
+            {["all", "common", "rare", "epic", "legendary"].map((r) => (
+              <button
+                key={r}
+                onClick={() => setFilterRarity(r)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all capitalize
+                  ${filterRarity === r ? "bg-purple-900/60 border-purple-600 text-white" : "bg-zinc-900/60 border-zinc-700 text-zinc-400 hover:text-white"}`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {(["all", ...POSITIONS, "none"] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setFilterPosition(p)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all
+                  ${filterPosition === p
+                    ? (p !== "all" && p !== "none" ? (POSITION_COLORS[p] ?? "bg-zinc-700 border-zinc-500 text-white") : "bg-zinc-700 border-zinc-500 text-white")
+                    : "bg-zinc-900/60 border-zinc-700 text-zinc-400 hover:text-white"
+                  }`}
+              >
+                {p === "none" ? "No position" : p}
+              </button>
+            ))}
+          </div>
         </div>
 
         {loading && (
@@ -260,9 +325,16 @@ export default function AdminCardsPage() {
               <div>
                 <p className="text-white font-semibold text-sm truncate">{card.name}</p>
                 <p className="text-zinc-500 text-xs truncate">{card.kit}</p>
-                <span className={`text-[10px] font-medium border rounded px-1 py-0.5 mt-1 inline-block capitalize ${RARITY_COLORS[card.rarity] ?? "text-zinc-400 border-zinc-700"}`}>
-                  {card.rarity}
-                </span>
+                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                  <span className={`text-[10px] font-medium border rounded px-1 py-0.5 inline-block capitalize ${RARITY_COLORS[card.rarity] ?? "text-zinc-400 border-zinc-700"}`}>
+                    {card.rarity}
+                  </span>
+                  {card.position && (
+                    <span className={`text-[10px] font-bold border rounded px-1.5 py-0.5 inline-block ${POSITION_COLORS[card.position as Position] ?? "bg-zinc-800 text-zinc-400 border-zinc-700"}`}>
+                      {card.position}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex gap-1">
                 <button
