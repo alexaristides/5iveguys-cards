@@ -60,6 +60,7 @@ interface CollectionCard {
     attribute: string | null;
     description: string | null;
     channelId: string;
+    position: string | null;
   } | null;
 }
 
@@ -541,6 +542,11 @@ export default function DashboardPage() {
                           {uc.isFavorite && (
                             <div className="absolute -top-1 -left-1 w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center">
                               <span className="text-[8px]">★</span>
+                            </div>
+                          )}
+                          {uc.card?.position === "Moment" && (
+                            <div className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full bg-purple-700 border border-purple-500 text-[8px] font-bold text-purple-100 leading-none">
+                              ✨ Moment
                             </div>
                           )}
                         </div>

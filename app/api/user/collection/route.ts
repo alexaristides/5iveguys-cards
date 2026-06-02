@@ -24,7 +24,7 @@ export async function GET() {
     cardIds.length > 0
       ? await prisma.card.findMany({
           where: { id: { in: cardIds } },
-          select: { id: true, name: true, kit: true, rarity: true, imageUrl: true, backImageUrl: true, attribute: true, description: true, channelId: true },
+          select: { id: true, name: true, kit: true, rarity: true, imageUrl: true, backImageUrl: true, attribute: true, description: true, channelId: true, position: true },
         })
       : [];
   const cardDataMap = new Map(cardData.map((c) => [c.id, c]));

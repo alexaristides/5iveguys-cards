@@ -35,6 +35,7 @@ interface ApiCard {
     imageUrl: string;
     attribute: string | null;
     description: string | null;
+    position: string | null;
   } | null;
 }
 
@@ -106,6 +107,7 @@ export default function FootballGame() {
       const cards: FootballCard[] = [];
       for (const item of (data.cards ?? []) as ApiCard[]) {
         if (!item.card || seen.has(item.card.id)) continue;
+        if (item.card.position === "Moment") continue; // Moment cards are not playable
         seen.add(item.card.id);
         cards.push({
           id: item.card.id, name: item.card.name,

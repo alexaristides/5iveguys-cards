@@ -4,18 +4,19 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 
-const POSITIONS = ["GK", "DEF", "CDM", "CM", "CAM", "LW", "RW", "ST"] as const;
+const POSITIONS = ["GK", "DEF", "CDM", "CM", "CAM", "LW", "RW", "ST", "Moment"] as const;
 type Position = typeof POSITIONS[number];
 
 const POSITION_COLORS: Record<Position, string> = {
-  GK:  "bg-amber-900/60 text-amber-300 border-amber-700/60",
-  DEF: "bg-blue-900/60 text-blue-300 border-blue-700/60",
-  CDM: "bg-cyan-900/60 text-cyan-300 border-cyan-700/60",
-  CM:  "bg-green-900/60 text-green-300 border-green-700/60",
-  CAM: "bg-lime-900/60 text-lime-300 border-lime-700/60",
-  LW:  "bg-orange-900/60 text-orange-300 border-orange-700/60",
-  RW:  "bg-orange-900/60 text-orange-300 border-orange-700/60",
-  ST:  "bg-red-900/60 text-red-300 border-red-700/60",
+  GK:     "bg-amber-900/60 text-amber-300 border-amber-700/60",
+  DEF:    "bg-blue-900/60 text-blue-300 border-blue-700/60",
+  CDM:    "bg-cyan-900/60 text-cyan-300 border-cyan-700/60",
+  CM:     "bg-green-900/60 text-green-300 border-green-700/60",
+  CAM:    "bg-lime-900/60 text-lime-300 border-lime-700/60",
+  LW:     "bg-orange-900/60 text-orange-300 border-orange-700/60",
+  RW:     "bg-orange-900/60 text-orange-300 border-orange-700/60",
+  ST:     "bg-red-900/60 text-red-300 border-red-700/60",
+  Moment: "bg-purple-900/60 text-purple-300 border-purple-600",
 };
 
 interface DbCard {
