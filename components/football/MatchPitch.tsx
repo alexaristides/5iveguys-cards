@@ -29,6 +29,27 @@ function statusFor(ev: MatchEvent): { label: string; team: "user" | "cpu" } {
   }
 }
 
+interface Popup { team: "user" | "cpu"; icon: string; title: string; full: boolean; accent: string; durationMs: number }
+
+function popupFor(ev: MatchEvent, cpuLabel: string): Popup | null {
+  switch (ev.type) {
+    case "goal":
+      return { team: ev.team, icon: "⚽", title: ev.team === "user" ? "GOAL!" : `${cpuLabel} GOAL`, full: true, accent: "", durationMs: 1600 };
+    case "redcard":
+      return { team: ev.team, icon: "🟥", title: "Red card!", full: false, accent: "border-red-500 text-red-300", durationMs: 1700 };
+    case "yellowcard":
+      return { team: ev.team, icon: "🟨", title: "Yellow card", full: false, accent: "border-amber-400 text-amber-300", durationMs: 1200 };
+    case "freekick":
+      return { team: ev.team, icon: "🎯", title: "Free kick", full: false, accent: "border-zinc-300 text-zinc-100", durationMs: 1100 };
+    case "corner":
+      return { team: ev.team, icon: "🚩", title: "Corner", full: false, accent: ev.team === "user" ? "border-blue-400 text-blue-200" : "border-red-400 text-red-200", durationMs: 1000 };
+    case "goalkick":
+      return { team: ev.team, icon: "🥅", title: "Goal kick", full: false, accent: ev.team === "user" ? "border-blue-400 text-blue-200" : "border-red-400 text-red-200", durationMs: 900 };
+    default:
+      return null;
+  }
+}
+
 type Phase = "playing1" | "halftime-wait" | "playing2" | "done";
 
 interface Props {
@@ -56,7 +77,7 @@ export default function MatchPitch({
   const [feed, setFeed] = useState<MatchEvent[]>([]);
   const [score, setScore] = useState({ user: 0, cpu: 0 });
   const [minute, setMinute] = useState(0);
-  const [goalFlash, setGoalFlash] = useState<"user" | "cpu" | null>(null);
+  const [popup, setPopup] = useState<Popup | null>(null);
   const [spotlightId, setSpotlightId] = useState<string | null>(null);
   const [stats, setStats] = useState({ userShots: 0, cpuShots: 0, userPoss: 0, cpuPoss: 0 });
   const [status, setStatus] = useState<{ label: string; team: "user" | "cpu" } | null>(null);
@@ -89,10 +110,11 @@ export default function MatchPitch({
       if (ev.type === "possession" || ev.type === "counter") { if (ev.team === "user") next.userPoss++; else next.cpuPoss++; }
       return next;
     });
+    const p = popupFor(ev, cpuLabel);
+    if (p) { setPopup(p); setTimeout(() => setPopup(null), p.durationMs); }
     if (ev.type === "goal") {
-      setGoalFlash(ev.team);
       setSpotlightId(ev.scorerCardId ?? null);
-      setTimeout(() => { setGoalFlash(null); setSpotlightId(null); }, 1600);
+      setTimeout(() => setSpotlightId(null), 1600);
     }
   }
 
@@ -200,14 +222,21 @@ export default function MatchPitch({
             <div ref={ballEl} className="absolute rounded-full bg-white shadow-lg shadow-white/60 z-20"
               style={{ width: "4%", aspectRatio: "1", left: "50%", top: "50%", transform: "translate(-50%, -50%)", willChange: "left, top" }} />
 
-            {goalFlash && (
-              <div className={`absolute inset-0 z-30 flex items-center justify-center pointer-events-none ${goalFlash === "user" ? "bg-green-500/30" : "bg-red-500/25"}`}>
+            {popup && (popup.full ? (
+              <div className={`absolute inset-0 z-30 flex items-center justify-center pointer-events-none ${popup.team === "user" ? "bg-green-500/30" : "bg-red-500/25"}`}>
                 <div className="bg-black/60 rounded-2xl px-4 py-2 text-center">
-                  <span className="text-3xl font-black text-white drop-shadow-lg animate-bounce block">{goalFlash === "user" ? "⚽ GOAL!" : `${cpuLabel} GOAL`}</span>
+                  <span className="text-3xl font-black text-white drop-shadow-lg animate-bounce block">{popup.icon} {popup.title}</span>
                   <div className="text-white/60 text-xs mt-1 font-bold">{score.user} – {score.cpu}</div>
                 </div>
               </div>
-            )}
+            ) : (
+              <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
+                <div className={`flex items-center gap-2 rounded-xl px-3.5 py-2 bg-black/75 border-2 ${popup.accent} shadow-lg`}>
+                  <span className="text-xl leading-none">{popup.icon}</span>
+                  <span className="text-white font-black text-sm uppercase tracking-wide">{popup.title}</span>
+                </div>
+              </div>
+            ))}
 
             <div className="absolute top-0 left-0 right-0 z-20 bg-black/55 backdrop-blur-sm">
               <div className="flex items-center justify-between px-3 py-1.5">
