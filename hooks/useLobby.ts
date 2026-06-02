@@ -12,11 +12,13 @@ export interface LobbyPlayer {
 }
 
 export interface StoredSimulation {
-  simulation: import("@/lib/football").MatchSimulation;
   creatorFormation: Formation;
   opponentFormation: Formation;
   creatorLineup: AssignedPlayer[];
   opponentLineup: AssignedPlayer[];
+  creatorFormation2?: Formation;
+  opponentFormation2?: Formation;
+  summary?: import("@/lib/football").MatchSimulation;
 }
 
 export interface LobbyMatchResult {
@@ -58,11 +60,12 @@ interface State {
   phase: LobbyPhase;
   role: LobbyRole | null;
   opponentSquadLocked: boolean;
+  halftimeData: { creatorFormation2: Formation; opponentFormation2: Formation } | null;
 }
 
 export function useLobby(lobbyId: string, userId: string | null | undefined) {
   const [state, setState] = useState<State>({
-    lobby: null, phase: "loading", role: null, opponentSquadLocked: false,
+    lobby: null, phase: "loading", role: null, opponentSquadLocked: false, halftimeData: null,
   });
 
   const handleRef = useRef<(event: string, data: unknown) => void>(() => {});
@@ -97,7 +100,7 @@ export function useLobby(lobbyId: string, userId: string | null | undefined) {
     if (!lobby) { setState((s) => ({ ...s, phase: "error", lobby: null })); return; }
     const { phase, role } = computePhase(lobby, userId);
     const opponentSquadLocked = !!(lobby.creatorSquad && lobby.opponentSquad);
-    setState({ lobby, phase, role, opponentSquadLocked });
+    setState({ lobby, phase, role, opponentSquadLocked, halftimeData: null });
   }, [userId, fetchLobby, computePhase]);
 
   // Initial load
@@ -145,6 +148,14 @@ export function useLobby(lobbyId: string, userId: string | null | undefined) {
         if (!updatedLobby) return;
         setState((s) => ({ ...s, lobby: updatedLobby, phase: "result" }));
       });
+    } else if (event === "match:half2-ready") {
+      setState((s) => ({
+        ...s,
+        halftimeData: {
+          creatorFormation2: d.creatorFormation2 as Formation,
+          opponentFormation2: d.opponentFormation2 as Formation,
+        },
+      }));
     }
     void lobby;
   };
@@ -161,15 +172,18 @@ export function useLobby(lobbyId: string, userId: string | null | undefined) {
     const joinedCb = cb("lobby:joined");
     const squadCb = cb("lobby:squad_locked");
     const fulltimeCb = cb("match:fulltime");
+    const half2Cb = cb("match:half2-ready");
 
     channel.bind("lobby:joined", joinedCb);
     channel.bind("lobby:squad_locked", squadCb);
     channel.bind("match:fulltime", fulltimeCb);
+    channel.bind("match:half2-ready", half2Cb);
 
     return () => {
       channel.unbind("lobby:joined", joinedCb);
       channel.unbind("lobby:squad_locked", squadCb);
       channel.unbind("match:fulltime", fulltimeCb);
+      channel.unbind("match:half2-ready", half2Cb);
       client.unsubscribe(channelName);
     };
   }, [lobbyId, userId]);
@@ -210,7 +224,7 @@ export function useLobby(lobbyId: string, userId: string | null | undefined) {
     const data = await res.json();
     if (data.lobby && userId) {
       const { phase, role } = computePhase(data.lobby, userId);
-      setState({ lobby: data.lobby, phase, role, opponentSquadLocked: false });
+      setState({ lobby: data.lobby, phase, role, opponentSquadLocked: false, halftimeData: null });
     }
     return true;
   }, [lobbyId, userId, computePhase]);
