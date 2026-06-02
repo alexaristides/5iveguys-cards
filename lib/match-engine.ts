@@ -47,15 +47,15 @@ export interface HalfLogicResult {
 // ── Tuning ──────────────────────────────────────────────────────────────────
 
 const TUNING = {
-  seqPerHalf: 12,        // base ball-winning sequences per half
-  seqJitter: 5,          // + up to this many
-  chainMin: 2,           // passes per attack
-  chainExtra: 3,         // + up to this many
-  shotChanceInBox: 0.6,  // chance the holder shoots when in the final third
-  goalScale: 0.6,        // sigmoid → goal-probability scaler
+  // Event density: fewer sequences + fewer build-up passes = calmer, more trackable play.
+  seqPerHalf: 9,         // base attacks per half
+  seqJitter: 3,          // + up to this many
+  passesMin: 1,          // build-up passes before the shot
+  passesExtra: 2,        // + up to this many (so 1–2)
+  goalScale: 0.5,        // sigmoid → goal-probability scaler (tuned for ~1–2 goals/side)
   goalNoise: 0.12,
-  goalFloor: 0.08,
-  goalCap: 0.62,
+  goalFloor: 0.06,
+  goalCap: 0.6,
 };
 
 // ── Geometry helpers ──────────────────────────────────────────────────────────
@@ -175,37 +175,13 @@ export function simulateHalfLogic(
       emit(minute, "possession", atk, pick(POSSESSION_TEMPLATES, nameOf(holder), nameOf(byPos(atk, "MID"))), phase, { x: hx, y: hy }, holder.card.id);
     }
 
-    const chain = TUNING.chainMin + Math.floor(rng() * TUNING.chainExtra);
+    // A few build-up passes; the move may break down (turnover/foul) before the shot.
+    const passes = TUNING.passesMin + Math.floor(rng() * TUNING.passesExtra);
     let done = false;
-    for (let step = 0; step < chain && !done; step++) {
-      // Shot opportunity?
-      if (isFinalThird(atk, hy) && rng() < TUNING.shotChanceInBox) {
-        const scorer = (holder.position === "ATT" || holder.position === "MID") ? holder : (byPos(atk, "ATT", "MID") ?? holder);
-        const assister = diff(atk, scorer.card.id, "MID", "ATT", "DEF");
-        const gk = byPos(def, "GK");
-        const dval = dEff.defense * 0.42 + dEff.goalkeeping * 0.58;
-        const advantage = (aEff.attack - dval) / 14;
-        const sigmoid = 1 / (1 + Math.exp(-advantage));
-        const goalProb = clamp(sigmoid * TUNING.goalScale + (rng() - 0.5) * TUNING.goalNoise, TUNING.goalFloor, TUNING.goalCap);
-        const gx = clamp(50 + (rng() - 0.5) * 20, 30, 70), gy = goalYFor(atk);
-        if (rng() < goalProb) {
-          if (atk === "user") userScore++; else cpuScore++;
-          if (atk === "user") { trackInv(scorer.card, "goal"); if (assister) trackInv(assister.card, "assist"); }
-          const fam = scorer.card.attribute === "Pace" ? GOAL_PACE : scorer.card.attribute === "Power" ? GOAL_POWER : scorer.card.attribute === "Skill" ? GOAL_SKILL : GOAL_GENERIC;
-          emit(minute, "goal", atk, `⚽ GOAL! ${pick(fam, nameOf(scorer), nameOf(assister))}`, phase, { x: gx, y: gy }, scorer.card.id, scorer.card.id, assister?.card.id);
-        } else {
-          const r = rng();
-          if (r < 0.45) emit(minute, "save", atk, `🧤 ${pick(SAVE_TEMPLATES, nameOf(gk), nameOf(scorer))}`, phase, { x: gx, y: gy }, gk?.card.id ?? null);
-          else if (r < 0.70) emit(minute, "nearpost", atk, pick(NEARPOST_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id);
-          else emit(minute, "miss", atk, pick(MISS_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id);
-        }
-        done = true;
-        break;
-      }
-
-      // Interception / turnover?
+    for (let k = 0; k < passes && !done; k++) {
+      // Interception / turnover? (stronger defence vs weaker midfield → more turnovers)
       const interceptor = byPos(def, "DEF", "MID");
-      const intercepted = (dEff.defense + rng() * 18) > (aEff.midfield + 8 + rng() * 18) && rng() < 0.5;
+      const intercepted = (dEff.defense + rng() * 22) > (aEff.midfield + rng() * 22) && rng() < 0.6;
       if (intercepted && interceptor) {
         const [dx, dy] = homeCoordOf(interceptor, def);
         const isTackle = rng() > 0.45;
@@ -215,7 +191,7 @@ export function simulateHalfLogic(
       }
 
       // Occasional foul
-      if (rng() < 0.06) {
+      if (rng() < 0.05) {
         const fouler = byPos(def, "DEF", "MID");
         const isYellow = rng() < 0.4;
         emit(minute, isYellow ? "yellowcard" : "freekick", def, pick(isYellow ? YELLOW_TEMPLATES : FREEKICK_TEMPLATES, nameOf(fouler), nameOf(holder)), phase, homeXY(holder, atk, homeCoordOf), holder.card.id);
@@ -223,14 +199,37 @@ export function simulateHalfLogic(
         break;
       }
 
-      // Pass forward
-      const want: Position[] = step < chain - 1 ? ["MID", "ATT"] : ["ATT", "MID"];
-      const receiver = diff(atk, holder.card.id, ...want) ?? diff(atk, holder.card.id, "MID", "ATT", "DEF");
+      // Advance with a forward pass.
+      const receiver = diff(atk, holder.card.id, "MID", "ATT") ?? diff(atk, holder.card.id, "MID", "ATT", "DEF");
       if (!receiver) { done = true; break; }
       holder = receiver;
       const rx = homeCoordOf(holder, atk)[0];
       hy = forwardStep(atk, hy);
       emit(minute, "possession", atk, pick(POSSESSION_TEMPLATES, nameOf(holder), nameOf(byPos(atk, "MID"))), phase, { x: rx, y: hy }, holder.card.id);
+    }
+
+    // Unless the move broke down, it ends in a shot.
+    if (!done) {
+      if (!isFinalThird(atk, hy)) hy = forwardStep(atk, hy);
+      const scorer = (holder.position === "ATT" || holder.position === "MID") ? holder : (byPos(atk, "ATT", "MID") ?? holder);
+      const assister = diff(atk, scorer.card.id, "MID", "ATT", "DEF");
+      const gk = byPos(def, "GK");
+      const dval = dEff.defense * 0.42 + dEff.goalkeeping * 0.58;
+      const advantage = (aEff.attack - dval) / 14;
+      const sigmoid = 1 / (1 + Math.exp(-advantage));
+      const goalProb = clamp(sigmoid * TUNING.goalScale + (rng() - 0.5) * TUNING.goalNoise, TUNING.goalFloor, TUNING.goalCap);
+      const gx = clamp(50 + (rng() - 0.5) * 20, 30, 70), gy = goalYFor(atk);
+      if (rng() < goalProb) {
+        if (atk === "user") userScore++; else cpuScore++;
+        if (atk === "user") { trackInv(scorer.card, "goal"); if (assister) trackInv(assister.card, "assist"); }
+        const fam = scorer.card.attribute === "Pace" ? GOAL_PACE : scorer.card.attribute === "Power" ? GOAL_POWER : scorer.card.attribute === "Skill" ? GOAL_SKILL : GOAL_GENERIC;
+        emit(minute, "goal", atk, `⚽ GOAL! ${pick(fam, nameOf(scorer), nameOf(assister))}`, phase, { x: gx, y: gy }, scorer.card.id, scorer.card.id, assister?.card.id);
+      } else {
+        const r = rng();
+        if (r < 0.45) emit(minute, "save", atk, `🧤 ${pick(SAVE_TEMPLATES, nameOf(gk), nameOf(scorer))}`, phase, { x: gx, y: gy }, gk?.card.id ?? null);
+        else if (r < 0.70) emit(minute, "nearpost", atk, pick(NEARPOST_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id);
+        else emit(minute, "miss", atk, pick(MISS_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id);
+      }
     }
   }
 
