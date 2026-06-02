@@ -6,7 +6,7 @@ import type { AssignedPlayer, MatchEvent, Rarity } from "@/lib/football";
 import type { MatchFrame } from "@/lib/match-engine";
 import { sampleTimeline } from "@/lib/match-playback";
 
-const DEFAULT_HALF_SEC = 22;
+const DEFAULT_HALF_SEC = 28;
 
 const RARITY_RING: Record<Rarity, string> = {
   common: "ring-zinc-400", rare: "ring-blue-400", epic: "ring-purple-400", legendary: "ring-amber-400",
@@ -42,26 +42,33 @@ export default function MatchPitch({
   skipSignal = 0, onHalftime, onComplete,
 }: Props) {
   const [phase, setPhase] = useState<Phase>("playing1");
-  const [ball, setBall] = useState({ x: 50, y: 50 });
-  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [possessorId, setPossessorId] = useState<string | null>(null);
   const [feed, setFeed] = useState<MatchEvent[]>([]);
   const [score, setScore] = useState({ user: 0, cpu: 0 });
   const [minute, setMinute] = useState(0);
-  const [progress, setProgress] = useState(0);
   const [goalFlash, setGoalFlash] = useState<"user" | "cpu" | null>(null);
   const [spotlightId, setSpotlightId] = useState<string | null>(null);
   const [stats, setStats] = useState({ userShots: 0, cpuShots: 0, userPoss: 0, cpuPoss: 0 });
 
-  const cardById = useMemo(() => {
-    const m = new Map<string, CardInfo>();
-    for (const p of userLineup) m.set(p.card.id, { id: p.card.id, name: p.card.name, imageUrl: p.card.imageUrl, rarity: p.card.rarity, team: "user", position: p.position });
-    for (const p of cpuLineup) m.set(p.card.id, { id: p.card.id, name: p.card.name, imageUrl: p.card.imageUrl, rarity: p.card.rarity, team: "cpu", position: p.position });
-    return m;
+  const cardList = useMemo(() => {
+    const arr: CardInfo[] = [];
+    for (const p of userLineup) arr.push({ id: p.card.id, name: p.card.name, imageUrl: p.card.imageUrl, rarity: p.card.rarity, team: "user", position: p.position });
+    for (const p of cpuLineup) arr.push({ id: p.card.id, name: p.card.name, imageUrl: p.card.imageUrl, rarity: p.card.rarity, team: "cpu", position: p.position });
+    return arr;
   }, [userLineup, cpuLineup]);
 
-  const startRef = useRef<number | null>(null);
+  // Animation is driven by direct DOM mutation (no per-frame React re-render).
+  const tokenEls = useRef(new Map<string, HTMLDivElement | null>());
+  const ballEl = useRef<HTMLDivElement | null>(null);
+  const progressEl = useRef<HTMLDivElement | null>(null);
+  const posRef = useRef<Record<string, { x: number; y: number }>>({});
+  const ballPosRef = useRef({ x: 50, y: 50 });
+
+  const pRef = useRef(0);                // 0..1 progress within the current half
+  const lastTsRef = useRef<number | null>(null);
   const firedRef = useRef(-1);
+  const durationRef = useRef(halfDurationSec);
+  useEffect(() => { durationRef.current = halfDurationSec; }, [halfDurationSec]);
   const skipRef = useRef(0);
   const lastSkipRef = useRef(0);
   useEffect(() => { skipRef.current = skipSignal; }, [skipSignal]);
@@ -82,26 +89,42 @@ export default function MatchPitch({
     }
   }
 
+  function paint(players: { id: string; x: number; y: number }[], ball: { x: number; y: number }) {
+    for (const p of players) {
+      posRef.current[p.id] = { x: p.x, y: p.y };
+      const el = tokenEls.current.get(p.id);
+      if (el) { el.style.left = `${p.x}%`; el.style.top = `${p.y}%`; }
+    }
+    ballPosRef.current = ball;
+    if (ballEl.current) { ballEl.current.style.left = `${ball.x}%`; ballEl.current.style.top = `${ball.y}%`; }
+  }
+
   // Drive playback for the active half.
   useEffect(() => {
     if (phase !== "playing1" && phase !== "playing2") return;
     const frames = phase === "playing1" ? firstHalfFrames : (secondHalfFrames ?? []);
     if (frames.length === 0) return;
-    startRef.current = null;
+    pRef.current = 0;
+    lastTsRef.current = null;
     firedRef.current = -1;
     const raf = { id: 0 };
 
     function frame(ts: number) {
-      if (startRef.current === null) startRef.current = ts;
+      if (lastTsRef.current === null) lastTsRef.current = ts;
+      const dt = ts - lastTsRef.current;
+      lastTsRef.current = ts;
+
       if (skipRef.current !== lastSkipRef.current) {
         lastSkipRef.current = skipRef.current;
-        startRef.current = ts - halfDurationSec * 1000 - 100; // force elapsed >= duration → fast-forward
+        pRef.current = 1;
+      } else {
+        pRef.current = Math.min(1, pRef.current + dt / (durationRef.current * 1000));
       }
-      const elapsed = (ts - startRef.current) / 1000;
-      const s = sampleTimeline(frames, elapsed, halfDurationSec);
-      setBall(s.ball);
-      setPositions(Object.fromEntries(s.players.map((p) => [p.id, { x: p.x, y: p.y }])));
-      setProgress(phase === "playing1" ? s.progress * 0.5 : 0.5 + s.progress * 0.5);
+
+      const s = sampleTimeline(frames, pRef.current, 1); // duration=1 → progress = pRef
+      paint(s.players, s.ball);
+      const base = phase === "playing1" ? 0 : 0.5;
+      if (progressEl.current) progressEl.current.style.width = `${(base + s.progress * 0.5) * 100}%`;
 
       for (let i = firedRef.current + 1; i <= s.frameIndex && i < frames.length; i++) {
         const ev = frames[i].event;
@@ -109,17 +132,18 @@ export default function MatchPitch({
       }
       firedRef.current = Math.max(firedRef.current, s.frameIndex);
 
-      if (elapsed < halfDurationSec) {
+      if (pRef.current < 1) {
         raf.id = requestAnimationFrame(frame);
+      } else if (phase === "playing1") {
+        setPhase("halftime-wait"); onHalftime();
       } else {
-        if (phase === "playing1") { setPhase("halftime-wait"); onHalftime(); }
-        else { setPhase("done"); onComplete(); }
+        setPhase("done"); onComplete();
       }
     }
     raf.id = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, firstHalfFrames, secondHalfFrames, halfDurationSec]);
+  }, [phase, firstHalfFrames, secondHalfFrames]);
 
   // Resume into the second half once the parent supplies its frames.
   useEffect(() => {
@@ -130,25 +154,6 @@ export default function MatchPitch({
 
   const totalPoss = stats.userPoss + stats.cpuPoss;
   const userPossPct = totalPoss > 0 ? Math.round((stats.userPoss / totalPoss) * 100) : 50;
-
-  function renderToken(id: string, pos: { x: number; y: number }) {
-    const info = cardById.get(id);
-    if (!info) return null;
-    const isPossessor = possessorId === id;
-    const isSpotlight = spotlightId === id;
-    return (
-      <div key={id} className={`absolute ${isSpotlight ? "z-30" : "z-10"}`}
-        style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: "translate(-50%, -50%)", transition: "top 0.12s linear, left 0.12s linear" }}>
-        {isPossessor && <div className="absolute inset-0 rounded-full ring-2 ring-white/60 animate-pulse scale-125 z-10" />}
-        {isSpotlight && <div className="absolute inset-0 rounded-full ring-4 ring-yellow-400 animate-pulse scale-150 z-10" />}
-        <div className={`relative rounded-full ring-2 overflow-hidden shadow-lg ${RARITY_RING[info.rarity]} ${isSpotlight ? "w-12 h-12" : "w-10 h-10 sm:w-8 sm:h-8"}`}
-          title={`${info.name} (${info.position})`}>
-          <Image src={info.imageUrl} alt={info.name} fill className="object-cover object-center" sizes="40px" />
-          <div className={`absolute inset-0 pointer-events-none ${info.team === "user" ? "bg-blue-500/20" : "bg-red-500/25"}`} />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full max-w-3xl mx-auto">
@@ -164,10 +169,30 @@ export default function MatchPitch({
             <div className="absolute top-[4.5%] left-1/2 -translate-x-1/2 text-red-300/70 text-[8px] font-bold uppercase tracking-widest">{cpuLabel}</div>
             <div className="absolute bottom-[4.5%] left-1/2 -translate-x-1/2 text-blue-300/70 text-[8px] font-bold uppercase tracking-widest">{userLabel}</div>
 
-            {Object.entries(positions).map(([id, pos]) => renderToken(id, pos))}
+            {cardList.map((info) => {
+              const isPossessor = possessorId === info.id;
+              const isSpotlight = spotlightId === info.id;
+              const init = posRef.current[info.id] ?? { x: 50, y: 50 };
+              return (
+                <div
+                  key={info.id}
+                  ref={(el) => { tokenEls.current.set(info.id, el); }}
+                  className={`absolute ${isSpotlight ? "z-30" : "z-10"}`}
+                  style={{ left: `${init.x}%`, top: `${init.y}%`, transform: "translate(-50%, -50%)", willChange: "left, top" }}
+                >
+                  {isPossessor && <div className="absolute inset-0 rounded-full ring-2 ring-white/60 animate-pulse scale-125 z-10" />}
+                  {isSpotlight && <div className="absolute inset-0 rounded-full ring-4 ring-yellow-400 animate-pulse scale-150 z-10" />}
+                  <div className={`relative rounded-full ring-2 overflow-hidden shadow-lg ${RARITY_RING[info.rarity]} ${isSpotlight ? "w-12 h-12" : "w-10 h-10 sm:w-8 sm:h-8"}`}
+                    title={`${info.name} (${info.position})`}>
+                    <Image src={info.imageUrl} alt={info.name} fill className="object-cover object-center" sizes="40px" />
+                    <div className={`absolute inset-0 pointer-events-none ${info.team === "user" ? "bg-blue-500/20" : "bg-red-500/25"}`} />
+                  </div>
+                </div>
+              );
+            })}
 
-            <div className="absolute rounded-full bg-white shadow-lg shadow-white/60 z-20"
-              style={{ width: "4%", aspectRatio: "1", left: `${ball.x}%`, top: `${ball.y}%`, transform: "translate(-50%, -50%)", transition: "top 0.12s linear, left 0.12s linear" }} />
+            <div ref={ballEl} className="absolute rounded-full bg-white shadow-lg shadow-white/60 z-20"
+              style={{ width: "4%", aspectRatio: "1", left: "50%", top: "50%", transform: "translate(-50%, -50%)", willChange: "left, top" }} />
 
             {goalFlash && (
               <div className={`absolute inset-0 z-30 flex items-center justify-center pointer-events-none ${goalFlash === "user" ? "bg-green-500/30" : "bg-red-500/25"}`}>
@@ -193,7 +218,7 @@ export default function MatchPitch({
             </div>
 
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/10 z-20">
-              <div className="h-full bg-white/40 transition-all duration-100" style={{ width: `${progress * 100}%` }} />
+              <div ref={progressEl} className="h-full bg-white/40" style={{ width: "0%" }} />
             </div>
           </div>
         </div>
