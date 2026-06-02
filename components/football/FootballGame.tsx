@@ -10,6 +10,7 @@ import {
   type MatchSimulation,
   buildSlots,
   slotsToLineup,
+  assignPositions,
   pickCpuLineup,
   calcTeamStats,
   FORMATIONS,
@@ -228,9 +229,12 @@ export default function FootballGame() {
   function computeSecondHalf(userFm: Formation): MatchSimulation {
     const h1 = firstHalfRef.current!;
     const cpuFm2 = pickCpuSecondHalfFormation(cpuFormationRef.current, h1.endScore.cpu, h1.endScore.user, seedRef.current);
+    // Re-assign the same 7 cards to the chosen formations so no slot is left empty.
+    const userLineup2 = assignPositions(userLineupRef.current.map((p) => p.card), userFm);
+    const cpuLineup2 = assignPositions(cpuLineupRef.current.map((p) => p.card), cpuFm2);
     const { frames, summary: s } = simulateSecondHalf({
-      userLineup: userLineupRef.current,
-      cpuLineup: cpuLineupRef.current,
+      userLineup: userLineup2,
+      cpuLineup: cpuLineup2,
       userFormation: userFm,
       cpuFormation: cpuFm2,
       seed: seedRef.current,
