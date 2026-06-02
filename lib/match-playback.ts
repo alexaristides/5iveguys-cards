@@ -26,3 +26,17 @@ export function sampleTimeline(frames: MatchFrame[], elapsedSec: number, duratio
   });
   return { ball, players, frameIndex: i, progress: tNorm };
 }
+
+/** Rotate a tape 180° and swap team/score fields, for the opponent's perspective. */
+export function mirrorTape(frames: MatchFrame[]): MatchFrame[] {
+  const flip = (t: "user" | "cpu"): "user" | "cpu" => (t === "user" ? "cpu" : "user");
+  return frames.map((f) => ({
+    minute: f.minute,
+    ball: { x: 100 - f.ball.x, y: 100 - f.ball.y },
+    possessorId: f.possessorId,
+    players: f.players.map((p) => ({ id: p.id, x: 100 - p.x, y: 100 - p.y })),
+    scoreUser: f.scoreCpu,
+    scoreCpu: f.scoreUser,
+    event: f.event ? { ...f.event, team: flip(f.event.team), scoreUser: f.event.scoreCpu, scoreCpu: f.event.scoreUser } : undefined,
+  }));
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sampleTimeline } from "@/lib/match-playback";
+import { sampleTimeline, mirrorTape } from "@/lib/match-playback";
 import type { MatchFrame } from "@/lib/match-engine";
 
 const frames: MatchFrame[] = [
@@ -41,5 +41,33 @@ describe("sampleTimeline", () => {
   it("handles an empty tape", () => {
     const s = sampleTimeline([], 1, 10);
     expect(s.players).toEqual([]);
+  });
+});
+
+describe("mirrorTape", () => {
+  const mFrames: MatchFrame[] = [{
+    minute: 10, ball: { x: 30, y: 20 }, possessorId: "a",
+    players: [{ id: "a", x: 30, y: 20 }, { id: "b", x: 70, y: 80 }],
+    event: { minute: 10, type: "goal", team: "user", description: "g", scoreUser: 1, scoreCpu: 0, phase: "user-attack" },
+    scoreUser: 1, scoreCpu: 0,
+  }];
+
+  it("rotates coordinates 180 degrees", () => {
+    const m = mirrorTape(mFrames)[0];
+    expect(m.ball).toEqual({ x: 70, y: 80 });
+    expect(m.players.find((p) => p.id === "a")).toEqual({ id: "a", x: 70, y: 80 });
+  });
+
+  it("swaps team and score so the opponent reads as 'you'", () => {
+    const m = mirrorTape(mFrames)[0];
+    expect(m.event!.team).toBe("cpu");
+    expect(m.event!.scoreUser).toBe(0);
+    expect(m.event!.scoreCpu).toBe(1);
+    expect(m.scoreUser).toBe(0);
+    expect(m.scoreCpu).toBe(1);
+  });
+
+  it("keeps possessor id unchanged", () => {
+    expect(mirrorTape(mFrames)[0].possessorId).toBe("a");
   });
 });
