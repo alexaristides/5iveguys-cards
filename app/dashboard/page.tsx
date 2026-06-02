@@ -173,8 +173,10 @@ export default function DashboardPage() {
   const [searchFocused, setSearchFocused] = useState(false);
   const searchDebounce = useRef<ReturnType<typeof setTimeout>>();
 
-  // Active section tab
-  const [activeTab, setActiveTab] = useState<"channels" | "collection" | "discover" | "cards" | "game">("channels");
+  // Top-level mode (home → collect or play)
+  const [activeMode, setActiveMode] = useState<"home" | "collect" | "play">("home");
+  // Collect sub-tab
+  const [activeTab, setActiveTab] = useState<"channels" | "collection" | "discover" | "cards">("channels");
   const [showInactive, setShowInactive] = useState(false);
   const [gameMode, setGameMode] = useState<"sp" | "pvp" | "leaderboard">("sp");
 
@@ -257,17 +259,17 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="relative border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
-          <Link href="/" className="flex items-center gap-2 shrink-0">
+          <button onClick={() => setActiveMode("home")} className="flex items-center gap-2 shrink-0">
             <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center">
               <span className="text-white text-xs font-bold">5</span>
             </div>
             <span className="text-white font-semibold text-sm hidden sm:block">5iveG</span>
-          </Link>
+          </button>
 
           <div className="flex items-center gap-3">
-            <Link href="/game" className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors">
+            <button onClick={() => setActiveMode("play")} className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors">
               Game
-            </Link>
+            </button>
             <Link href="/settings" className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors">
               Settings
             </Link>
@@ -287,41 +289,112 @@ export default function DashboardPage() {
       </header>
 
       <div className="relative max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        {/* Profile hero */}
-        <div className="flex items-center gap-4 mb-8">
-          {user?.image ? (
-            <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-purple-700/50 shrink-0">
-              <Image src={user.image} alt={user.name ?? "User"} fill className="object-cover" />
-            </div>
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-purple-700 flex items-center justify-center shrink-0">
-              <span className="text-white text-2xl font-bold">{user?.name?.[0] ?? "?"}</span>
-            </div>
-          )}
-          <div>
-            <h1 className="text-2xl font-bold text-white">{user?.name ?? "Fan"}</h1>
-            <p className="text-zinc-500 text-sm mt-0.5">
-              {channelsLoading ? "—" : `${channels.filter((c) => c.isActive).length} channel${channels.filter((c) => c.isActive).length !== 1 ? "s" : ""} · ${collection.length} cards`}
-            </p>
-          </div>
-        </div>
 
-        {/* Tab nav */}
-        <div className="flex gap-1 mb-6 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1 w-fit flex-wrap">
-          {(["channels", "collection", "cards", "game", "discover"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all whitespace-nowrap
-                ${activeTab === tab ? "bg-purple-600 text-white" : "text-zinc-400 hover:text-white"}`}
-            >
-              {tab === "channels" ? "My Channels" : tab === "collection" ? "Collection" : tab === "cards" ? "🏆 Card Ratings" : tab === "game" ? "⚽ Game" : "Discover"}
-            </button>
-          ))}
-        </div>
+        {/* ── Home mode picker ── */}
+        {activeMode === "home" && (
+          <div>
+            {/* Profile line */}
+            <div className="flex items-center gap-3 mb-10">
+              {user?.image ? (
+                <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-purple-700/50 shrink-0">
+                  <Image src={user.image} alt={user.name ?? "User"} fill className="object-cover" />
+                </div>
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-purple-700 flex items-center justify-center shrink-0">
+                  <span className="text-white text-xl font-bold">{user?.name?.[0] ?? "?"}</span>
+                </div>
+              )}
+              <div>
+                <p className="text-white font-semibold text-base">{user?.name ?? "Fan"}</p>
+                <p className="text-zinc-500 text-xs mt-0.5">
+                  {channelsLoading ? "—" : `${channels.filter((c) => c.isActive).length} channel${channels.filter((c) => c.isActive).length !== 1 ? "s" : ""} · ${collection.length} cards`}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-zinc-400 text-sm mb-8">What do you want to do today?</p>
+
+            {/* Mode cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-2xl">
+              {/* Collect */}
+              <button
+                onClick={() => setActiveMode("collect")}
+                className="group text-left rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-purple-600/70 hover:shadow-lg hover:shadow-purple-900/20 transition-all duration-200 p-6"
+              >
+                <div className="w-12 h-12 rounded-xl bg-purple-900/60 border border-purple-700/50 flex items-center justify-center mb-4 group-hover:bg-purple-800/70 transition-colors">
+                  <span className="text-2xl leading-none">🃏</span>
+                </div>
+                <h2 className="text-white font-bold text-xl mb-2 group-hover:text-purple-300 transition-colors">Collect</h2>
+                <p className="text-zinc-500 text-sm leading-relaxed">
+                  Earn points by engaging with your favourite channels — subscribe, like videos, and sync your activity. Spend points to open card packs and build your collection.
+                </p>
+                <div className="mt-5 flex items-center gap-1.5 text-purple-400 text-sm font-semibold">
+                  <span>Enter</span>
+                  <span className="group-hover:translate-x-1 transition-transform">→</span>
+                </div>
+              </button>
+
+              {/* Play */}
+              <button
+                onClick={() => setActiveMode("play")}
+                className="group text-left rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-green-600/70 hover:shadow-lg hover:shadow-green-900/20 transition-all duration-200 p-6"
+              >
+                <div className="w-12 h-12 rounded-xl bg-green-900/60 border border-green-700/50 flex items-center justify-center mb-4 group-hover:bg-green-800/70 transition-colors">
+                  <span className="text-2xl leading-none">⚽</span>
+                </div>
+                <h2 className="text-white font-bold text-xl mb-2 group-hover:text-green-300 transition-colors">Play</h2>
+                <p className="text-zinc-500 text-sm leading-relaxed">
+                  Jump into a football simulation, challenge another fan to a live 1v1 PvP match, or check where you rank on the leaderboard.
+                </p>
+                <div className="mt-5 flex items-center gap-1.5 text-green-400 text-sm font-semibold">
+                  <span>Enter</span>
+                  <span className="group-hover:translate-x-1 transition-transform">→</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Collect mode ── */}
+        {activeMode === "collect" && (
+          <>
+            {/* Profile hero */}
+            <div className="flex items-center gap-4 mb-8">
+              {user?.image ? (
+                <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-purple-700/50 shrink-0">
+                  <Image src={user.image} alt={user.name ?? "User"} fill className="object-cover" />
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-purple-700 flex items-center justify-center shrink-0">
+                  <span className="text-white text-2xl font-bold">{user?.name?.[0] ?? "?"}</span>
+                </div>
+              )}
+              <div>
+                <h1 className="text-2xl font-bold text-white">{user?.name ?? "Fan"}</h1>
+                <p className="text-zinc-500 text-sm mt-0.5">
+                  {channelsLoading ? "—" : `${channels.filter((c) => c.isActive).length} channel${channels.filter((c) => c.isActive).length !== 1 ? "s" : ""} · ${collection.length} cards`}
+                </p>
+              </div>
+            </div>
+
+            {/* Tab nav */}
+            <div className="flex gap-1 mb-6 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1 w-fit flex-wrap">
+              {(["channels", "collection", "cards", "discover"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all whitespace-nowrap
+                    ${activeTab === tab ? "bg-purple-600 text-white" : "text-zinc-400 hover:text-white"}`}
+                >
+                  {tab === "channels" ? "My Channels" : tab === "collection" ? "Collection" : tab === "cards" ? "🏆 Card Ratings" : "Discover"}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* ── My Channels tab ── */}
-        {activeTab === "channels" && (
+        {activeMode === "collect" && activeTab === "channels" && (
           <>
             {channelsLoading ? (
               <div className="flex justify-center py-20">
@@ -387,7 +460,7 @@ export default function DashboardPage() {
         )}
 
         {/* ── Collection tab ── */}
-        {activeTab === "collection" && (
+        {activeMode === "collect" && activeTab === "collection" && (
           <>
             {collectionLoading ? (
               <div className="flex justify-center py-20">
@@ -483,14 +556,14 @@ export default function DashboardPage() {
         )}
 
         {/* ── Card Ratings tab ── */}
-        {activeTab === "cards" && (
+        {activeMode === "collect" && activeTab === "cards" && (
           <CardRatingsLeaderboard
             channels={channels.map((c) => ({ id: c.slug, name: c.name, slug: c.slug }))}
           />
         )}
 
-        {/* ── Game tab ── */}
-        {activeTab === "game" && (
+        {/* ── Play mode ── */}
+        {activeMode === "play" && (
           <div className="flex flex-col items-center w-full">
             {/* Mode tabs: SP / PvP / Leaderboard */}
             <div className="flex gap-1 mb-6 bg-zinc-800 border border-zinc-600 rounded-xl p-1 self-start sm:self-center">
@@ -551,7 +624,7 @@ export default function DashboardPage() {
         )}
 
         {/* ── Discover tab ── */}
-        {activeTab === "discover" && (
+        {activeMode === "collect" && activeTab === "discover" && (
           <div className="max-w-xl">
             <p className="text-zinc-500 text-sm mb-5">
               Find active channels and join the community to start earning points.
