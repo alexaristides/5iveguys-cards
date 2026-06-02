@@ -86,6 +86,8 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   const [showHalftime, setShowHalftime] = useState(false);
   const [secondHalfFormation, setSecondHalfFormation] = useState<Formation>("2-2-2");
   const [halftimeSubmitted, setHalftimeSubmitted] = useState(false);
+  const [halftimeCountdown, setHalftimeCountdown] = useState(30);
+  const [shareCopied, setShareCopied] = useState(false);
   const halftimeSubmittedRef = useRef(false);
   const secondHalfFormationRef = useRef<Formation>("2-2-2");
 
@@ -232,6 +234,14 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
     setShowHalftime(false);
   }, [halftimeData, firstHalf, secondHalfFrames, creatorLineup, opponentLineup, lobbyId]);
 
+  // Visible countdown for the halftime auto-confirm.
+  useEffect(() => {
+    if (!showHalftime || halftimeSubmitted) return;
+    setHalftimeCountdown(30);
+    const iv = setInterval(() => setHalftimeCountdown((n) => (n <= 1 ? 0 : n - 1)), 1000);
+    return () => clearInterval(iv);
+  }, [showHalftime, halftimeSubmitted]);
+
   const submitHalftime = useCallback(async (f: Formation) => {
     if (halftimeSubmittedRef.current) return;
     halftimeSubmittedRef.current = true;
@@ -248,6 +258,27 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
     setShowHalftime(true);
     // Auto-submit current pick after 30s so a slow/AFK player can't stall the sync.
     setTimeout(() => submitHalftime(secondHalfFormationRef.current), 30000);
+  }
+
+  function handleShareResult() {
+    if (!summary) return;
+    const userIsCreator = role === "creator";
+    const myScore = userIsCreator ? summary.userScore : summary.cpuScore;
+    const oppScore = userIsCreator ? summary.cpuScore : summary.userScore;
+    const opp = opponentName ?? "my opponent";
+    const outcome =
+      myScore > oppScore ? `beat ${opp} ${myScore}–${oppScore}` :
+      myScore < oppScore ? `lost to ${opp} ${oppScore}–${myScore}` :
+      `drew ${myScore}–${oppScore} with ${opp}`;
+    const text = `I just ${outcome} in a PvP match on 5iveG Cards ⚽🃏`;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      navigator.share({ text }).catch(() => {});
+    } else {
+      navigator.clipboard?.writeText(text).then(() => {
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2500);
+      });
+    }
   }
 
   function copyLink() {
@@ -280,25 +311,31 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
     );
   }
 
+  // The match view stays mounted through full-time (result revealed in place);
+  // only a reload of a finished lobby (no frames in memory) uses the standalone result.
+  const inMatchView = phase === "match" || (phase === "result" && !!firstHalf);
+
   const pageWrapper = (children: React.ReactNode) => (
     <main className="min-h-screen bg-[#0a0a0a]">
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full bg-green-900/10 blur-3xl" />
       </div>
-      <div className="relative max-w-4xl mx-auto px-4 py-6">
-        <div className="flex items-center gap-3 mb-6">
-          <Link href="/game" className="text-zinc-500 hover:text-zinc-300 transition-colors text-sm">← Game</Link>
-          <span className="text-zinc-700">/</span>
-          <span className="text-zinc-400 text-sm font-mono truncate max-w-[160px]">{lobbyId}</span>
-          {lobby?.creator && lobby?.opponent && (
-            <>
-              <span className="text-zinc-700">/</span>
-              <span className="text-zinc-300 text-sm font-semibold">
-                {lobby.creator.name} vs {lobby.opponent.name}
-              </span>
-            </>
-          )}
-        </div>
+      <div className={`relative max-w-4xl mx-auto px-4 ${inMatchView ? "pt-3 pb-6" : "py-6"}`}>
+        {!inMatchView && (
+          <div className="flex items-center gap-3 mb-6">
+            <Link href="/game" className="text-zinc-500 hover:text-zinc-300 transition-colors text-sm">← Game</Link>
+            <span className="text-zinc-700">/</span>
+            <span className="text-zinc-400 text-sm font-mono truncate max-w-[160px]">{lobbyId}</span>
+            {lobby?.creator && lobby?.opponent && (
+              <>
+                <span className="text-zinc-700">/</span>
+                <span className="text-zinc-300 text-sm font-semibold">
+                  {lobby.creator.name} vs {lobby.opponent.name}
+                </span>
+              </>
+            )}
+          </div>
+        )}
         {children}
       </div>
     </main>
@@ -495,8 +532,8 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
     );
   }
 
-  // ── Match ───────────────────────────────────────────────────────────────────
-  if (phase === "match" && firstHalf) {
+  // ── Match (stays mounted through full-time; result reveals in place) ────────
+  if (inMatchView && firstHalf) {
     const userIsCreator = role === "creator";
     const uLabel = myName ?? "You";
     const cLabel = opponentName ?? "Opponent";
@@ -507,21 +544,18 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
     const htMy  = userIsCreator ? firstHalf.endScore.user : firstHalf.endScore.cpu;
     const htOpp = userIsCreator ? firstHalf.endScore.cpu : firstHalf.endScore.user;
 
+    const myOutcome: "win" | "loss" | "draw" = !summary
+      ? "draw"
+      : userIsCreator ? summary.result
+      : summary.result === "win" ? "loss" : summary.result === "loss" ? "win" : "draw";
+    const matchResult = phase === "result" && summary
+      ? { outcome: myOutcome, label: myOutcome === "win" ? "Victory!" : myOutcome === "loss" ? "Defeat" : "Draw" }
+      : null;
+
     return pageWrapper(
       <div className="w-full">
-        <div className="flex items-center justify-between mb-4 px-2">
-          <div className="flex items-center gap-2">
-            <Avatar src={session?.user?.image} name={myName} size={8} />
-            <span className="text-white font-bold text-sm">{myName ?? "You"}</span>
-          </div>
-          <span className="text-zinc-500 text-xs font-bold uppercase tracking-wider">PvP Match</span>
-          <div className="flex items-center gap-2">
-            <span className="text-white font-bold text-sm">{opponentName ?? "Opponent"}</span>
-            <Avatar src={opponentAvatar} name={opponentName} size={8} />
-          </div>
-        </div>
-
         <MatchPitch
+          key="pvp-pitch"
           userLineup={userLineupPv}
           cpuLineup={cpuLineupPv}
           firstHalfFrames={firstFrames}
@@ -530,6 +564,8 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
           cpuLabel={cLabel}
           onHalftime={handleHalftimeReached}
           onComplete={handleMatchComplete}
+          result={matchResult}
+          resultPanel={matchResult ? renderResultPanel() : null}
         />
 
         {showHalftime && (
@@ -554,6 +590,9 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
                     className="w-full py-3 rounded-xl bg-green-700 hover:bg-green-600 text-white text-sm font-bold transition-all active:scale-95">
                     Confirm
                   </button>
+                  <div className="mt-2.5 text-zinc-500 text-[11px]">
+                    Auto-confirms in <span className={`font-mono font-bold ${halftimeCountdown <= 5 ? "text-amber-400" : "text-zinc-400"}`}>0:{String(halftimeCountdown).padStart(2, "0")}</span>
+                  </div>
                 </>
               ) : (
                 <div className="flex items-center justify-center gap-2 text-zinc-400 text-sm py-4">
@@ -568,8 +607,8 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
     );
   }
 
-  // ── Result ──────────────────────────────────────────────────────────────────
-  if (phase === "result") {
+  // ── Result card (shared by in-place reveal + reload fallback) ───────────────
+  function renderResultCard() {
     const mr = lobby?.matchResult;
     const userIsCreator = role === "creator";
     const myScore  = summary ? (userIsCreator ? summary.userScore : summary.cpuScore)  : 0;
@@ -585,7 +624,10 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
       ? { label: "Victory!", color: "text-green-400", bg: "from-green-900/25", emoji: "🏆" }
       : { label: "Defeat",   color: "text-red-400",   bg: "from-red-900/25",   emoji: "😞" };
 
-    return pageWrapper(
+    const mvp = summary?.mvp ?? null;
+    const mvpIsMine = mvp ? (userIsCreator ? creatorLineup : opponentLineup).some((p) => p.card.id === mvp.cardId) : false;
+
+    return (
       <div className="max-w-sm mx-auto text-center">
         <div className={`rounded-2xl bg-gradient-to-b ${cfg.bg} to-transparent border border-zinc-800 p-8 mb-5`}>
           <div className="text-6xl mb-3">{cfg.emoji}</div>
@@ -605,9 +647,25 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
           </div>
         </div>
 
+        {renderResultPanel()}
+      </div>
+    );
+  }
+
+  // The summary details + actions (no scoreline — the morphed header carries that).
+  function renderResultPanel() {
+    if (!summary) return null;
+    const userIsCreator = role === "creator";
+    const myScore  = userIsCreator ? summary.userScore : summary.cpuScore;
+    const oppScore = userIsCreator ? summary.cpuScore  : summary.userScore;
+    const mvp = summary.mvp ?? null;
+    const mvpIsMine = mvp ? (userIsCreator ? creatorLineup : opponentLineup).some((p) => p.card.id === mvp.cardId) : false;
+
+    return (
+      <div className="flex flex-col gap-3">
         {/* Goals */}
-        {summary && (myScore > 0 || oppScore > 0) && (
-          <div className="mb-5 rounded-xl bg-zinc-900/60 border border-zinc-800 px-4 py-3 text-left">
+        {(myScore > 0 || oppScore > 0) && (
+          <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-4 py-3 text-left">
             <div className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider mb-2">Goals</div>
             <div className="flex gap-6">
               {myScore > 0 && (
@@ -646,9 +704,43 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
           </div>
         )}
 
+        {/* Man of the Match */}
+        {mvp && (
+          <div className="rounded-2xl bg-amber-900/15 border border-amber-700/40 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-amber-400 text-[10px] font-bold uppercase tracking-widest">⭐ Man of the Match</span>
+              <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${mvpIsMine ? "bg-blue-900/50 text-blue-300" : "bg-red-900/50 text-red-300"}`}>
+                {mvpIsMine ? (myName ?? "You") : (opponentName ?? "Opponent")}
+              </span>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="relative w-14 h-18 rounded-xl overflow-hidden ring-2 ring-amber-500/60 shrink-0">
+                <Image src={mvp.imageUrl} alt={mvp.name} fill className="object-cover" sizes="56px" />
+              </div>
+              <div className="text-left">
+                <div className="text-white font-black text-base leading-tight">{mvp.name}</div>
+                <div className="flex gap-3 mt-2">
+                  {mvp.goals > 0 && (
+                    <div>
+                      <div className="text-green-400 font-black text-lg leading-none">{mvp.goals}</div>
+                      <div className="text-zinc-600 text-[10px]">Goal{mvp.goals > 1 ? "s" : ""}</div>
+                    </div>
+                  )}
+                  {mvp.assists > 0 && (
+                    <div>
+                      <div className="text-blue-400 font-black text-lg leading-none">{mvp.assists}</div>
+                      <div className="text-zinc-600 text-[10px]">Assist{mvp.assists > 1 ? "s" : ""}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* PvP record */}
         {pvpRecord && (
-          <div className="mb-5 rounded-xl bg-zinc-900/60 border border-zinc-800 px-4 py-3">
+          <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-4 py-3">
             <p className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider mb-2">Your PvP Record</p>
             <div className="flex justify-around">
               <div className="text-center">
@@ -670,20 +762,33 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
         <div className="flex gap-3">
           <Link
             href="/game?tab=pvp"
-            className="flex-1 py-4 rounded-2xl bg-green-700 hover:bg-green-600 text-white font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-900/40"
+            className="flex-1 py-3.5 rounded-2xl bg-green-700 hover:bg-green-600 text-white font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-900/40"
           >
             ⚔️ Play Again
           </Link>
-          <Link
-            href="/dashboard"
-            className="px-5 py-4 rounded-2xl bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-zinc-500 text-sm font-bold transition-all"
+          <button
+            onClick={handleShareResult}
+            className={`px-5 py-3.5 rounded-2xl font-bold text-sm transition-all flex items-center gap-1.5
+              ${shareCopied
+                ? "bg-green-900/60 border border-green-600 text-green-300"
+                : "bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-zinc-500"
+              }`}
           >
-            Dashboard
-          </Link>
+            {shareCopied ? "✓ Copied!" : "Share"}
+          </button>
         </div>
+        <Link
+          href="/dashboard"
+          className="block text-center text-zinc-500 hover:text-zinc-300 text-sm font-semibold transition-colors"
+        >
+          Back to Dashboard
+        </Link>
       </div>
     );
   }
+
+  // Reload of a finished lobby (no frames in memory) → standalone result.
+  if (phase === "result") return pageWrapper(renderResultCard());
 
   // Fallback
   return pageWrapper(

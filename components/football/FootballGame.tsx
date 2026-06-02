@@ -89,7 +89,7 @@ const RARITY_BADGE: Record<string, string> = {
   epic: "bg-purple-900/60 text-purple-300", legendary: "bg-amber-900/60 text-amber-400",
 };
 
-export default function FootballGame() {
+export default function FootballGame({ onPhaseChange }: { onPhaseChange?: (phase: Phase) => void } = {}) {
   const [phase, setPhase]           = useState<Phase>("setup");
   const [shareCopied, setShareCopied] = useState(false);
   const [ownedCards, setOwnedCards] = useState<FootballCard[]>([]);
@@ -97,7 +97,6 @@ export default function FootballGame() {
   const [lineup, setLineup]         = useState<LineupSlot[]>(() => buildSlots("2-2-2"));
   const [userLineup, setUserLineup] = useState<AssignedPlayer[]>([]);
   const [cpuLineup, setCpuLineup]   = useState<AssignedPlayer[]>([]);
-  const [cpuFormation, setCpuFormation] = useState<Formation>("2-2-2");
   const [firstHalf, setFirstHalf]   = useState<HalfResult | null>(null);
   const [secondHalfFrames, setSecondHalfFrames] = useState<MatchFrame[] | null>(null);
   const [summary, setSummary]       = useState<MatchSimulation | null>(null);
@@ -173,6 +172,9 @@ export default function FootballGame() {
 
   useEffect(() => { fetchCards(); fetchStats(); }, [fetchCards, fetchStats]);
 
+  // Report phase so the host page can adjust chrome (hide nav mid-play, hide tabs through result).
+  useEffect(() => { onPhaseChange?.(phase); }, [phase, onPhaseChange]);
+
   function handleLineupChange(next: LineupSlot[]) {
     setLineup(next);
     saveToStorage(formation, next);
@@ -214,7 +216,7 @@ export default function FootballGame() {
 
     setUserLineup(assigned); userLineupRef.current = assigned;
     setCpuLineup(cpuAssigned); cpuLineupRef.current = cpuAssigned;
-    setCpuFormation(cpuFm); cpuFormationRef.current = cpuFm;
+    cpuFormationRef.current = cpuFm;
     seedRef.current = seed;
     setFirstHalf(h1); firstHalfRef.current = h1;
     setSecondHalfFrames(null);
@@ -307,6 +309,126 @@ export default function FootballGame() {
     }
   }
 
+  function renderResultPanel() {
+    if (!summary) return null;
+    const { userScore, cpuScore, userOverall, cpuOverall, mvp } = summary;
+
+    return (
+      <div className="flex flex-col gap-3">
+        {/* OVR */}
+        <div className="flex justify-center gap-10 rounded-xl bg-zinc-900/60 border border-zinc-800 py-2.5 text-center text-xs text-zinc-500">
+          <div><div className="text-white font-bold text-base leading-none">{Math.round(userOverall)}</div><div className="mt-0.5">Your OVR</div></div>
+          <div><div className="text-white font-bold text-base leading-none">{Math.round(cpuOverall)}</div><div className="mt-0.5">CPU OVR</div></div>
+        </div>
+
+        {/* Goalscorers */}
+        {(userScore > 0 || cpuScore > 0) && (
+          <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-4 py-3 text-left">
+            <div className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider mb-2">Goals</div>
+            <div className="flex gap-6">
+              {userScore > 0 && (
+                <div className="flex-1">
+                  <div className="text-blue-400 text-[10px] font-bold mb-1">YOU</div>
+                  {summary.events
+                    .filter((ev) => ev.type === "goal" && ev.team === "user")
+                    .map((ev, i) => {
+                      const scorer = userLineup.find((p) => p.card.id === ev.scorerCardId)?.card.name ?? "—";
+                      return (
+                        <div key={i} className="text-zinc-300 text-xs py-0.5">
+                          ⚽ <span className="font-semibold">{scorer}</span>{" "}
+                          <span className="text-zinc-600">{ev.minute}&apos;</span>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+              {cpuScore > 0 && (
+                <div className="flex-1">
+                  <div className="text-red-400 text-[10px] font-bold mb-1">CPU</div>
+                  {summary.events
+                    .filter((ev) => ev.type === "goal" && ev.team === "cpu")
+                    .map((ev, i) => {
+                      const scorer = cpuLineup.find((p) => p.card.id === ev.scorerCardId)?.card.name ?? "CPU";
+                      return (
+                        <div key={i} className="text-zinc-300 text-xs py-0.5">
+                          ⚽ <span className="font-semibold text-zinc-400">{scorer}</span>{" "}
+                          <span className="text-zinc-600">{ev.minute}&apos;</span>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Man of the Match */}
+        {mvp && (
+          <div className="rounded-2xl bg-amber-900/15 border border-amber-700/40 p-4">
+            <div className="text-amber-400 text-[10px] font-bold uppercase tracking-widest mb-3">⭐ Man of the Match</div>
+            <div className="flex items-center gap-4">
+              <div className="relative w-14 h-18 rounded-xl overflow-hidden ring-2 ring-amber-500/60 shrink-0">
+                <Image src={mvp.imageUrl} alt={mvp.name} fill className="object-cover" sizes="56px" />
+              </div>
+              <div className="text-left">
+                <div className="text-white font-black text-base leading-tight">{mvp.name}</div>
+                <div className="flex gap-3 mt-2">
+                  {mvp.goals > 0 && (
+                    <div>
+                      <div className="text-green-400 font-black text-lg leading-none">{mvp.goals}</div>
+                      <div className="text-zinc-600 text-[10px]">Goal{mvp.goals > 1 ? "s" : ""}</div>
+                    </div>
+                  )}
+                  {mvp.assists > 0 && (
+                    <div>
+                      <div className="text-blue-400 font-black text-lg leading-none">{mvp.assists}</div>
+                      <div className="text-zinc-600 text-[10px]">Assist{mvp.assists > 1 ? "s" : ""}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Season record */}
+        <div className="flex justify-center gap-10 rounded-xl bg-zinc-900/60 border border-zinc-800 py-3 text-center">
+          <div>
+            <div className="text-xl font-black text-green-400 leading-none">{stats.wins}</div>
+            <div className="text-zinc-500 text-[10px] mt-1">Wins</div>
+          </div>
+          <div>
+            <div className="text-xl font-black text-red-400 leading-none">{stats.losses}</div>
+            <div className="text-zinc-500 text-[10px] mt-1">Losses</div>
+          </div>
+          <div>
+            <div className="text-xl font-black text-zinc-400 leading-none">{stats.draws}</div>
+            <div className="text-zinc-500 text-[10px] mt-1">Draws</div>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={handlePlayAgain}
+            className="flex-1 py-3.5 rounded-2xl bg-green-700 hover:bg-green-600 text-white font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-900/40 active:scale-95"
+          >
+            <span>⚽</span> Play Again
+          </button>
+          <button
+            onClick={handleShare}
+            className={`px-5 py-3.5 rounded-2xl font-bold text-sm transition-all flex items-center gap-1.5
+              ${shareCopied
+                ? "bg-green-900/60 border border-green-600 text-green-300"
+                : "bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-zinc-500"
+              }`}
+          >
+            {shareCopied ? "✓ Copied!" : "Share"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const filledCount = lineup.filter((s) => s.card !== null).length;
   const canKickOff  = filledCount === 7;
 
@@ -388,22 +510,23 @@ export default function FootballGame() {
     );
   }
 
-  // ── Playing ────────────────────────────────────────────────────────────────
-  if (phase === "playing" && firstHalf) {
+  // ── Playing / Result (pitch stays mounted; result reveals in place) ─────────
+  if ((phase === "playing" || phase === "result") && firstHalf) {
+    const matchResult = phase === "result" && summary
+      ? { outcome: summary.result, label: summary.result === "win" ? "Victory!" : summary.result === "loss" ? "Defeat" : "Draw" }
+      : null;
     return (
       <div className="w-full">
-        <div className="text-center mb-4">
-          <h2 className="text-zinc-300 text-sm font-semibold uppercase tracking-wider">Match in Progress</h2>
-          <p className="text-zinc-600 text-xs mt-0.5">{secondHalfFormation} vs {cpuFormation}</p>
-        </div>
-
         <MatchPitch
+          key="sp-pitch"
           userLineup={userLineup}
           cpuLineup={cpuLineup}
           firstHalfFrames={firstHalf.frames}
           secondHalfFrames={secondHalfFrames}
           onHalftime={handleHalftimeReached}
           onComplete={handleMatchComplete}
+          result={matchResult}
+          resultPanel={matchResult ? renderResultPanel() : null}
         />
 
         {showHalftime && (
@@ -441,142 +564,9 @@ export default function FootballGame() {
     );
   }
 
-  // ── Result ─────────────────────────────────────────────────────────────────
-  if (phase === "result" && summary) {
-    const { userScore, cpuScore, result, userOverall, cpuOverall, mvp } = summary;
-    const cfg = {
-      win:  { label: "Victory!", color: "text-green-400", bg: "from-green-900/25 to-transparent", emoji: "🏆" },
-      loss: { label: "Defeat",   color: "text-red-400",   bg: "from-red-900/25 to-transparent",   emoji: "😞" },
-      draw: { label: "Draw",     color: "text-zinc-200",  bg: "from-zinc-700/20 to-transparent",   emoji: "🤝" },
-    }[result];
-
-    return (
-      <div className="max-w-sm mx-auto text-center">
-        {/* Score card */}
-        <div className={`rounded-2xl bg-gradient-to-b ${cfg.bg} border border-zinc-800 p-8 mb-5`}>
-          <div className="text-6xl mb-3">{cfg.emoji}</div>
-          <h2 className={`text-3xl font-black mb-3 ${cfg.color}`}>{cfg.label}</h2>
-          <div className="text-5xl font-black text-white mb-5">
-            {userScore}<span className="text-zinc-600 text-3xl mx-2">–</span>{cpuScore}
-          </div>
-          <div className="flex justify-center gap-8 text-sm text-zinc-500">
-            <div>
-              <div className="text-white font-bold text-lg">{Math.round(userOverall)}</div>
-              <div>Your OVR</div>
-            </div>
-            <div>
-              <div className="text-white font-bold text-lg">{Math.round(cpuOverall)}</div>
-              <div>CPU OVR</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Goalscorers */}
-        {(userScore > 0 || cpuScore > 0) && (
-          <div className="mb-5 rounded-xl bg-zinc-900/60 border border-zinc-800 px-4 py-3 text-left">
-            <div className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider mb-2">Goals</div>
-            <div className="flex gap-6">
-              {userScore > 0 && (
-                <div className="flex-1">
-                  <div className="text-blue-400 text-[10px] font-bold mb-1">YOU</div>
-                  {summary.events
-                    .filter((ev) => ev.type === "goal" && ev.team === "user")
-                    .map((ev, i) => {
-                      const scorer = userLineup.find((p) => p.card.id === ev.scorerCardId)?.card.name ?? "—";
-                      return (
-                        <div key={i} className="text-zinc-300 text-xs py-0.5">
-                          ⚽ <span className="font-semibold">{scorer}</span>{" "}
-                          <span className="text-zinc-600">{ev.minute}&apos;</span>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
-              {cpuScore > 0 && (
-                <div className="flex-1">
-                  <div className="text-red-400 text-[10px] font-bold mb-1">CPU</div>
-                  {summary.events
-                    .filter((ev) => ev.type === "goal" && ev.team === "cpu")
-                    .map((ev, i) => {
-                      const scorer = cpuLineup.find((p) => p.card.id === ev.scorerCardId)?.card.name ?? "CPU";
-                      return (
-                        <div key={i} className="text-zinc-300 text-xs py-0.5">
-                          ⚽ <span className="font-semibold text-zinc-400">{scorer}</span>{" "}
-                          <span className="text-zinc-600">{ev.minute}&apos;</span>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Man of the Match */}
-        {mvp && (
-          <div className="mb-5 rounded-2xl bg-amber-900/15 border border-amber-700/40 p-5">
-            <div className="text-amber-400 text-[10px] font-bold uppercase tracking-widest mb-3">⭐ Man of the Match</div>
-            <div className="flex items-center gap-4">
-              <div className="relative w-16 h-20 rounded-xl overflow-hidden ring-2 ring-amber-500/60 shrink-0">
-                <Image src={mvp.imageUrl} alt={mvp.name} fill className="object-cover" sizes="64px" />
-              </div>
-              <div className="text-left">
-                <div className="text-white font-black text-lg leading-tight">{mvp.name}</div>
-                <div className="flex gap-3 mt-2">
-                  {mvp.goals > 0 && (
-                    <div>
-                      <div className="text-green-400 font-black text-xl leading-none">{mvp.goals}</div>
-                      <div className="text-zinc-600 text-[10px]">Goal{mvp.goals > 1 ? "s" : ""}</div>
-                    </div>
-                  )}
-                  {mvp.assists > 0 && (
-                    <div>
-                      <div className="text-blue-400 font-black text-xl leading-none">{mvp.assists}</div>
-                      <div className="text-zinc-600 text-[10px]">Assist{mvp.assists > 1 ? "s" : ""}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Season record */}
-        <div className="flex justify-center gap-8 mb-7">
-          <div className="text-center">
-            <div className="text-2xl font-black text-green-400">{stats.wins}</div>
-            <div className="text-zinc-500 text-xs">Wins</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-black text-red-400">{stats.losses}</div>
-            <div className="text-zinc-500 text-xs">Losses</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-black text-zinc-400">{stats.draws}</div>
-            <div className="text-zinc-500 text-xs">Draws</div>
-          </div>
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            onClick={handlePlayAgain}
-            className="flex-1 py-4 rounded-2xl bg-green-700 hover:bg-green-600 text-white font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-900/40"
-          >
-            <span>⚽</span> Play Again
-          </button>
-          <button
-            onClick={handleShare}
-            className={`px-5 py-4 rounded-2xl font-bold text-sm transition-all flex items-center gap-1.5
-              ${shareCopied
-                ? "bg-green-900/60 border border-green-600 text-green-300"
-                : "bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-zinc-500"
-              }`}
-          >
-            {shareCopied ? "✓ Copied!" : "Share"}
-          </button>
-        </div>
-      </div>
-    );
+  // Fallback (e.g. result state without a played match in memory)
+  if (phase === "result") {
+    return <div className="max-w-sm mx-auto">{renderResultPanel()}</div>;
   }
 
   return null;

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AssignedPlayer, MatchEvent, Rarity } from "@/lib/football";
 import type { MatchFrame } from "@/lib/match-engine";
 import { sampleTimeline } from "@/lib/match-playback";
@@ -52,6 +52,8 @@ function popupFor(ev: MatchEvent, cpuLabel: string): Popup | null {
 
 type Phase = "playing1" | "halftime-wait" | "playing2" | "done";
 
+export interface MatchOutcome { outcome: "win" | "loss" | "draw"; label: string }
+
 interface Props {
   userLineup: AssignedPlayer[];
   cpuLineup: AssignedPlayer[];
@@ -63,6 +65,10 @@ interface Props {
   onHalftime: () => void;
   /** Called when the second half finishes playing. */
   onComplete: () => void;
+  /** When set (at full time), the header morphs to the result and the side column shows the summary. */
+  result?: MatchOutcome | null;
+  /** Parent-built finished-state summary (goals / MOTM / actions) shown in the side column. */
+  resultPanel?: ReactNode;
 }
 
 interface CardInfo { id: string; name: string; imageUrl: string; rarity: Rarity; team: "user" | "cpu"; position: string; }
@@ -70,7 +76,7 @@ interface CardInfo { id: string; name: string; imageUrl: string; rarity: Rarity;
 export default function MatchPitch({
   userLineup, cpuLineup, firstHalfFrames, secondHalfFrames,
   userLabel = "YOU", cpuLabel = "CPU",
-  onHalftime, onComplete,
+  onHalftime, onComplete, result = null, resultPanel = null,
 }: Props) {
   const [phase, setPhase] = useState<Phase>("playing1");
   const [possessorId, setPossessorId] = useState<string | null>(null);
@@ -81,6 +87,7 @@ export default function MatchPitch({
   const [spotlightId, setSpotlightId] = useState<string | null>(null);
   const [stats, setStats] = useState({ userShots: 0, cpuShots: 0, userPoss: 0, cpuPoss: 0 });
   const [status, setStatus] = useState<{ label: string; team: "user" | "cpu" } | null>(null);
+  const [headerFlash, setHeaderFlash] = useState<"user" | "cpu" | null>(null);
 
   const cardList = useMemo(() => {
     const arr: CardInfo[] = [];
@@ -115,6 +122,8 @@ export default function MatchPitch({
     if (ev.type === "goal") {
       setSpotlightId(ev.scorerCardId ?? null);
       setTimeout(() => setSpotlightId(null), 1600);
+      setHeaderFlash(ev.team);
+      setTimeout(() => setHeaderFlash(null), 1800);
     }
   }
 
@@ -179,12 +188,21 @@ export default function MatchPitch({
 
   const totalPoss = stats.userPoss + stats.cpuPoss;
   const userPossPct = totalPoss > 0 ? Math.round((stats.userPoss / totalPoss) * 100) : 50;
+  const cpuPossPct = 100 - userPossPct;
 
   return (
-    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full max-w-3xl mx-auto">
-      <div className="relative w-full sm:w-52 lg:w-64 xl:w-72 shrink-0">
-        <div className="relative w-full overflow-hidden rounded-xl pt-[120%] sm:pt-[150%]"
-          style={{ background: "linear-gradient(180deg, #1a5c28 0%, #206b30 30%, #1e6b2e 50%, #206b30 70%, #1a5c28 100%)" }}>
+    <div className="w-full max-w-5xl mx-auto">
+      <MatchHeader
+        userLabel={userLabel} cpuLabel={cpuLabel}
+        scoreUser={score.user} scoreCpu={score.cpu}
+        minute={minute} userPossPct={userPossPct} cpuPossPct={cpuPossPct}
+        status={status} flash={headerFlash} result={result}
+      />
+
+      <div className="mt-3 flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-stretch">
+        <div className="relative mx-auto sm:mx-0 shrink-0 overflow-hidden rounded-xl"
+          style={{ aspectRatio: "3 / 4", height: "min(58vh, 540px)",
+            background: "linear-gradient(180deg, #1a5c28 0%, #206b30 30%, #1e6b2e 50%, #206b30 70%, #1a5c28 100%)" }}>
           <div className="absolute inset-0">
             {/* Team end zones: red = opponent (top), blue = you (bottom) */}
             <div className="absolute top-0 left-0 right-0 h-[18%] bg-gradient-to-b from-red-500/25 to-transparent pointer-events-none" />
@@ -210,12 +228,12 @@ export default function MatchPitch({
                 >
                   {isPossessor && <div className="absolute inset-0 rounded-full ring-2 ring-white/60 animate-pulse scale-125 z-10" />}
                   {isSpotlight && <div className="absolute inset-0 rounded-full ring-4 ring-yellow-400 animate-pulse scale-150 z-10" />}
-                  <div className={`relative rounded-full ring-[3px] overflow-hidden shadow-lg ${info.team === "user" ? "ring-blue-400" : "ring-red-500"} ${isSpotlight ? "w-12 h-12" : "w-10 h-10 sm:w-8 sm:h-8"}`}
+                  <div className={`relative rounded-full ring-[3px] overflow-hidden shadow-lg ${info.team === "user" ? "ring-blue-400" : "ring-red-500"} ${isSpotlight ? "w-14 h-14" : "w-9 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11"}`}
                     title={`${info.name} (${info.position})`}>
-                    <Image src={info.imageUrl} alt={info.name} fill className="object-cover object-center" sizes="40px" />
+                    <Image src={info.imageUrl} alt={info.name} fill className="object-cover object-center" sizes="48px" />
                     <div className={`absolute inset-0 pointer-events-none ${info.team === "user" ? "bg-blue-500/35" : "bg-red-600/40"}`} />
                   </div>
-                  <div className="absolute left-1/2 top-full -translate-x-1/2 mt-0.5 max-w-[64px] truncate rounded bg-black/55 px-1 text-center text-white text-[7px] sm:text-[8px] font-semibold leading-tight pointer-events-none">
+                  <div className="absolute left-1/2 top-full -translate-x-1/2 mt-0.5 max-w-[72px] truncate rounded bg-black/55 px-1 text-center text-white text-[9px] sm:text-[10px] font-semibold leading-tight pointer-events-none">
                     {info.name}
                   </div>
                 </div>
@@ -241,66 +259,109 @@ export default function MatchPitch({
               </div>
             ))}
 
-            <div className="absolute top-0 left-0 right-0 z-20 bg-black/55 backdrop-blur-sm">
-              <div className="flex items-center justify-between px-3 py-1.5">
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[7px] font-bold">{userLabel[0]}</div>
-                  <span className="text-white text-xs font-bold">{score.user}</span>
-                </div>
-                <div className="text-white/60 text-[9px] font-mono">{minute}&apos;</div>
-                <div className="flex items-center gap-1">
-                  <span className="text-white text-xs font-bold">{score.cpu}</span>
-                  <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center text-white text-[7px] font-bold">{cpuLabel[0]}</div>
-                </div>
-              </div>
-            </div>
-
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/10 z-20">
               <div ref={progressEl} className="h-full bg-white/40" style={{ width: "0%" }} />
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="flex-1 flex flex-col gap-1.5 sm:gap-2">
-        <div className="flex items-center gap-2 shrink-0 rounded-lg bg-zinc-900/70 border border-zinc-800 px-2.5 py-1.5">
-          <span className={`w-2.5 h-2.5 rounded-full ${status?.team === "cpu" ? "bg-red-400" : "bg-blue-400"}`} />
-          <span className={`text-xs font-bold ${status?.team === "cpu" ? "text-red-300" : "text-blue-300"}`}>
-            {status ? (status.team === "user" ? userLabel : cpuLabel) : userLabel}
-          </span>
-          <span className="text-zinc-400 text-xs">{status?.label ?? "kick off"}</span>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-zinc-400 text-[10px] sm:text-xs font-medium uppercase tracking-wider">Commentary</span>
-          <span className="ml-auto text-zinc-500 text-[10px] sm:text-xs font-mono">{minute}&apos;</span>
-        </div>
-        <div className="flex flex-col gap-1 sm:gap-1.5 overflow-y-auto max-h-28 sm:max-h-none sm:flex-1 pr-0.5">
-          {feed.length === 0 && <div className="text-zinc-600 text-xs italic">Waiting for kick off…</div>}
-          {feed.map((ev, i) => (
-            <div key={`${ev.minute}-${i}`} className={`flex items-start gap-1.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg ${i === 0 ? "bg-zinc-800/80 border border-zinc-700/50" : "bg-zinc-900/50"} ${ev.type === "goal" && ev.team === "user" ? "!border-blue-500/50 !bg-blue-900/20" : ""} ${ev.type === "goal" && ev.team === "cpu" ? "!border-red-500/50 !bg-red-900/20" : ""}`}>
-              <span className="shrink-0 text-sm leading-none mt-0.5">{EVENT_ICON[ev.type] ?? "●"}</span>
-              <div className="flex-1 min-w-0">
-                <span className="text-zinc-500 text-[10px] font-mono mr-1">{ev.minute}&apos;</span>
-                <span className={`text-[11px] sm:text-xs leading-snug ${ev.type === "goal" ? "font-semibold text-white" : "text-zinc-300"}`}>{ev.description}</span>
+        <div className="flex-1 flex flex-col gap-1.5 sm:gap-2 min-h-0 sm:h-[min(58vh,540px)]">
+          {result ? (
+            <div className="flex-1 min-h-0 overflow-y-auto pr-0.5 animate-card-reveal">
+              {resultPanel}
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                <span className="text-zinc-400 text-[10px] sm:text-xs font-medium uppercase tracking-wider">Commentary</span>
+                <span className="ml-auto text-zinc-500 text-[10px] sm:text-xs font-mono">{minute}&apos;</span>
               </div>
-              {(ev.type === "goal" || ev.type === "halftime" || ev.type === "fulltime") && (
-                <span className="shrink-0 text-[10px] font-bold text-white/70">{ev.scoreUser}–{ev.scoreCpu}</span>
-              )}
-            </div>
-          ))}
+              <div className="flex flex-col gap-1 sm:gap-1.5 overflow-y-auto h-40 sm:h-auto sm:flex-1 min-h-0 pr-0.5">
+                {feed.length === 0 && <div className="text-zinc-600 text-xs italic">Waiting for kick off…</div>}
+                {feed.map((ev, i) => (
+                  <div key={`${ev.minute}-${i}`} className={`flex items-start gap-1.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg ${i === 0 ? "bg-zinc-800/80 border border-zinc-700/50" : "bg-zinc-900/50"} ${ev.type === "goal" && ev.team === "user" ? "!border-blue-500/50 !bg-blue-900/20" : ""} ${ev.type === "goal" && ev.team === "cpu" ? "!border-red-500/50 !bg-red-900/20" : ""}`}>
+                    <span className="shrink-0 text-sm leading-none mt-0.5">{EVENT_ICON[ev.type] ?? "●"}</span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-zinc-500 text-[10px] font-mono mr-1">{ev.minute}&apos;</span>
+                      <span className={`text-[11px] sm:text-xs leading-snug ${ev.type === "goal" ? "font-semibold text-white" : "text-zinc-300"}`}>{ev.description}</span>
+                    </div>
+                    {(ev.type === "goal" || ev.type === "halftime" || ev.type === "fulltime") && (
+                      <span className="shrink-0 text-[10px] font-bold text-white/70">{ev.scoreUser}–{ev.scoreCpu}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-lg sm:rounded-xl bg-zinc-900/60 border border-zinc-800 px-2.5 sm:px-3 py-2 shrink-0 flex items-center justify-between text-[10px] sm:text-xs">
+                <span className="text-zinc-500 uppercase tracking-wider">Shots</span>
+                <span className="font-bold"><span className="text-blue-400">{stats.userShots}</span><span className="text-zinc-600 mx-1">–</span><span className="text-red-400">{stats.cpuShots}</span></span>
+              </div>
+            </>
+          )}
         </div>
-        <div className="rounded-lg sm:rounded-xl bg-zinc-900/60 border border-zinc-800 px-2 sm:px-3 py-1.5 sm:py-2 shrink-0">
-          <div className="grid grid-cols-2 gap-1 text-center">
-            <div>
-              <div className="text-[8px] sm:text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Shots</div>
-              <div className="text-[10px] sm:text-xs font-bold"><span className="text-blue-400">{stats.userShots}</span><span className="text-zinc-600 mx-0.5">–</span><span className="text-red-400">{stats.cpuShots}</span></div>
-            </div>
-            <div>
-              <div className="text-[8px] sm:text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Poss</div>
-              <div className="text-[10px] sm:text-xs font-bold"><span className="text-blue-400">{userPossPct}%</span></div>
-            </div>
+      </div>
+    </div>
+  );
+}
+
+function MatchHeader({
+  userLabel, cpuLabel, scoreUser, scoreCpu, minute, userPossPct, cpuPossPct, status, flash, result,
+}: {
+  userLabel: string; cpuLabel: string; scoreUser: number; scoreCpu: number; minute: number;
+  userPossPct: number; cpuPossPct: number;
+  status: { label: string; team: "user" | "cpu" } | null;
+  flash: "user" | "cpu" | null;
+  result: MatchOutcome | null;
+}) {
+  const bg = result
+    ? result.outcome === "win" ? "bg-green-900/90 border-green-600"
+      : result.outcome === "loss" ? "bg-red-900/90 border-red-600"
+      : "bg-zinc-800/95 border-zinc-500"
+    : flash === "user" ? "bg-blue-900/85 border-blue-500"
+      : flash === "cpu" ? "bg-red-900/85 border-red-500"
+      : "bg-zinc-900/90 border-zinc-800";
+  const resultColor = result?.outcome === "win" ? "text-green-300" : result?.outcome === "loss" ? "text-red-300" : "text-zinc-200";
+
+  return (
+    <div className={`sticky top-2 z-40 rounded-xl border shadow-lg backdrop-blur transition-colors duration-500 ${bg}`}>
+      <div className="px-3 sm:px-4 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <span className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white text-[9px] font-bold shrink-0">{userLabel[0]}</span>
+            <span className="text-white text-xs font-bold truncate">{userLabel}</span>
           </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-white text-2xl font-black tabular-nums leading-none">{scoreUser}</span>
+            <span className="text-zinc-400">–</span>
+            <span className="text-white text-2xl font-black tabular-nums leading-none">{scoreCpu}</span>
+          </div>
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 justify-end">
+            <span className="text-white text-xs font-bold truncate text-right">{cpuLabel}</span>
+            <span className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center text-white text-[9px] font-bold shrink-0">{cpuLabel[0]}</span>
+          </div>
+        </div>
+        {result ? (
+          <div className="flex items-center justify-center gap-2 mt-1">
+            <span className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Full Time</span>
+            <span className="text-white/30">·</span>
+            <span className={`text-sm font-black uppercase tracking-wide ${resultColor}`}>{result.label}</span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-1.5 mt-1">
+            <span className="text-zinc-500 text-[10px] font-mono">{minute}&apos;</span>
+            <span className={`w-1.5 h-1.5 rounded-full ${status?.team === "cpu" ? "bg-red-400" : "bg-blue-400"}`} />
+            <span className={`text-[11px] font-bold ${status?.team === "cpu" ? "text-red-300" : "text-blue-300"}`}>
+              {status ? (status.team === "user" ? userLabel : cpuLabel) : userLabel}
+            </span>
+            <span className="text-zinc-400 text-[11px]">{status?.label ?? "kick off"}</span>
+          </div>
+        )}
+        <div className="mt-1.5 flex items-center gap-2">
+          <span className="text-blue-300 text-[10px] font-bold w-8 shrink-0">{userPossPct}%</span>
+          <div className="flex-1 flex h-1.5 rounded-full overflow-hidden bg-red-500/70">
+            <div className="bg-blue-500 transition-[width] duration-500" style={{ width: `${userPossPct}%` }} />
+          </div>
+          <span className="text-red-300 text-[10px] font-bold w-8 text-right shrink-0">{cpuPossPct}%</span>
         </div>
       </div>
     </div>
