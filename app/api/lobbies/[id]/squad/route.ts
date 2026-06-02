@@ -3,8 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { pusher } from "@/lib/pusher";
-import seedrandom from "seedrandom";
-import { simulateMatch, type Formation, type Position, type AssignedPlayer } from "@/lib/football";
+import { type Formation, type Position, type AssignedPlayer } from "@/lib/football";
 
 interface SlotInput {
   position: Position;
@@ -88,41 +87,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ status: "waiting" });
   }
 
-  // Both ready — compute deterministic simulation and store it
-  const rng = seedrandom(id);
-  const simulation = simulateMatch(
-    creatorSquad.players,
-    opponentSquad.players,
-    creatorSquad.formation,
-    opponentSquad.formation,
-    rng,
-  );
+  // Both ready — store lineups + formations. The authoritative result is
+  // computed at halftime (once both 2nd-half formations are known).
+  await prisma.matchResult.create({
+    data: {
+      lobbyId: id,
+      player1Id: lobby.creatorId,
+      player2Id: lobby.opponentId!,
+      winnerId: null,
+      scoreline: "–",
+      simulation: {
+        creatorFormation: creatorSquad.formation,
+        opponentFormation: opponentSquad.formation,
+        creatorLineup: creatorSquad.players,
+        opponentLineup: opponentSquad.players,
+      } as object,
+    },
+  });
 
-  const scoreline = `${simulation.userScore}–${simulation.cpuScore}`;
-  const winnerId =
-    simulation.result === "win" ? lobby.creatorId :
-    simulation.result === "loss" ? lobby.opponentId : null;
-
-  await prisma.$transaction([
-    prisma.matchResult.create({
-      data: {
-        lobbyId: id,
-        player1Id: lobby.creatorId,
-        player2Id: lobby.opponentId!,
-        winnerId,
-        scoreline,
-        simulation: {
-          simulation,
-          creatorFormation: creatorSquad.formation,
-          opponentFormation: opponentSquad.formation,
-          creatorLineup: creatorSquad.players,
-          opponentLineup: opponentSquad.players,
-        } as object,
-      },
-    }),
-  ]);
-
-  // Signal match start — clients fetch the full lobby to get both squads, then run sim locally
   await pusher.trigger(`presence-lobby-${id}`, "lobby:squad_locked", {
     player: "both",
     matchReady: true,
