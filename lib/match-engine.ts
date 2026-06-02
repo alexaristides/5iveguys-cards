@@ -122,7 +122,7 @@ export function simulateHalfLogic(
     involvements.set(card.id, e);
   }
 
-  function computeTargets(atk: "user" | "cpu", ball: { x: number; y: number }, possessorId: string | null, setPiece?: SetPiece, cornerTaker?: { id: string; x: number; y: number }): Record<string, { x: number; y: number }> {
+  function computeTargets(atk: "user" | "cpu", ball: { x: number; y: number }, possessorId: string | null, setPiece?: SetPiece, cornerTaker?: { id: string; x: number; y: number }, shooter?: { id: string; x: number; y: number }): Record<string, { x: number; y: number }> {
     const out: Record<string, { x: number; y: number }> = {};
 
     if (setPiece === "corner") {
@@ -167,7 +167,10 @@ export function simulateHalfLogic(
         const [bx, by] = homeCoordOf(p, t);
         const [dx, dy] = phaseShift(t, atk, p.position, bx);
         let x = clamp(bx + dx, 4, 96), y = clamp(by + dy, 4, 96);
-        if (p.card.id === possessorId) {
+        if (shooter && p.card.id === shooter.id) {
+          // The shooter struck the ball — they hold their strike spot; the ball travels to goal.
+          x = shooter.x; y = shooter.y;
+        } else if (p.card.id === possessorId) {
           x += (ball.x - x) * 0.6; y += (ball.y - y) * 0.6;
         } else if (t !== atk && p.position !== "GK") {
           // Defending: press the ball-carrier, harder the closer you already are.
@@ -186,9 +189,10 @@ export function simulateHalfLogic(
     phase: MatchPhase, ball: { x: number; y: number }, possessorId: string | null,
     scorerCardId?: string, assisterCardId?: string, setPiece?: SetPiece,
     cornerTaker?: { id: string; x: number; y: number },
+    shooter?: { id: string; x: number; y: number },
   ) {
     const b = { x: clamp(Math.round(ball.x), 0, 100), y: clamp(Math.round(ball.y), 0, 100) };
-    moments.push({ minute, type, team, phase, description, ball: b, targets: computeTargets(team, b, possessorId, setPiece, cornerTaker), possessorId, scorerCardId, assisterCardId, scoreUser: userScore, scoreCpu: cpuScore });
+    moments.push({ minute, type, team, phase, description, ball: b, targets: computeTargets(team, b, possessorId, setPiece, cornerTaker, shooter), possessorId, scorerCardId, assisterCardId, scoreUser: userScore, scoreCpu: cpuScore });
     events.push({ minute, type, team, description, scoreUser: userScore, scoreCpu: cpuScore, phase, scorerCardId, assisterCardId });
   }
 
@@ -212,17 +216,20 @@ export function simulateHalfLogic(
     const sp: SetPiece | undefined = opts?.corner ? "corner" : undefined;
     const ct = opts?.cornerTaker;
     const gx = clamp(50 + (rng() - 0.5) * 20, 30, 70), gy = goalYFor(atkTeam);
+    // Open-play strike spot: the shooter holds just outside the box rather than chasing
+    // the ball onto the goal line. Corner headers keep the in-box positioning.
+    const shooter = sp ? undefined : { id: scorer.card.id, x: gx, y: gy + (atkTeam === "user" ? 20 : -20) };
     if (rng() < goalProb) {
       if (atkTeam === "user") userScore++; else cpuScore++;
       if (atkTeam === "user") { trackInv(scorer.card, "goal"); if (assister) trackInv(assister.card, "assist"); }
       const fam = scorer.card.attribute === "Pace" ? GOAL_PACE : scorer.card.attribute === "Power" ? GOAL_POWER : scorer.card.attribute === "Skill" ? GOAL_SKILL : GOAL_GENERIC;
-      emit(min, "goal", atkTeam, `⚽ GOAL! ${pick(fam, nameOf(scorer), nameOf(assister))}`, phase, { x: gx, y: gy }, scorer.card.id, scorer.card.id, assister?.card.id, sp, ct);
+      emit(min, "goal", atkTeam, `⚽ GOAL! ${pick(fam, nameOf(scorer), nameOf(assister))}`, phase, { x: gx, y: gy }, scorer.card.id, scorer.card.id, assister?.card.id, sp, ct, shooter);
       return "goal";
     }
     const r = rng();
-    if (r < 0.45) { emit(min, "save", atkTeam, `🧤 ${pick(SAVE_TEMPLATES, nameOf(gk), nameOf(scorer))}`, phase, { x: gx, y: gy }, gk?.card.id ?? null, undefined, undefined, sp, ct); return "save"; }
-    if (r < 0.70) { emit(min, "nearpost", atkTeam, pick(NEARPOST_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id, undefined, undefined, sp, ct); return "nearpost"; }
-    emit(min, "miss", atkTeam, pick(MISS_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id, undefined, undefined, sp, ct); return "miss";
+    if (r < 0.45) { emit(min, "save", atkTeam, `🧤 ${pick(SAVE_TEMPLATES, nameOf(gk), nameOf(scorer))}`, phase, { x: gx, y: gy }, gk?.card.id ?? null, undefined, undefined, sp, ct, shooter); return "save"; }
+    if (r < 0.70) { emit(min, "nearpost", atkTeam, pick(NEARPOST_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id, undefined, undefined, sp, ct, shooter); return "nearpost"; }
+    emit(min, "miss", atkTeam, pick(MISS_TEMPLATES, nameOf(scorer), nameOf(assister)), phase, { x: gx, y: gy }, scorer.card.id, undefined, undefined, sp, ct, shooter); return "miss";
   }
 
   function emitCorner(atkTeam: "user" | "cpu", min: number, phase: MatchPhase): { id: string; x: number; y: number } | undefined {
