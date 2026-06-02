@@ -467,6 +467,8 @@ model Lobby {
   opponent      User?       @relation("JoinedLobbies", fields: [opponentId], references: [id])
   creatorSquad  Json?
   opponentSquad Json?
+  creatorFormation2  String?
+  opponentFormation2 String?
   status        LobbyStatus @default(WAITING)
   createdAt     DateTime    @default(now())
   expiresAt     DateTime
