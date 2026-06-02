@@ -146,7 +146,7 @@ export default function PointsActivity({ sync, onSync, syncing, channelSlug, you
       <div className="space-y-3">
         {activities.map((activity) => (
           <a
-            key={activity.href}
+            key={activity.label}
             href={activity.href}
             target="_blank"
             rel="noopener noreferrer"
