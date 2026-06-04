@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   const state = createTournament({
     seed,
     difficulty: body.difficulty ?? "even",
-    userName: session.user.name?.trim() || "Your Team",
+    userName: "5ive Guys FC",
     userOverall: built.overall,
     userFlag: session.user.image ?? null,
     userLineup: body.lineup,
