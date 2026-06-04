@@ -251,18 +251,23 @@ function GamePageInner() {
         {tab === "sp" && (
           <div>
             {!hideTabs && (
-              <div className="mb-6 flex items-start justify-between gap-3">
-                <div>
+              <>
+                <div className="mb-4">
                   <h2 className="text-xl font-bold text-white">Single Player</h2>
                   <p className="text-zinc-500 text-sm mt-1">Pick your best squad and play a 7v7 match vs CPU</p>
                 </div>
                 <Link
                   href="/game/worldcup"
-                  className="shrink-0 px-4 py-2.5 rounded-xl bg-gradient-to-br from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-sm font-bold shadow-lg shadow-amber-900/30 transition-all flex items-center gap-2"
+                  className="group mb-6 flex items-center gap-3 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 p-4 shadow-lg shadow-amber-900/30 transition-all active:scale-[0.99]"
                 >
-                  🏆 World Cup
+                  <span className="text-3xl shrink-0">🏆</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-white font-bold leading-tight">World Cup — Road to Glory</div>
+                    <div className="text-amber-100/80 text-xs mt-0.5">Take 5ive Guys FC through the 48-team World Cup</div>
+                  </div>
+                  <span className="text-white/80 text-xl shrink-0 group-hover:translate-x-0.5 transition-transform">›</span>
                 </Link>
-              </div>
+              </>
             )}
             <FootballGame onPhaseChange={setSpPhase} />
           </div>
