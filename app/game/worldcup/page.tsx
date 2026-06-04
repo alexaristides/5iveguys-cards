@@ -8,6 +8,8 @@ import Image from "next/image";
 import FormationPitchSelector from "@/components/football/FormationPitchSelector";
 import MatchRunner, { type MatchRunnerResult } from "@/components/football/MatchRunner";
 import { GroupTable, BracketView, NextOpponentCard, Flag } from "@/components/worldcup/WorldCupViews";
+import OscarNarrator from "@/components/worldcup/OscarNarrator";
+import { pickQuote, toneFor, PROTAGONIST, CLUB_NAME, type LoreEvent, type LoreTone } from "@/lib/worldcup/lore";
 import {
   buildSlots, slotsToLineup, calcTeamStats,
   type AssignedPlayer, type FootballCard, type Formation, type LineupSlot,
@@ -48,6 +50,11 @@ export default function WorldCupPage() {
   const [trophies, setTrophies] = useState<Trophy[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Story-mode narration (Oscar mentoring Ramin).
+  const [narration, setNarration] = useState<{ quote: string; tone: LoreTone } | null>(null);
+  const introQuote = useMemo(() => pickQuote("intro"), []);
+  const narrate = (e: LoreEvent) => setNarration({ quote: pickQuote(e), tone: toneFor(e) });
 
   // team-pick state (shared by start + prematch)
   const [formation, setFormation] = useState<Formation>("2-2-2");
@@ -111,6 +118,7 @@ export default function WorldCupPage() {
       const data = await res.json();
       if (!res.ok) { setErr(data.error ?? "Could not start"); return; }
       setWc(data.worldCup);
+      narrate("groupDraw");
       setView("hub");
     } finally { setBusy(false); }
   }
@@ -156,9 +164,25 @@ export default function WorldCupPage() {
       });
       const data = await res.json();
       if (res.ok && data.worldCup) {
+        const st = data.worldCup.state as TournamentState;
+        // Decide which line Oscar delivers based on what just happened.
+        const fxStage = matchCtx.fixture.stage;
+        const won = result.userWon ?? result.userScore > result.cpuScore;
+        const draw = !matchCtx.knockout && result.userScore === result.cpuScore;
+        let ev: LoreEvent;
+        if (st.stage === "done") {
+          ev = st.champion === USER_ID ? "champion" : fxStage === "final" ? "runnerUp" : "koOut";
+        } else if (fxStage === "group") {
+          ev = st.stage === "R32"
+            ? (st.fixtures.some((f) => f.stage === "R32" && f.isUser) ? "qualified" : "groupOut")
+            : won ? "win" : draw ? "draw" : "loss";
+        } else {
+          ev = st.stage === "final" ? "reachedFinal" : "koWin";
+        }
+        narrate(ev);
         setWc(data.worldCup);
         setMatchCtx(null);
-        setView(data.worldCup.state.stage === "done" ? "done" : "hub");
+        setView(st.stage === "done" ? "done" : "hub");
       }
     } finally { setBusy(false); }
   }
@@ -206,8 +230,11 @@ export default function WorldCupPage() {
   if (view === "start") {
     return (
       <Shell>
-        <h1 className="text-2xl font-black text-white mb-1">🏆 World Cup</h1>
-        <p className="text-zinc-500 text-sm mb-5">Enter your squad into the 48-team World Cup. Win your group, survive the knockouts, lift the trophy.</p>
+        <h1 className="text-2xl font-black text-white mb-1">🏆 Road to Glory</h1>
+        <p className="text-zinc-500 text-sm mb-4">
+          You are <span className="text-amber-300 font-semibold">{PROTAGONIST}</span>, aspiring manager of <span className="text-amber-300 font-semibold">{CLUB_NAME}</span>. Take them through the 48-team World Cup and write your name beside the greats.
+        </p>
+        <OscarNarrator variant="inline" quote={introQuote} tone="normal" />
         {ownedCards.length < 7 ? (
           <div className="text-center py-16 text-zinc-500">
             <div className="text-5xl mb-4">⚽</div>
@@ -288,6 +315,7 @@ export default function WorldCupPage() {
           New Tournament
         </button>
         <Link href="/game" className="block text-center text-zinc-500 hover:text-zinc-300 text-sm mt-3">← Back to Game</Link>
+        {narration && <OscarNarrator variant="overlay" quote={narration.quote} tone={narration.tone} onDismiss={() => setNarration(null)} />}
       </Shell>
     );
   }
@@ -329,6 +357,7 @@ export default function WorldCupPage() {
         </div>
 
         <Link href="/game" className="block text-center text-zinc-500 hover:text-zinc-300 text-sm mt-6">← Back to Game</Link>
+        {narration && <OscarNarrator variant="overlay" quote={narration.quote} tone={narration.tone} onDismiss={() => setNarration(null)} />}
       </Shell>
     );
   }
