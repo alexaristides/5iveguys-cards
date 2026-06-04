@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-
-const STAT_FIELDS = [
-  "attack", "defense", "speed", "strength", "skillMoves",
-  "iq", "aura", "goalkeeping", "agility", "celebration", "clutch",
-] as const;
+import { STAT_FIELDS, overallFromVotes, type StatsMap } from "@/lib/card-rating";
 
 const PERIOD_MS: Record<string, number> = {
   "1d":  1  * 24 * 60 * 60 * 1000,
@@ -34,7 +30,7 @@ export async function GET(req: NextRequest) {
       ...(rarity && validRarities.includes(rarity) ? { rarity: rarity as "common" | "rare" | "epic" | "legendary" } : {}),
     },
     select: {
-      id: true, name: true, kit: true, rarity: true, imageUrl: true,
+      id: true, name: true, kit: true, rarity: true, imageUrl: true, position: true,
       channel: { select: { id: true, name: true, slug: true, thumbnailUrl: true } },
       votes: { select: STAT_FIELDS.reduce((acc, f) => ({ ...acc, [f]: true }), {} as Record<typeof STAT_FIELDS[number], true>) },
     },
@@ -42,7 +38,7 @@ export async function GET(req: NextRequest) {
 
   // ── 2. Compute current overall for each card (skip unvoted cards) ───────────
   type CardEntry = {
-    id: string; name: string; kit: string | null; rarity: string;
+    id: string; name: string; kit: string | null; rarity: string; position: string | null;
     imageUrl: string; channel: { id: string; name: string; slug: string; thumbnailUrl: string | null };
     overall: number; voteCount: number;
   };
@@ -51,12 +47,10 @@ export async function GET(req: NextRequest) {
   for (const card of cards) {
     const voteCount = card.votes.length;
     if (voteCount === 0) continue;
-    const total = card.votes.reduce((sum, v) =>
-      sum + STAT_FIELDS.reduce((s, f) => s + (v[f] as number), 0), 0);
     cardsWithOverall.push({
-      id: card.id, name: card.name, kit: card.kit, rarity: card.rarity,
+      id: card.id, name: card.name, kit: card.kit, rarity: card.rarity, position: card.position,
       imageUrl: card.imageUrl, channel: card.channel,
-      overall: Math.round(total / (voteCount * STAT_FIELDS.length)),
+      overall: overallFromVotes(card.votes as StatsMap[], card.position),
       voteCount,
     });
   }

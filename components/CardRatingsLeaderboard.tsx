@@ -27,6 +27,7 @@ interface RatedCard {
   rarity: Rarity;
   imageUrl: string;
   channel: { id: string; name: string; slug: string; thumbnailUrl: string | null };
+  position: string | null;
   overall: number;
   voteCount: number;
   change: number;
@@ -302,6 +303,9 @@ function CardRow({ card, rank, onViewCard, onViewChart }: {
       <div className="flex-1 min-w-0">
         <p className="text-white text-sm font-semibold truncate leading-tight">{card.name}</p>
         <div className="flex items-center gap-1.5 mt-0.5">
+          {card.position && card.position !== "Moment" && (
+            <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/10 text-zinc-400 shrink-0">{card.position}</span>
+          )}
           {card.kit && <span className="text-zinc-500 text-[11px] truncate">{card.kit}</span>}
           <span className="text-zinc-700 text-[11px]">·</span>
           <span className="text-zinc-600 text-[11px] truncate">{card.channel.name}</span>
@@ -460,7 +464,7 @@ export default function CardRatingsLeaderboard({ channels }: { channels: Channel
           <span className="w-9 shrink-0" />
           <span className="flex-1 text-[10px] uppercase tracking-widest text-zinc-600 font-semibold">Card</span>
           <span className="text-[10px] uppercase tracking-widest text-zinc-600 font-semibold w-16 text-right shrink-0 hidden sm:block">Rarity</span>
-          <span className="text-[10px] uppercase tracking-widest text-zinc-600 font-semibold w-10 text-right shrink-0">OVR<ColumnTooltip text="Overall rating — average of all fan votes across 11 attributes" /></span>
+          <span className="text-[10px] uppercase tracking-widest text-zinc-600 font-semibold w-10 text-right shrink-0">OVR<ColumnTooltip text="Overall rating from fan votes, weighted for each card's position so specialists (e.g. keepers) aren't penalised on irrelevant attributes" /></span>
           <span className="text-[10px] uppercase tracking-widest text-zinc-600 font-semibold w-10 text-right shrink-0">Chg<ColumnTooltip text="Change in OVR over the selected time period" /></span>
           <span className="text-[10px] uppercase tracking-widest text-zinc-600 font-semibold w-[72px] text-center shrink-0 hidden md:block">Trend<ColumnTooltip text="7-day rating history — click to vote or see full chart" /></span>
           <span className="w-7 shrink-0" />
@@ -513,6 +517,7 @@ export default function CardRatingsLeaderboard({ channels }: { channels: Channel
             backImageUrl: null,
             attribute: null,
             description: null,
+            position: selectedCard.position,
           })}
           onClose={() => setSelectedCard(null)}
         />

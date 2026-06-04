@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import { createPortal } from "react-dom";
 import { Card, Rarity } from "@/lib/cards";
+import { computeOverall } from "@/lib/card-rating";
 
 const RARITY_GLOW: Record<Rarity, string> = {
   common: "",
@@ -67,6 +68,7 @@ export default function CardModal({ card, onClose }: CardModalProps) {
   const [mounted, setMounted] = useState(false);
 
   const [averages, setAverages] = useState<StatsMap>(DEFAULT_STATS);
+  const [position, setPosition] = useState<string | null>(card.position ?? null);
   const [voteCount, setVoteCount] = useState(0);
   const [userVote, setUserVote] = useState<StatsMap | null>(null);
   const [draft, setDraft] = useState<StatsMap>(DEFAULT_STATS);
@@ -83,6 +85,7 @@ export default function CardModal({ card, onClose }: CardModalProps) {
       const data = await res.json();
       setAverages(data.averages);
       setVoteCount(data.voteCount);
+      if (data.position !== undefined) setPosition(data.position);
       if (data.userVote) {
         setUserVote(data.userVote);
         setDraft(data.userVote);
@@ -141,7 +144,7 @@ export default function CardModal({ card, onClose }: CardModalProps) {
   const badge = RARITY_BADGE[card.rarity];
   const ovrStyle = OVR_STYLE[card.rarity];
   const currentImage = flipped && card.backImage ? card.backImage : card.image;
-  const overall = Math.round(STATS.reduce((sum, { key }) => sum + averages[key], 0) / STATS.length);
+  const overall = computeOverall(averages, position);
 
   return createPortal(
     <div
@@ -216,9 +219,16 @@ export default function CardModal({ card, onClose }: CardModalProps) {
 
           {/* Overall rating */}
           <div className="bg-zinc-950/80 border border-white/8 rounded-2xl p-6 text-center backdrop-blur-xl">
-            <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-zinc-500 mb-5">
-              Community Rating
-            </p>
+            <div className="flex items-center justify-center gap-2 mb-5">
+              <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-zinc-500">
+                Community Rating
+              </p>
+              {position && position !== "Moment" && (
+                <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/10 text-zinc-300">
+                  {position}
+                </span>
+              )}
+            </div>
 
             {/* Big OVR circle */}
             <div className="flex justify-center mb-5">
@@ -238,6 +248,11 @@ export default function CardModal({ card, onClose }: CardModalProps) {
             <p className="text-[11px] text-zinc-600 tabular-nums">
               {voteCount} {voteCount === 1 ? "community rating" : "community ratings"}
             </p>
+            {position && position !== "Moment" && (
+              <p className="text-[10px] text-zinc-700 mt-1">
+                Weighted for a {position}&apos;s role
+              </p>
+            )}
           </div>
 
           {/* Attributes grid */}

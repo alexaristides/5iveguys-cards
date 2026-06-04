@@ -2,18 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-
-const STAT_FIELDS = ["attack", "defense", "speed", "strength", "skillMoves", "iq", "aura", "goalkeeping", "agility", "celebration", "clutch"] as const;
+import { STAT_FIELDS, overallFromVotes, type StatsMap } from "@/lib/card-rating";
 
 type Params = { params: Promise<{ cardId: string }> };
 
 export async function GET(req: NextRequest, { params }: Params) {
   const { cardId } = await params;
 
-  const votes = await prisma.cardVote.findMany({
-    where: { cardId },
-    select: { attack: true, defense: true, speed: true, strength: true, skillMoves: true, iq: true, aura: true, goalkeeping: true, agility: true, celebration: true, clutch: true, userId: true },
-  });
+  const [card, votes] = await Promise.all([
+    prisma.card.findUnique({ where: { id: cardId }, select: { position: true } }),
+    prisma.cardVote.findMany({
+      where: { cardId },
+      select: { attack: true, defense: true, speed: true, strength: true, skillMoves: true, iq: true, aura: true, goalkeeping: true, agility: true, celebration: true, clutch: true, userId: true },
+    }),
+  ]);
 
   const voteCount = votes.length;
   const averages: Record<string, number> = {};
@@ -32,7 +34,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     }
   }
 
-  return NextResponse.json({ averages, userVote, voteCount });
+  return NextResponse.json({ averages, userVote, voteCount, position: card?.position ?? null });
 }
 
 export async function POST(req: NextRequest, { params }: Params) {
@@ -53,10 +55,13 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const userId = session.user.id;
 
-  const existingVote = await prisma.cardVote.findUnique({
-    where: { userId_cardId: { userId, cardId } },
-    select: { userId: true },
-  });
+  const [existingVote, card] = await Promise.all([
+    prisma.cardVote.findUnique({
+      where: { userId_cardId: { userId, cardId } },
+      select: { userId: true },
+    }),
+    prisma.card.findUnique({ where: { id: cardId }, select: { channelId: true, position: true } }),
+  ]);
 
   const data = {
     userId,
@@ -88,7 +93,6 @@ export async function POST(req: NextRequest, { params }: Params) {
   });
 
   if (isFirstVote) {
-    const card = await prisma.card.findUnique({ where: { id: cardId }, select: { channelId: true } });
     await prisma.$transaction([
       prisma.user.update({
         where: { id: userId },
@@ -106,11 +110,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     select: { attack: true, defense: true, speed: true, strength: true, skillMoves: true, iq: true, aura: true, goalkeeping: true, agility: true, celebration: true, clutch: true },
   });
   if (allVotes.length > 0) {
-    const total = allVotes.reduce((sum, v) =>
-      sum + v.attack + v.defense + v.speed + v.strength + v.skillMoves +
-      v.iq + v.aura + v.goalkeeping + v.agility + v.celebration + v.clutch, 0);
     await prisma.cardRatingSnapshot.create({
-      data: { cardId, overall: total / (allVotes.length * 11), voteCount: allVotes.length },
+      data: {
+        cardId,
+        overall: overallFromVotes(allVotes as StatsMap[], card?.position),
+        voteCount: allVotes.length,
+      },
     });
   }
 
