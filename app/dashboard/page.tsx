@@ -599,7 +599,24 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            {gameMode === "sp" && <div className="w-full"><FootballGame /></div>}
+            {gameMode === "sp" && (
+              <div className="w-full">
+                <div className="max-w-sm mx-auto mb-5">
+                  <Link
+                    href="/game/worldcup"
+                    className="group flex items-center gap-3 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 p-4 shadow-lg shadow-amber-900/30 transition-all active:scale-[0.99]"
+                  >
+                    <span className="text-3xl shrink-0">🏆</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white font-bold leading-tight">World Cup — Road to Glory</div>
+                      <div className="text-amber-100/80 text-xs mt-0.5">Take 5ive Guys FC through the 48-team World Cup</div>
+                    </div>
+                    <span className="text-white/80 text-xl shrink-0 group-hover:translate-x-0.5 transition-transform">›</span>
+                  </Link>
+                </div>
+                <FootballGame />
+              </div>
+            )}
 
             {gameMode === "pvp" && (
               <div className="max-w-xl w-full">
