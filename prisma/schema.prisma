@@ -73,6 +73,7 @@ model User {
   cardVotes         CardVote[]
   lobbiesCreated    Lobby[]  @relation("CreatedLobbies")
   lobbiesJoined     Lobby[]  @relation("JoinedLobbies")
+  worldCups         WorldCup[]
 }
 
 model VerificationToken {
@@ -489,4 +490,23 @@ model MatchResult {
   scoreline  String
   simulation Json?
   createdAt  DateTime @default(now())
+}
+
+// ---------- World Cup (single-player tournament) ----------
+
+model WorldCup {
+  id         String   @id @default(cuid())
+  userId     String
+  status     String   @default("ACTIVE") // ACTIVE | FINISHED | ABANDONED
+  difficulty String   @default("even")
+  seed       String
+  state      Json     // full TournamentState
+  champion   String?  // entrant id of the winner (once finished)
+  placement  String?  // user's finishing position, e.g. "Champions"
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
 }
