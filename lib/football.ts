@@ -23,6 +23,12 @@ export interface FootballCard {
   attribute: Attribute;
   imageUrl: string;
   kit?: string | null;
+  /**
+   * Optional explicit overall rating (0-99). When present it overrides the
+   * rarity/attribute-derived rating — used by World Cup national-team players
+   * who carry their real FIFA overall instead of a card rarity.
+   */
+  overall?: number;
 }
 
 export interface AssignedPlayer {
@@ -49,7 +55,14 @@ const POSITION_ATTR_BONUS: Record<Position, Record<Attribute, number>> = {
   ATT: { Pace: 8, Skill: 6, Power: 2 },
 };
 
+// Small per-position nudge for explicit-overall (national-team) players, so a
+// striker played at the back rates a touch lower than in their natural role.
+const POSITION_OVERALL_MOD: Record<Position, number> = { GK: 0, DEF: 0, MID: 1, ATT: 1 };
+
 export function getPlayerRating(card: FootballCard, position: Position): number {
+  if (typeof card.overall === "number") {
+    return card.overall + (POSITION_OVERALL_MOD[position] ?? 0);
+  }
   const base = RARITY_RATING[card.rarity] ?? 63;
   const bonus = POSITION_ATTR_BONUS[position]?.[card.attribute] ?? 3;
   return base + bonus;
