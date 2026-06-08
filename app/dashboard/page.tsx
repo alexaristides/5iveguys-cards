@@ -601,6 +601,19 @@ export default function DashboardPage() {
 
             {gameMode === "sp" && (
               <div className="w-full">
+                <div className="max-w-sm mx-auto mb-3">
+                  <Link
+                    href="/draft"
+                    className="group flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#0e8a3e] to-[#0a6e31] hover:from-[#11a049] hover:to-[#0c7e38] p-4 shadow-lg shadow-emerald-900/30 transition-all active:scale-[0.99] ring-1 ring-[#FFC233]/30"
+                  >
+                    <span className="text-3xl shrink-0">⚽</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white font-bold leading-tight">2026 World Cup Dream Team Draft</div>
+                      <div className="text-emerald-100/80 text-xs mt-0.5">Spin, draft real players from 48 nations & simulate</div>
+                    </div>
+                    <span className="text-[#FFC233] text-xl shrink-0 group-hover:translate-x-0.5 transition-transform">›</span>
+                  </Link>
+                </div>
                 <div className="max-w-sm mx-auto mb-5">
                   <Link
                     href="/game/worldcup"
