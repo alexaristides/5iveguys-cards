@@ -28,6 +28,7 @@ function buildNavLinks(channelSlug?: string | null) {
     { href: `${base}`, label: "Dashboard", icon: "⚡" },
     { href: `${base}/packs`, label: "Packs", icon: "📦" },
     { href: `${base}/collection`, label: "Collection", icon: "🃏" },
+    { href: `${base}/games`, label: "Games", icon: "🎮" },
     { href: `${base}/fans`, label: "Fans", icon: "🏆" },
     { href: `${base}/forum`, label: "Chat", icon: "💬" },
     { href: `${base}/videos`, label: "Videos", icon: "▶" },
@@ -232,6 +233,15 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
               })}
             </nav>
 
+            <div className="border-t border-gray-100 dark:border-white/5 py-2 px-3">
+              <Link
+                href="/"
+                className="flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium text-gray-500 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              >
+                <span className="text-lg">🏠</span>
+                Home
+              </Link>
+            </div>
           </div>
         </>
       )}

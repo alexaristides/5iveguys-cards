@@ -125,18 +125,16 @@ export default function ChannelSwitcher({ current, onSwitch }: ChannelSwitcherPr
                 </div>
               )}
 
-              {/* Divider + All Channels */}
+              {/* Divider + Home */}
               <div className={`border-t border-gray-100 dark:border-zinc-800 py-1.5 ${others.length === 0 ? "pt-1.5" : ""}`}>
                 <button
                   onClick={() => { setOpen(false); onSwitch?.(); router.push("/"); }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white"
                 >
-                  <div className="w-7 h-7 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center shrink-0">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                    </svg>
+                  <div className="w-7 h-7 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center shrink-0 text-sm">
+                    🏠
                   </div>
-                  <span className="text-sm font-medium">All channels</span>
+                  <span className="text-sm font-medium">Home</span>
                 </button>
               </div>
             </>
