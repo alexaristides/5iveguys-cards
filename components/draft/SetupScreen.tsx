@@ -29,7 +29,13 @@ const RATINGS_MODES: { id: RatingsMode; label: string; desc: string }[] = [
   { id: "peak", label: "World Cup Peak", desc: "Every player at their career-best rating" },
 ];
 
-export default function SetupScreen({ onStart }: { onStart: (config: DraftConfig) => void }) {
+export default function SetupScreen({
+  onStart,
+  onViewLeaderboard,
+}: {
+  onStart: (config: DraftConfig) => void;
+  onViewLeaderboard?: () => void;
+}) {
   const [formationId, setFormationId] = useState("433");
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
   const [draftMode, setDraftMode] = useState<DraftMode>("nation");
@@ -109,6 +115,15 @@ export default function SetupScreen({ onStart }: { onStart: (config: DraftConfig
       >
         Start Draft →
       </button>
+
+      {onViewLeaderboard && (
+        <button
+          onClick={onViewLeaderboard}
+          className="mt-3 w-full rounded-2xl border border-white/15 bg-white/5 py-3 text-sm font-bold text-white transition hover:border-[#FFC233]/50"
+        >
+          🏆 View Global Leaderboard
+        </button>
+      )}
     </div>
   );
 }

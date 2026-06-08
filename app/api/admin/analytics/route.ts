@@ -153,6 +153,41 @@ export async function GET(req: NextRequest) {
     `,
   ]);
 
+  // ── Games analytics (global — these games are not channel-scoped) ──────────
+  const [
+    draftTotal, draftLast7, draftLast30, draftChampions, draftAgg,
+    draftByDifficulty, draftByPlacement, draftDaily,
+    wcTotal, wcByStatus, wcChampions,
+    footballTotal, footballByResult, footballPlayers,
+    pvpLobbies, pvpFinished, pvpDecisive,
+  ] = await Promise.all([
+    prisma.draftEntry.count(),
+    prisma.draftEntry.count({ where: { createdAt: { gte: daysAgo(7) } } }),
+    prisma.draftEntry.count({ where: { createdAt: { gte: daysAgo(30) } } }),
+    prisma.draftEntry.count({ where: { won: true } }),
+    prisma.draftEntry.aggregate({ _avg: { teamRating: true }, _sum: { goalsFor: true } }),
+    prisma.draftEntry.groupBy({ by: ["difficulty"], _count: { _all: true } }),
+    prisma.draftEntry.groupBy({ by: ["placement"], _count: { _all: true } }),
+    prisma.$queryRaw<{ date: string; n: bigint }[]>`
+      SELECT DATE("createdAt")::text AS date, COUNT(*) AS n FROM "DraftEntry"
+      WHERE "createdAt" >= ${since30} GROUP BY 1 ORDER BY 1
+    `,
+    prisma.worldCup.count(),
+    prisma.worldCup.groupBy({ by: ["status"], _count: { _all: true } }),
+    prisma.worldCup.count({ where: { placement: "Champions" } }),
+    prisma.footballMatch.count(),
+    prisma.footballMatch.groupBy({ by: ["result"], _count: { _all: true } }),
+    prisma.footballMatch.findMany({ select: { userId: true }, distinct: ["userId"] }).then((r) => r.length),
+    prisma.lobby.count(),
+    prisma.matchResult.count(),
+    prisma.matchResult.count({ where: { winnerId: { not: null } } }),
+  ]);
+
+  const PLACEMENT_ORDER = ["Champions", "Runners-up", "Semi-finals", "Quarter-finals", "Round of 16", "Group stage"];
+  const draftPlacementMap = new Map(draftByPlacement.map((p) => [p.placement, p._count._all]));
+  const footballResultMap = new Map(footballByResult.map((r) => [r.result, r._count._all]));
+  const draftDailyMap = new Map(draftDaily.map((r) => [r.date, Number(r.n)]));
+
   const days = Array.from({ length: 30 }, (_, i) =>
     new Date(Date.now() - (29 - i) * DAY).toISOString().slice(0, 10)
   );
@@ -200,6 +235,43 @@ export async function GET(req: NextRequest) {
       packs: packMap.get(date) ?? 0,
       signups: signupMap.get(date) ?? 0,
       syncs: syncMap.get(date) ?? 0,
+      drafts: draftDailyMap.get(date) ?? 0,
     })),
+    games: {
+      draft: {
+        total: draftTotal,
+        last7: draftLast7,
+        last30: draftLast30,
+        champions: draftChampions,
+        winRate: draftTotal ? Math.round((draftChampions / draftTotal) * 100) : 0,
+        avgRating: Math.round(draftAgg._avg.teamRating ?? 0),
+        totalGoals: draftAgg._sum.goalsFor ?? 0,
+        byDifficulty: ["easy", "normal", "hard"].map((d) => ({
+          label: d,
+          count: draftByDifficulty.find((x) => x.difficulty === d)?._count._all ?? 0,
+        })),
+        byPlacement: PLACEMENT_ORDER.map((p) => ({ label: p, count: draftPlacementMap.get(p) ?? 0 })),
+      },
+      worldCup: {
+        total: wcTotal,
+        active: wcByStatus.find((s) => s.status === "ACTIVE")?._count._all ?? 0,
+        finished: wcByStatus.find((s) => s.status === "FINISHED")?._count._all ?? 0,
+        abandoned: wcByStatus.find((s) => s.status === "ABANDONED")?._count._all ?? 0,
+        champions: wcChampions,
+      },
+      football: {
+        total: footballTotal,
+        players: footballPlayers,
+        wins: footballResultMap.get("win") ?? 0,
+        draws: footballResultMap.get("draw") ?? 0,
+        losses: footballResultMap.get("loss") ?? 0,
+      },
+      pvp: {
+        lobbies: pvpLobbies,
+        finished: pvpFinished,
+        decisive: pvpDecisive,
+        draws: pvpFinished - pvpDecisive,
+      },
+    },
   });
 }

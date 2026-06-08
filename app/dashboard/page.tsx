@@ -10,6 +10,7 @@ import CardDisplay from "@/components/CardDisplay";
 import CardRatingsLeaderboard from "@/components/CardRatingsLeaderboard";
 import FootballGame from "@/components/football/FootballGame";
 import GameLeaderboard from "@/components/football/GameLeaderboard";
+import DraftLeaderboard from "@/components/draft/Leaderboard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -646,14 +647,23 @@ export default function DashboardPage() {
             )}
 
             {gameMode === "leaderboard" && (
-              <div className="max-w-lg w-full">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-white font-bold text-lg">Game Leaderboard</h3>
-                    <p className="text-zinc-500 text-xs mt-0.5">Ranked by wins · all-time</p>
+              <div className="max-w-lg w-full space-y-6">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-white font-bold text-lg">Game Leaderboard</h3>
+                      <p className="text-zinc-500 text-xs mt-0.5">Ranked by wins · all-time</p>
+                    </div>
                   </div>
+                  <GameLeaderboard />
                 </div>
-                <GameLeaderboard />
+                <div>
+                  <div className="mb-4">
+                    <h3 className="text-white font-bold text-lg">⚽ World Cup Dream Team Draft</h3>
+                    <p className="text-zinc-500 text-xs mt-0.5">Global free-to-play draft results</p>
+                  </div>
+                  <DraftLeaderboard />
+                </div>
               </div>
             )}
           </div>
