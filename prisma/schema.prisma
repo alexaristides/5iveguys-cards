@@ -510,3 +510,31 @@ model WorldCup {
 
   @@index([userId, status])
 }
+
+// ---------- World Cup Dream Team Draft (free-to-play, pre-login) ----------
+
+model DraftEntry {
+  id            String   @id @default(cuid())
+  alias         String
+  userId        String?  // attached if the player happened to be logged in
+  formation     String
+  teamRating    Int
+  placement     String   // "Champions" | "Runners-up" | ... | "Group stage"
+  placementRank Int      @default(0) // 6=Champions … 1=Group stage, for ordering
+  won           Boolean  @default(false)
+  wins          Int      @default(0)
+  draws         Int      @default(0)
+  losses        Int      @default(0)
+  goalsFor      Int      @default(0)
+  goalsAgainst  Int      @default(0)
+  difficulty    String   @default("normal")
+  ratingsMode   String   @default("current")
+  squad         Json?    // [{ name, nation, flag, rating, slot }]
+  createdAt     DateTime @default(now())
+
+  @@index([placementRank, goalsFor])
+  @@index([wins])
+  @@index([goalsFor])
+  @@index([teamRating])
+  @@index([createdAt])
+}
