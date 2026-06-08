@@ -6,8 +6,9 @@ import { getFormation } from "@/lib/draft/formations";
 import SetupScreen, { type DraftConfig } from "./SetupScreen";
 import DraftScreen from "./DraftScreen";
 import SimScreen from "./SimScreen";
+import Leaderboard from "./Leaderboard";
 
-type Screen = "setup" | "draft" | "sim";
+type Screen = "setup" | "draft" | "sim" | "leaderboard";
 
 const REROLLS: Record<DraftConfig["difficulty"], number> = { easy: 3, normal: 1, hard: 0 };
 
@@ -37,7 +38,20 @@ export default function WorldCupDraft() {
 
   return (
     <div className="min-h-[60vh]">
-      {screen === "setup" && <SetupScreen onStart={start} />}
+      {screen === "setup" && (
+        <SetupScreen onStart={start} onViewLeaderboard={() => setScreen("leaderboard")} />
+      )}
+      {screen === "leaderboard" && (
+        <div className="mx-auto max-w-3xl px-4 py-6">
+          <button
+            onClick={() => setScreen("setup")}
+            className="mb-4 text-sm font-semibold text-zinc-400 transition hover:text-white"
+          >
+            ← Back to setup
+          </button>
+          <Leaderboard />
+        </div>
+      )}
       {screen === "draft" && config && (
         <DraftScreen
           config={config}

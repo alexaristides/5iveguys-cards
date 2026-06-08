@@ -7,7 +7,19 @@ interface FunnelStep { label: string; count: number }
 interface FeatureStat { label: string; total: number; users: number }
 interface PackStat { type: string; count: number; pointsSpent: number }
 interface PointStat { type: string; count: number; total: number }
-interface DayData { date: string; packs: number; signups: number; syncs: number }
+interface DayData { date: string; packs: number; signups: number; syncs: number; drafts: number }
+
+interface GameBreakdown { label: string; count: number }
+interface GamesData {
+  draft: {
+    total: number; last7: number; last30: number; champions: number;
+    winRate: number; avgRating: number; totalGoals: number;
+    byDifficulty: GameBreakdown[]; byPlacement: GameBreakdown[];
+  };
+  worldCup: { total: number; active: number; finished: number; abandoned: number; champions: number };
+  football: { total: number; players: number; wins: number; draws: number; losses: number };
+  pvp: { lobbies: number; finished: number; decisive: number; draws: number };
+}
 
 interface AnalyticsData {
   funnel: FunnelStep[];
@@ -17,6 +29,7 @@ interface AnalyticsData {
   signups: { last7: number; last30: number; allTime: number };
   activeUsers30d: number;
   daily: DayData[];
+  games: GamesData;
 }
 
 interface Channel { id: string; slug: string; name: string; thumbnailUrl: string | null }
@@ -178,6 +191,65 @@ export default function AdminAnalyticsPage() {
               </div>
             </Section>
 
+            {/* Games analytics */}
+            <Section title="Games" subtitle="Across all mini-games · global (not channel-scoped)">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Dream Team Draft */}
+                <div className="bg-zinc-800/40 rounded-xl p-4 space-y-3 ring-1 ring-[#FFC233]/20">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-white font-semibold text-sm">⚽ World Cup Dream Team Draft</h3>
+                    <span className="text-[10px] text-[#FFC233] bg-[#FFC233]/10 px-2 py-0.5 rounded-full font-bold">NEW</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <MiniStat label="Drafts" value={data.games.draft.total} />
+                    <MiniStat label="Champions" value={data.games.draft.champions} />
+                    <MiniStat label="Win %" value={`${data.games.draft.winRate}%`} />
+                    <MiniStat label="Avg OVR" value={data.games.draft.avgRating} />
+                  </div>
+                  <div className="flex gap-4 text-xs text-zinc-500">
+                    <span>{data.games.draft.last7.toLocaleString()} last 7d</span>
+                    <span>{data.games.draft.last30.toLocaleString()} last 30d</span>
+                    <span>{data.games.draft.totalGoals.toLocaleString()} goals scored</span>
+                  </div>
+                  <BreakdownBar title="By difficulty" rows={data.games.draft.byDifficulty} total={data.games.draft.total} color="bg-[#FFC233]" />
+                  <BreakdownBar title="By result" rows={data.games.draft.byPlacement} total={data.games.draft.total} color="bg-emerald-500" />
+                </div>
+
+                {/* Other games */}
+                <div className="space-y-4">
+                  <div className="bg-zinc-800/40 rounded-xl p-4 space-y-3">
+                    <h3 className="text-white font-semibold text-sm">🏆 World Cup — Road to Glory</h3>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <MiniStat label="Started" value={data.games.worldCup.total} />
+                      <MiniStat label="Active" value={data.games.worldCup.active} />
+                      <MiniStat label="Finished" value={data.games.worldCup.finished} />
+                      <MiniStat label="Won 🏆" value={data.games.worldCup.champions} />
+                    </div>
+                  </div>
+
+                  <div className="bg-zinc-800/40 rounded-xl p-4 space-y-3">
+                    <h3 className="text-white font-semibold text-sm">⚽ Single-Player Matches</h3>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <MiniStat label="Matches" value={data.games.football.total} />
+                      <MiniStat label="Players" value={data.games.football.players} />
+                      <MiniStat label="Wins" value={data.games.football.wins} />
+                      <MiniStat label="Losses" value={data.games.football.losses} />
+                    </div>
+                  </div>
+
+                  <div className="bg-zinc-800/40 rounded-xl p-4 space-y-3">
+                    <h3 className="text-white font-semibold text-sm">⚔️ PvP Battles</h3>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <MiniStat label="Lobbies" value={data.games.pvp.lobbies} />
+                      <MiniStat label="Finished" value={data.games.pvp.finished} />
+                      <MiniStat label="Decisive" value={data.games.pvp.decisive} />
+                      <MiniStat label="Draws" value={data.games.pvp.draws} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Section>
+
             {/* Pack + Points breakdown */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <Section title="Pack Opens by Type">
@@ -297,6 +369,40 @@ function BigStat({ label, value, sub }: { label: string; value: string; sub?: st
       <p className="text-zinc-500 text-xs">{label}</p>
       <p className="text-white font-bold text-2xl mt-1 leading-none">{value}</p>
       {sub && <p className="text-zinc-600 text-xs mt-1">{sub}</p>}
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="bg-zinc-900/60 rounded-lg py-2">
+      <p className="text-white font-bold text-lg leading-none">
+        {typeof value === "number" ? value.toLocaleString() : value}
+      </p>
+      <p className="text-zinc-600 text-[10px] mt-1">{label}</p>
+    </div>
+  );
+}
+
+function BreakdownBar({ title, rows, total, color }: { title: string; rows: GameBreakdown[]; total: number; color: string }) {
+  const shown = rows.filter((r) => r.count > 0);
+  if (total === 0 || shown.length === 0) {
+    return <p className="text-zinc-600 text-xs">{title}: no data yet</p>;
+  }
+  return (
+    <div className="space-y-1.5">
+      <p className="text-zinc-500 text-xs">{title}</p>
+      {shown.map((r) => (
+        <div key={r.label} className="flex items-center gap-2">
+          <span className="text-zinc-500 text-[11px] w-24 shrink-0 capitalize truncate">{r.label}</span>
+          <div className="flex-1 h-3.5 bg-zinc-800 rounded-full overflow-hidden">
+            <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${(r.count / total) * 100}%` }} />
+          </div>
+          <span className="text-zinc-400 text-[11px] w-16 text-right shrink-0">
+            {r.count.toLocaleString()} · {((r.count / total) * 100).toFixed(0)}%
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
