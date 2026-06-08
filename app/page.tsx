@@ -3,7 +3,6 @@
 import { signIn, useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
 import { STATS } from "@/lib/draft/nations";
 
@@ -121,7 +120,7 @@ export default function HomePage() {
           </div>
         </Link>
 
-        {/* Channel grid */}
+        {/* 5ive Verse hero */}
         {loading ? (
           <div className="flex justify-center py-20">
             <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
@@ -132,59 +131,30 @@ export default function HomePage() {
             <p className="text-sm">An admin needs to add a channel first.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {channels.map((channel) => (
-              <Link
-                key={channel.id}
-                href={`/${channel.slug}`}
-                className="group relative rounded-2xl bg-zinc-900/80 border border-zinc-800 overflow-hidden hover:border-purple-700/60 transition-all duration-200 hover:shadow-lg hover:shadow-purple-900/20"
-              >
-                {/* Thumbnail */}
-                <div className="h-36 relative bg-zinc-800">
-                  {channel.thumbnailUrl ? (
-                    <Image src={channel.thumbnailUrl} alt={channel.name} fill className="object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <div className="w-16 h-16 rounded-full bg-purple-700 flex items-center justify-center">
-                        <span className="text-white text-2xl font-bold">{channel.name[0]}</span>
-                      </div>
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 to-transparent" />
-                </div>
-
-                {/* Info */}
-                <div className="p-5">
-                  <h2 className="text-white font-bold text-lg group-hover:text-purple-300 transition-colors">
-                    {channel.name}
-                  </h2>
-                  {channel.description && (
-                    <p className="text-zinc-500 text-sm mt-1 line-clamp-2">{channel.description}</p>
-                  )}
-                  {channel.rewardTags && (
-                    <div className="flex flex-wrap gap-1.5 mt-3">
-                      {channel.rewardTags.split(",").map((tag) => (
-                        <span key={tag} className="px-2 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-400 text-[11px]">
-                          {tag.trim()}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-4 mt-4">
-                    <div className="flex items-center gap-1.5 text-zinc-500 text-xs">
-                      <span>👥</span>
-                      <span>{channel._count.userStats.toLocaleString()} fans</span>
-                    </div>
-                    <div className="ml-auto">
-                      <span className="px-3 py-1.5 rounded-full bg-purple-900/40 border border-purple-700/40 text-purple-300 text-xs font-medium group-hover:bg-purple-800/50 transition-all">
-                        Enter →
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+          <Link
+            href={`/${channels[0].slug}`}
+            className="group relative block overflow-hidden rounded-3xl border border-purple-500/30 bg-gradient-to-br from-purple-800/30 via-[#0b0714] to-[#0b0714] p-8 transition hover:border-purple-500/60 sm:p-10"
+          >
+            <div className="pointer-events-none absolute -right-10 -top-10 text-[160px] opacity-10 transition group-hover:scale-110">
+              🃏
+            </div>
+            <div className="relative">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-500/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-purple-300">
+                ✦ {channels.length} channel{channels.length === 1 ? "" : "s"} · collect & earn
+              </span>
+              <h2 className="mt-4 text-3xl font-extrabold leading-tight text-white sm:text-4xl">
+                Enter the <span className="text-purple-400">5ive Verse</span>
+              </h2>
+              <p className="mt-2 text-base text-zinc-300 sm:text-lg">
+                Earn points across your favourite channels. <span className="text-zinc-400">Open packs. Collect cards.</span>
+              </p>
+              <div className="mt-6 flex flex-wrap items-center gap-4">
+                <span className="rounded-2xl bg-purple-500 px-6 py-3 text-base font-extrabold text-white shadow-lg shadow-purple-500/20 transition group-hover:bg-purple-400">
+                  Enter →
+                </span>
+              </div>
+            </div>
+          </Link>
         )}
 
         {/* Footer */}
