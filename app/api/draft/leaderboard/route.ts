@@ -34,7 +34,8 @@ export async function GET(req: NextRequest) {
     select: {
       id: true, alias: true, formation: true, teamRating: true, placement: true,
       won: true, wins: true, draws: true, losses: true, goalsFor: true,
-      goalsAgainst: true, difficulty: true, createdAt: true,
+      goalsAgainst: true, difficulty: true, ratingsMode: true, createdAt: true,
+      squad: true,
     },
   });
 
