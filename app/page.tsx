@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import { STATS } from "@/lib/draft/nations";
 
 interface Channel {
   id: string;
@@ -90,6 +91,35 @@ export default function HomePage() {
             Earn points by engaging with your favourite YouTube channels and unlock exclusive rewards.
           </p>
         </div>
+
+        {/* World Cup Draft hero */}
+        <Link
+          href="/draft"
+          className="group relative mb-14 block overflow-hidden rounded-3xl border border-[#FFC233]/30 bg-gradient-to-br from-[#0e8a3e]/25 via-[#070b14] to-[#070b14] p-8 transition hover:border-[#FFC233]/60 sm:p-10"
+        >
+          <div className="pointer-events-none absolute -right-10 -top-10 text-[160px] opacity-10 transition group-hover:scale-110">
+            🏆
+          </div>
+          <div className="relative">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FFC233]/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-[#FFC233]">
+              ⚽ Free to play · no account needed
+            </span>
+            <h2 className="mt-4 text-3xl font-extrabold leading-tight text-white sm:text-4xl">
+              Build your ultimate <span className="text-[#FFC233]">2026 World Cup XI</span>
+            </h2>
+            <p className="mt-2 text-base text-zinc-300 sm:text-lg">
+              Spin. Draft. Simulate. <span className="text-zinc-400">Free to play.</span>
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-4">
+              <span className="rounded-2xl bg-[#FFC233] px-6 py-3 text-base font-extrabold text-zinc-950 shadow-lg shadow-[#FFC233]/20 transition group-hover:bg-[#ffce5c]">
+                Start Draft →
+              </span>
+              <span className="text-sm font-semibold text-zinc-400">
+                {STATS.nations} Nations · {STATS.players.toLocaleString()}+ Players · 1 Dream Team
+              </span>
+            </div>
+          </div>
+        </Link>
 
         {/* Channel grid */}
         {loading ? (
