@@ -196,10 +196,10 @@ export default function DraftScreen({
             <div className="mt-3 flex gap-2">
               <button
                 onClick={doSpin}
-                disabled={spinning || (positionFirst && selectedSlot == null) || remaining === 0}
+                disabled={spinning || !!currentNation || (positionFirst && selectedSlot == null) || remaining === 0}
                 className="flex-1 rounded-xl bg-[#FFC233] py-3 text-sm font-extrabold text-zinc-950 transition hover:bg-[#ffce5c] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {spinning ? "Spinning…" : currentNation ? "Spin again" : "Spin"}
+                {spinning ? "Spinning…" : currentNation ? "Pick a player first" : "Spin"}
               </button>
               {config.difficulty !== "hard" && (
                 <button
