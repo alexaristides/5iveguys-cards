@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useState, useEffect, useCallback } from "react";
+import { motion } from "framer-motion";
 import type { Formation, PlacedPlayer } from "@/lib/draft/types";
 import { simulateTournament, teamRating, type TournamentResult, type MatchResult } from "@/lib/draft/sim";
+import MatchPitch from "@/components/football/MatchPitch";
 import type { DraftConfig } from "./SetupScreen";
 import Pitch from "./Pitch";
 import Leaderboard from "./Leaderboard";
@@ -20,27 +21,30 @@ type Phase = "ready" | "playing" | "done";
 export default function SimScreen({ config, formation, placed, onRestart }: SimScreenProps) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [result, setResult] = useState<TournamentResult | null>(null);
-  const [revealed, setRevealed] = useState(0);
+  const [matchIdx, setMatchIdx] = useState(0);
   const [alias, setAlias] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const rating = teamRating(placed, formation);
 
   const runSim = useCallback(() => {
     const res = simulateTournament(placed, formation, config.ratingsMode);
     setResult(res);
-    setPhase("playing");
-    setRevealed(0);
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
-    res.matches.forEach((_, i) => {
-      timers.current.push(setTimeout(() => setRevealed(i + 1), 700 * (i + 1)));
-    });
-    timers.current.push(setTimeout(() => setPhase("done"), 700 * res.matches.length + 500));
+    setMatchIdx(0);
+    setSubmitted(false);
+    setPhase(res.playbacks.length > 0 ? "playing" : "done");
   }, [placed, formation, config.ratingsMode]);
+
+  // Advance once a match clip finishes; flip to results after the last one.
+  const advanceMatch = useCallback(() => setMatchIdx((i) => i + 1), []);
+  const skipMatches = useCallback(() => {
+    setResult((r) => { if (r) setMatchIdx(r.playbacks.length); return r; });
+  }, []);
+  useEffect(() => {
+    if (phase === "playing" && result && matchIdx >= result.playbacks.length) setPhase("done");
+  }, [phase, matchIdx, result]);
 
   const submitScore = async () => {
     if (!result || submitting) return;
@@ -98,6 +102,55 @@ export default function SimScreen({ config, formation, placed, onRestart }: SimS
     }
   };
 
+  // ── Match playback (full-width while a tournament tie is animating) ──────────
+  if (phase === "playing" && result) {
+    const pb = result.playbacks[matchIdx];
+    if (pb) {
+      return (
+        <div className="mx-auto max-w-5xl px-4 py-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+                {pb.stage} · Match {matchIdx + 1} of {result.playbacks.length}
+              </div>
+              <div className="truncate text-sm font-extrabold text-white">
+                {pb.userLabel} vs {pb.opponent.flag} {pb.opponent.name}
+                {pb.knockout && <span className="ml-2 text-[10px] font-bold uppercase text-amber-400">Knockout</span>}
+              </div>
+            </div>
+            <button
+              onClick={skipMatches}
+              className="shrink-0 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-bold text-white transition hover:border-white/30"
+            >
+              Skip ⏭
+            </button>
+          </div>
+
+          <MatchPitch
+            key={matchIdx}
+            userLineup={pb.userLineup}
+            cpuLineup={pb.cpuLineup}
+            userLabel={pb.userLabel}
+            cpuLabel={pb.cpuLabel}
+            firstHalfFrames={[]}
+            secondHalfFrames={null}
+            soloFrames={pb.frames}
+            soloDurationSec={pb.durationSec}
+            onComplete={advanceMatch}
+          />
+
+          {matchIdx > 0 && (
+            <div className="mt-4 space-y-1.5">
+              {result.matches.slice(0, matchIdx).map((m, i) => (
+                <MatchRow key={i} match={m} />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-5">
       <div className="grid gap-5 lg:grid-cols-[minmax(0,340px)_1fr]">
@@ -125,7 +178,7 @@ export default function SimScreen({ config, formation, placed, onRestart }: SimS
               <div className="text-5xl">🏆</div>
               <h3 className="mt-3 text-xl font-extrabold text-white">Ready for the tournament?</h3>
               <p className="mt-1 max-w-xs text-sm text-zinc-400">
-                Group stage → Round of 16 → Quarter-final → Semi-final → Final. Your ratings vs the world.
+                Group stage → Round of 16 → Quarter-final → Semi-final → Final. Each tie plays out live on the pitch.
               </p>
               <button
                 onClick={runSim}
@@ -136,18 +189,17 @@ export default function SimScreen({ config, formation, placed, onRestart }: SimS
             </div>
           )}
 
-          {(phase === "playing" || phase === "done") && result && (
+          {phase === "done" && result && (
             <div>
-              {phase === "done" && <ResultBanner result={result} />}
+              <ResultBanner result={result} />
 
               <div className="mt-3 space-y-1.5">
-                {result.matches.slice(0, revealed).map((m, i) => (
+                {result.matches.map((m, i) => (
                   <MatchRow key={i} match={m} />
                 ))}
               </div>
 
-              {phase === "done" && (
-                <div className="mt-4 space-y-3">
+              <div className="mt-4 space-y-3">
                   {/* Stats */}
                   <div className="grid grid-cols-4 gap-2 text-center">
                     <Stat label="Record" value={`${result.wins}-${result.draws}-${result.losses}`} />
@@ -191,8 +243,7 @@ export default function SimScreen({ config, formation, placed, onRestart }: SimS
                       📲 Share my result
                     </button>
                   </div>
-                </div>
-              )}
+              </div>
             </div>
           )}
         </div>

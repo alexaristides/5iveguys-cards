@@ -59,11 +59,18 @@ interface Props {
   cpuLineup: AssignedPlayer[];
   firstHalfFrames: MatchFrame[];
   secondHalfFrames: MatchFrame[] | null;
+  /**
+   * Solo mode: play a single continuous tape over an exact duration (no halftime
+   * split). Used by the World Cup draft sim for short 10s/20s match clips. When set,
+   * firstHalfFrames/secondHalfFrames and onHalftime are ignored.
+   */
+  soloFrames?: MatchFrame[] | null;
+  soloDurationSec?: number;
   userLabel?: string;
   cpuLabel?: string;
   /** Called when the first half finishes playing. Parent shows the halftime UI + computes the 2nd half. */
-  onHalftime: () => void;
-  /** Called when the second half finishes playing. */
+  onHalftime?: () => void;
+  /** Called when the second half finishes playing (or the solo tape ends). */
   onComplete: () => void;
   /** When set (at full time), the header morphs to the result and the side column shows the summary. */
   result?: MatchOutcome | null;
@@ -71,13 +78,15 @@ interface Props {
   resultPanel?: ReactNode;
 }
 
-interface CardInfo { id: string; name: string; imageUrl: string; rarity: Rarity; team: "user" | "cpu"; position: string; }
+interface CardInfo { id: string; name: string; imageUrl: string; flag?: string; rarity: Rarity; team: "user" | "cpu"; position: string; }
 
 export default function MatchPitch({
   userLineup, cpuLineup, firstHalfFrames, secondHalfFrames,
+  soloFrames = null, soloDurationSec,
   userLabel = "YOU", cpuLabel = "CPU",
   onHalftime, onComplete, result = null, resultPanel = null,
 }: Props) {
+  const solo = soloFrames != null;
   const [phase, setPhase] = useState<Phase>("playing1");
   const [possessorId, setPossessorId] = useState<string | null>(null);
   const [feed, setFeed] = useState<MatchEvent[]>([]);
@@ -91,8 +100,8 @@ export default function MatchPitch({
 
   const cardList = useMemo(() => {
     const arr: CardInfo[] = [];
-    for (const p of userLineup) arr.push({ id: p.card.id, name: p.card.name, imageUrl: p.card.imageUrl, rarity: p.card.rarity, team: "user", position: p.position });
-    for (const p of cpuLineup) arr.push({ id: p.card.id, name: p.card.name, imageUrl: p.card.imageUrl, rarity: p.card.rarity, team: "cpu", position: p.position });
+    for (const p of userLineup) arr.push({ id: p.card.id, name: p.card.name, imageUrl: p.card.imageUrl, flag: p.card.flag, rarity: p.card.rarity, team: "user", position: p.position });
+    for (const p of cpuLineup) arr.push({ id: p.card.id, name: p.card.name, imageUrl: p.card.imageUrl, flag: p.card.flag, rarity: p.card.rarity, team: "cpu", position: p.position });
     return arr;
   }, [userLineup, cpuLineup]);
 
@@ -138,12 +147,17 @@ export default function MatchPitch({
     if (ballEl.current) { ballEl.current.style.left = `${ball.x}%`; ballEl.current.style.top = `${ball.y}%`; }
   }
 
-  // Drive playback for the active half.
+  // Drive playback for the active half (or the whole solo tape).
   useEffect(() => {
-    if (phase !== "playing1" && phase !== "playing2") return;
-    const frames = phase === "playing1" ? firstHalfFrames : (secondHalfFrames ?? []);
+    // Solo mode reuses "playing1" as its single active phase.
+    if (solo ? phase !== "playing1" : (phase !== "playing1" && phase !== "playing2")) return;
+    const frames = solo ? (soloFrames ?? []) : (phase === "playing1" ? firstHalfFrames : (secondHalfFrames ?? []));
     if (frames.length === 0) return;
-    const durationSec = frames.length / FPS; // constant speed; more frames (pauses) = more real time
+    // Constant speed normally; solo mode plays the whole tape over an exact duration.
+    const durationSec = solo ? (soloDurationSec ?? frames.length / FPS) : frames.length / FPS;
+    // Solo = one continuous bar; halves each fill their own half of the bar.
+    const base = solo ? 0 : phase === "playing1" ? 0 : 0.5;
+    const span = solo ? 1 : 0.5;
     pRef.current = 0;
     lastTsRef.current = null;
     firedRef.current = -1;
@@ -158,8 +172,7 @@ export default function MatchPitch({
 
       const s = sampleTimeline(frames, pRef.current, 1); // duration=1 → progress = pRef
       paint(s.players, s.ball);
-      const base = phase === "playing1" ? 0 : 0.5;
-      if (progressEl.current) progressEl.current.style.width = `${(base + s.progress * 0.5) * 100}%`;
+      if (progressEl.current) progressEl.current.style.width = `${(base + s.progress * span) * 100}%`;
 
       for (let i = firedRef.current + 1; i <= s.frameIndex && i < frames.length; i++) {
         const ev = frames[i].event;
@@ -169,8 +182,8 @@ export default function MatchPitch({
 
       if (pRef.current < 1) {
         raf.id = requestAnimationFrame(frame);
-      } else if (phase === "playing1") {
-        setPhase("halftime-wait"); onHalftime();
+      } else if (!solo && phase === "playing1") {
+        setPhase("halftime-wait"); onHalftime?.();
       } else {
         setPhase("done"); onComplete();
       }
@@ -178,14 +191,15 @@ export default function MatchPitch({
     raf.id = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, firstHalfFrames, secondHalfFrames]);
+  }, [phase, firstHalfFrames, secondHalfFrames, soloFrames, soloDurationSec]);
 
-  // Resume into the second half once the parent supplies its frames.
+  // Resume into the second half once the parent supplies its frames (two-half mode only).
   useEffect(() => {
+    if (solo) return;
     if (phase === "halftime-wait" && secondHalfFrames && secondHalfFrames.length > 0) {
       setPhase("playing2");
     }
-  }, [phase, secondHalfFrames]);
+  }, [solo, phase, secondHalfFrames]);
 
   const totalPoss = stats.userPoss + stats.cpuPoss;
   const userPossPct = totalPoss > 0 ? Math.round((stats.userPoss / totalPoss) * 100) : 50;
@@ -231,8 +245,16 @@ export default function MatchPitch({
                   {isSpotlight && <div className="absolute inset-0 rounded-full ring-4 ring-yellow-400 animate-pulse scale-150 z-10" />}
                   <div className={`relative rounded-full ring-[3px] overflow-hidden shadow-lg ${info.team === "user" ? "ring-blue-400" : "ring-red-500"} ${isSpotlight ? "w-14 h-14" : "w-9 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11"}`}
                     title={`${info.name} (${info.position})`}>
-                    <Image src={info.imageUrl} alt={info.name} fill className="object-cover object-center" sizes="48px" />
-                    <div className={`absolute inset-0 pointer-events-none ${info.team === "user" ? "bg-blue-500/35" : "bg-red-600/40"}`} />
+                    {info.imageUrl ? (
+                      <>
+                        <Image src={info.imageUrl} alt={info.name} fill className="object-cover object-center" sizes="48px" />
+                        <div className={`absolute inset-0 pointer-events-none ${info.team === "user" ? "bg-blue-500/35" : "bg-red-600/40"}`} />
+                      </>
+                    ) : (
+                      <div className={`absolute inset-0 flex items-center justify-center ${info.team === "user" ? "bg-blue-900/80" : "bg-red-900/80"} ${isSpotlight ? "text-2xl" : "text-base sm:text-lg"}`}>
+                        <span className="leading-none">{info.flag ?? "⚽"}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="absolute left-1/2 top-full -translate-x-1/2 mt-0.5 max-w-[72px] truncate rounded bg-black/55 px-1 text-center text-white text-[9px] sm:text-[10px] font-semibold leading-tight pointer-events-none">
                     {info.name}

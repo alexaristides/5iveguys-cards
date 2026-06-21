@@ -24,6 +24,11 @@ export interface FootballCard {
   imageUrl: string;
   kit?: string | null;
   /**
+   * Optional emoji flag. Used by the World Cup draft simulator, whose national-team
+   * players have no card art — the pitch token renders the flag instead of an image.
+   */
+  flag?: string;
+  /**
    * Optional explicit overall rating (0-99). When present it overrides the
    * rarity/attribute-derived rating — used by World Cup national-team players
    * who carry their real FIFA overall instead of a card rarity.
