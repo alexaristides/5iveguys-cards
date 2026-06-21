@@ -28,6 +28,11 @@ export function getHomeCoord(
   formation: Formation,
   team: "user" | "cpu",
 ): [number, number] {
+  // Explicit per-player home (11-a-side draft): coords are stored user-perspective,
+  // so the cpu side mirrors vertically (same as CPU_POSITIONS).
+  if (player.home) {
+    return team === "user" ? [player.home.x, player.home.y] : [player.home.x, 100 - player.home.y];
+  }
   const map = team === "user" ? USER_POSITIONS[formation] : CPU_POSITIONS[formation];
   const coords = map[player.position];
   return (coords[player.posIndex] ?? coords[0]) as [number, number];

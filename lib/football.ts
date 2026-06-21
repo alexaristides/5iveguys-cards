@@ -40,6 +40,12 @@ export interface AssignedPlayer {
   card: FootballCard;
   position: Position;
   posIndex: number;
+  /**
+   * Explicit pitch home coordinate (user perspective, 0-100). When set it overrides
+   * the formation position map — used by the 11-a-side World Cup draft sim, whose
+   * lineups don't fit the 7-a-side football formations.
+   */
+  home?: { x: number; y: number };
 }
 
 export const FORMATIONS: Record<Formation, { label: string; desc: string; positions: Position[] }> = {

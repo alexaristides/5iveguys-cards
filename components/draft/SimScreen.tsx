@@ -225,6 +225,14 @@ export default function SimScreen({ config, formation, placed, onRestart }: SimS
               </div>
 
               <div className="mt-4 space-y-3">
+                  {/* Play again with the same squad */}
+                  <button
+                    onClick={runSim}
+                    className="w-full rounded-2xl bg-[#FFC233] py-3 text-base font-extrabold text-zinc-950 shadow-lg shadow-[#FFC233]/20 transition hover:bg-[#ffce5c] active:scale-[0.99]"
+                  >
+                    🔄 Play again
+                  </button>
+
                   {/* Stats */}
                   <div className="grid grid-cols-4 gap-2 text-center">
                     <Stat label="Record" value={`${result.wins}-${result.draws}-${result.losses}`} />

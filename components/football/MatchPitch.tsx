@@ -105,6 +105,9 @@ export default function MatchPitch({
     return arr;
   }, [userLineup, cpuLineup]);
 
+  // 11-a-side draft matches field 22 tokens — render them tighter than the 7-a-side card game.
+  const crowded = cardList.length > 14;
+
   // Animation is driven by direct DOM mutation (no per-frame React re-render).
   const tokenEls = useRef(new Map<string, HTMLDivElement | null>());
   const ballEl = useRef<HTMLDivElement | null>(null);
@@ -234,6 +237,12 @@ export default function MatchPitch({
               const isPossessor = possessorId === info.id;
               const isSpotlight = spotlightId === info.id;
               const init = posRef.current[info.id] ?? { x: 50, y: 50 };
+              // 11-a-side (22 tokens) needs smaller pins and fewer always-on labels.
+              const sizeClass = isSpotlight
+                ? "w-14 h-14"
+                : crowded
+                  ? "w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8"
+                  : "w-9 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11";
               return (
                 <div
                   key={info.id}
@@ -243,7 +252,7 @@ export default function MatchPitch({
                 >
                   {isPossessor && <div className="absolute inset-0 rounded-full ring-2 ring-white/60 animate-pulse scale-125 z-10" />}
                   {isSpotlight && <div className="absolute inset-0 rounded-full ring-4 ring-yellow-400 animate-pulse scale-150 z-10" />}
-                  <div className={`relative rounded-full ring-[3px] overflow-hidden shadow-lg ${info.team === "user" ? "ring-blue-400" : "ring-red-500"} ${isSpotlight ? "w-14 h-14" : "w-9 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11"}`}
+                  <div className={`relative rounded-full ring-[3px] overflow-hidden shadow-lg ${info.team === "user" ? "ring-blue-400" : "ring-red-500"} ${sizeClass}`}
                     title={`${info.name} (${info.position})`}>
                     {info.imageUrl ? (
                       <>
@@ -251,14 +260,16 @@ export default function MatchPitch({
                         <div className={`absolute inset-0 pointer-events-none ${info.team === "user" ? "bg-blue-500/35" : "bg-red-600/40"}`} />
                       </>
                     ) : (
-                      <div className={`absolute inset-0 flex items-center justify-center ${info.team === "user" ? "bg-blue-900/80" : "bg-red-900/80"} ${isSpotlight ? "text-2xl" : "text-base sm:text-lg"}`}>
+                      <div className={`absolute inset-0 flex items-center justify-center ${info.team === "user" ? "bg-blue-900/80" : "bg-red-900/80"} ${isSpotlight ? "text-2xl" : crowded ? "text-[10px] sm:text-xs" : "text-base sm:text-lg"}`}>
                         <span className="leading-none">{info.flag ?? "⚽"}</span>
                       </div>
                     )}
                   </div>
-                  <div className="absolute left-1/2 top-full -translate-x-1/2 mt-0.5 max-w-[72px] truncate rounded bg-black/55 px-1 text-center text-white text-[9px] sm:text-[10px] font-semibold leading-tight pointer-events-none">
-                    {info.name}
-                  </div>
+                  {(!crowded || isSpotlight) && (
+                    <div className="absolute left-1/2 top-full -translate-x-1/2 mt-0.5 max-w-[72px] truncate rounded bg-black/55 px-1 text-center text-white text-[9px] sm:text-[10px] font-semibold leading-tight pointer-events-none">
+                      {info.name}
+                    </div>
+                  )}
                 </div>
               );
             })}

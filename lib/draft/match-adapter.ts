@@ -1,7 +1,7 @@
-// Bridges the World Cup draft (11-a-side national squads) to the 5iveguys
-// football match engine (7-a-side, FM-style animated pitch). A drafted XI and an
-// opponent nation are each compressed into a GK + 6 outfield football lineup, then
-// a tie is run through the real match engine to produce animation frames + a score.
+// Bridges the World Cup draft to the 5iveguys football match engine (the FM-style
+// animated pitch). Both sides field a full 11, positioned by the draft formation's
+// real slot coordinates (the engine reads each player's explicit `home`), then a tie
+// is run through the real match engine to produce animation frames + a score.
 
 import seedrandom from "seedrandom";
 import {
@@ -10,9 +10,9 @@ import {
   calcTeamStats,
 } from "@/lib/football";
 import { simulateHalfLogic, momentsToFrames, type MatchFrame } from "@/lib/match-engine";
-import { POS_GROUP } from "./formations";
-import { effectiveRating } from "./nations";
-import type { Formation, Nation, PlacedPlayer, PosGroup, RatingsMode } from "./types";
+import { getFormation, playerFitsSlot } from "./formations";
+import { effectiveRating, playerPositions } from "./nations";
+import type { Formation, Nation, PlacedPlayer, RatingsMode } from "./types";
 
 export interface FootballTeam {
   lineup: AssignedPlayer[];
@@ -29,16 +29,9 @@ export interface TieResult {
   oppPens?: number;
 }
 
-// A flat player record used to assemble a football lineup.
-interface PoolPlayer { id: string; name: string; rating: number; group: Position; flag: string }
-
-// 7-a-side football formation templates (outfield counts; +1 GK).
-const FB_TEMPLATES: { f: FbFormation; d: number; m: number; a: number }[] = [
-  { f: "2-2-2", d: 2, m: 2, a: 2 },
-  { f: "3-2-1", d: 3, m: 2, a: 1 },
-  { f: "1-3-2", d: 1, m: 3, a: 2 },
-  { f: "2-3-1", d: 2, m: 3, a: 1 },
-];
+// The draft's tactical multipliers live in player ratings + pitch positions, so the
+// engine runs with neutral 7-a-side mods (all 1.0). FORMATION_MODS["2-2-2"] is neutral.
+const NEUTRAL_MODS: FbFormation = "2-2-2";
 
 function rarityFor(rating: number): Rarity {
   if (rating >= 87) return "legendary";
@@ -54,24 +47,11 @@ function attrFor(position: Position): Attribute {
   return "Power"; // DEF + GK
 }
 
-// Choose the football shape that best matches the squad's outfield distribution.
-// Lines that come up short (need > have) are penalised more than surplus, so the
-// engine never has to badly miscast players.
-function chooseTemplate(nDef: number, nMid: number, nAtt: number) {
-  let best = FB_TEMPLATES[0];
-  let bestCost = Infinity;
-  for (const t of FB_TEMPLATES) {
-    const cost =
-      Math.max(0, t.d - nDef) * 2 + Math.max(0, nDef - t.d) +
-      Math.max(0, t.m - nMid) * 2 + Math.max(0, nMid - t.m) +
-      Math.max(0, t.a - nAtt) * 2 + Math.max(0, nAtt - t.a);
-    if (cost < bestCost) { bestCost = cost; best = t; }
-  }
-  return best;
-}
-
-function assembleTeam(pool: PoolPlayer[], label: string, side: "u" | "c"): FootballTeam {
-  const toCard = (p: PoolPlayer, position: Position): FootballCard => ({
+function toCard(
+  p: { id: string; name: string; rating: number; flag: string },
+  position: Position, side: "u" | "c",
+): FootballCard {
+  return {
     id: `${side}:${p.id}`,
     name: p.name,
     rarity: rarityFor(p.rating),
@@ -79,63 +59,55 @@ function assembleTeam(pool: PoolPlayer[], label: string, side: "u" | "c"): Footb
     imageUrl: "",
     flag: p.flag,
     overall: p.rating,
-  });
-
-  const byGroup: Record<PosGroup, PoolPlayer[]> = { GK: [], DEF: [], MID: [], ATT: [] };
-  for (const p of pool) byGroup[p.group].push(p);
-  (Object.keys(byGroup) as PosGroup[]).forEach((g) => byGroup[g].sort((a, b) => b.rating - a.rating));
-  const allSorted = [...pool].sort((a, b) => b.rating - a.rating);
-
-  const used = new Set<string>();
-  const gk = byGroup.GK[0] ?? allSorted[0];
-  used.add(gk.id);
-
-  const lineup: AssignedPlayer[] = [{ card: toCard(gk, "GK"), position: "GK", posIndex: 0 }];
-
-  const tmpl = chooseTemplate(byGroup.DEF.length, byGroup.MID.length, byGroup.ATT.length);
-  const counters: Record<Position, number> = { GK: 1, DEF: 0, MID: 0, ATT: 0 };
-
-  const take = (group: Exclude<Position, "GK">, need: number) => {
-    for (let i = 0; i < need; i++) {
-      // Prefer a natural-line player; otherwise borrow the best unused outfielder.
-      const fromLine = byGroup[group].find((p) => !used.has(p.id));
-      const pick = fromLine ?? allSorted.find((p) => p.id !== gk.id && !used.has(p.id));
-      if (!pick) return;
-      used.add(pick.id);
-      lineup.push({ card: toCard(pick, group), position: group, posIndex: counters[group]++ });
-    }
   };
-  take("DEF", tmpl.d);
-  take("MID", tmpl.m);
-  take("ATT", tmpl.a);
-
-  return { lineup, formation: tmpl.f, overall: calcTeamStats(lineup).overall, label };
 }
 
-/** Build a football team from the user's drafted XI. */
+/** Build a football team from the user's drafted XI, keeping each slot's pitch spot. */
 export function placedToFootballTeam(
   placed: PlacedPlayer[], formation: Formation, _mode: RatingsMode, label = "YOU",
 ): FootballTeam {
-  const pool: PoolPlayer[] = placed.map((pp) => {
+  const lineup: AssignedPlayer[] = [];
+  const counters: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, ATT: 0 };
+  for (const pp of placed) {
     const slot = formation.slots[pp.slotIndex];
-    const group = (slot ? slot.group : POS_GROUP[pp.player.pos]) as Position;
-    return { id: pp.player.uid, name: pp.player.name, rating: pp.player.rating, group, flag: pp.player.flag };
-  });
-  return assembleTeam(pool, label, "u");
+    if (!slot) continue;
+    const group = slot.group as Position;
+    lineup.push({
+      card: toCard({ id: pp.player.uid, name: pp.player.name, rating: pp.player.rating, flag: pp.player.flag }, group, "u"),
+      position: group,
+      posIndex: counters[group]++,
+      home: { x: slot.x, y: slot.y },
+    });
+  }
+  return { lineup, formation: NEUTRAL_MODS, overall: calcTeamStats(lineup).overall, label };
 }
 
-/** Build a football team from an opponent nation's best XI. */
-export function nationToFootballTeam(nation: Nation, mode: RatingsMode): FootballTeam {
-  const players = nation.players.map((p) => ({
-    id: p.id,
-    name: p.name,
-    rating: effectiveRating(p, mode),
-    group: POS_GROUP[p.pos] as Position,
-    flag: nation.flag,
-  }));
-  // Keep the strongest ~14 so assembleTeam draws from real talent without huge pools.
-  const pool = players.sort((a, b) => b.rating - a.rating).slice(0, 14);
-  return assembleTeam(pool, nation.name, "c");
+/** Build an opponent nation's best XI into a 4-3-3, filling each slot with a best fit. */
+export function nationToFootballTeam(nation: Nation, mode: RatingsMode, formationId = "433"): FootballTeam {
+  const formation = getFormation(formationId);
+  const players = nation.players
+    .map((p) => ({ id: p.id, name: p.name, rating: effectiveRating(p, mode), pos: p.pos, alt: p.alt, flag: nation.flag }))
+    .sort((a, b) => b.rating - a.rating);
+
+  const used = new Set<string>();
+  const lineup: AssignedPlayer[] = [];
+  const counters: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, ATT: 0 };
+  for (const slot of formation.slots) {
+    const group = slot.group as Position;
+    // Best-rated unused player that fits the slot; otherwise the best remaining.
+    const pick =
+      players.find((p) => !used.has(p.id) && playerFitsSlot(playerPositions(p), slot.label)) ??
+      players.find((p) => !used.has(p.id));
+    if (!pick) break;
+    used.add(pick.id);
+    lineup.push({
+      card: toCard(pick, group, "c"),
+      position: group,
+      posIndex: counters[group]++,
+      home: { x: slot.x, y: slot.y },
+    });
+  }
+  return { lineup, formation: NEUTRAL_MODS, overall: calcTeamStats(lineup).overall, label: nation.name };
 }
 
 // Seeded penalty shootout, weighted by squad overall (mirrors the card game's MatchRunner).
