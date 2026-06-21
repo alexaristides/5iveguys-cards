@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import type { Formation, PlacedPlayer } from "@/lib/draft/types";
 import { simulateTournament, teamRating, type TournamentResult, type MatchResult } from "@/lib/draft/sim";
+import { tacticalModsFor } from "@/lib/draft/match-adapter";
 import MatchPitch, { type MatchOutcome } from "@/components/football/MatchPitch";
 import type { MatchFrame } from "@/lib/match-engine";
 import type { DraftConfig } from "./SetupScreen";
@@ -33,6 +34,7 @@ export default function SimScreen({ config, formation, placed, onRestart }: SimS
   const [refreshKey, setRefreshKey] = useState(0);
 
   const rating = teamRating(placed, formation);
+  const tactic = tacticLabel(formation);
 
   const runSim = useCallback(() => {
     const res = simulateTournament(placed, formation, config.ratingsMode);
@@ -135,7 +137,7 @@ export default function SimScreen({ config, formation, placed, onRestart }: SimS
                 {matchFinished && <span className="ml-2 text-emerald-400">· Full Time</span>}
               </div>
               <div className="truncate text-sm font-extrabold text-white">
-                {pb.userLabel} vs {pb.opponent.flag} {pb.opponent.name}
+                {pb.userLabel} ({formation.name}) vs {pb.opponent.flag} {pb.opponent.name}
                 {pb.knockout && <span className="ml-2 text-[10px] font-bold uppercase text-amber-400">Knockout</span>}
               </div>
             </div>
@@ -181,9 +183,12 @@ export default function SimScreen({ config, formation, placed, onRestart }: SimS
       <div className="grid gap-5 lg:grid-cols-[minmax(0,340px)_1fr]">
         {/* XI pitch */}
         <div>
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-lg font-extrabold text-white">Your XI</h2>
-            <span className="rounded-lg bg-[#FFC233] px-2.5 py-1 text-sm font-extrabold text-zinc-950">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h2 className="text-lg font-extrabold text-white">Your XI</h2>
+              <span className="text-[11px] font-bold text-zinc-400">{formation.name} · {tactic}</span>
+            </div>
+            <span className="shrink-0 rounded-lg bg-[#FFC233] px-2.5 py-1 text-sm font-extrabold text-zinc-950">
               {rating} OVR
             </span>
           </div>
@@ -289,6 +294,15 @@ export default function SimScreen({ config, formation, placed, onRestart }: SimS
       )}
     </div>
   );
+}
+
+// Short tactical descriptor for a draft formation, from its derived match modifiers.
+function tacticLabel(formation: Formation): string {
+  const m = tacticalModsFor(formation);
+  if (m.extraPoss || m.midMult >= 1.07) return "Midfield Control";
+  if (m.atkMult >= 1.08) return "Attacking";
+  if (m.defMult >= 1.05) return "Defensive";
+  return "Balanced";
 }
 
 // Full-time card shown in MatchPitch's side column when a clip ends.

@@ -100,12 +100,14 @@ export function assignPositions(cards: FootballCard[], formation: Formation): As
 
 // ── Formation tactical modifiers ──────────────────────────────────────────────
 
-export const FORMATION_MODS: Record<Formation, {
+export interface TacticalMods {
   atkMult: number;
   defMult: number;
   midMult: number;
   extraPoss: boolean; // generates extra possession events
-}> = {
+}
+
+export const FORMATION_MODS: Record<Formation, TacticalMods> = {
   "2-2-2": { atkMult: 1.00, defMult: 1.00, midMult: 1.00, extraPoss: false },
   "3-2-1": { atkMult: 0.72, defMult: 1.32, midMult: 0.90, extraPoss: false },
   "1-3-2": { atkMult: 1.32, defMult: 0.72, midMult: 0.90, extraPoss: false },

@@ -6,7 +6,7 @@
 import seedrandom from "seedrandom";
 import {
   type AssignedPlayer, type Formation as FbFormation, type FootballCard,
-  type Position, type Attribute, type Rarity,
+  type Position, type Attribute, type Rarity, type TacticalMods,
   calcTeamStats,
 } from "@/lib/football";
 import { simulateHalfLogic, momentsToFrames, type MatchFrame } from "@/lib/match-engine";
@@ -17,6 +17,7 @@ import type { Formation, Nation, PlacedPlayer, RatingsMode } from "./types";
 export interface FootballTeam {
   lineup: AssignedPlayer[];
   formation: FbFormation;
+  mods: TacticalMods;
   overall: number;
   label: string;
 }
@@ -29,9 +30,33 @@ export interface TieResult {
   oppPens?: number;
 }
 
-// The draft's tactical multipliers live in player ratings + pitch positions, so the
-// engine runs with neutral 7-a-side mods (all 1.0). FORMATION_MODS["2-2-2"] is neutral.
-const NEUTRAL_MODS: FbFormation = "2-2-2";
+// Positioning comes from explicit home coords, so the football Formation string is
+// just a placeholder for the engine input ("2-2-2" = neutral). Tactical weighting is
+// supplied explicitly via `mods` below.
+const PLACEHOLDER_FORMATION: FbFormation = "2-2-2";
+
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+/**
+ * Tactical multipliers derived from a draft formation's shape (broad-line counts,
+ * the same buckets the engine averages over). Centred on a 4-defender / 4-midfield /
+ * 2-attacker balance, so a 4-4-2 is neutral, 3-4-3 leans attacking, 5-3-2 defensive,
+ * 4-2-3-1 dominates midfield. Wing-backs count as defenders (their engine group).
+ */
+export function tacticalModsFor(formation: Formation): TacticalMods {
+  let def = 0, mid = 0, att = 0;
+  for (const s of formation.slots) {
+    if (s.group === "DEF") def++;
+    else if (s.group === "MID") mid++;
+    else if (s.group === "ATT") att++;
+  }
+  return {
+    atkMult: clamp(1 + 0.1 * (att - 2), 0.8, 1.3),
+    defMult: clamp(1 + 0.07 * (def - 4), 0.8, 1.25),
+    midMult: clamp(1 + 0.07 * (mid - 4), 0.8, 1.25),
+    extraPoss: mid >= 5,
+  };
+}
 
 function rarityFor(rating: number): Rarity {
   if (rating >= 87) return "legendary";
@@ -79,7 +104,10 @@ export function placedToFootballTeam(
       home: { x: slot.x, y: slot.y },
     });
   }
-  return { lineup, formation: NEUTRAL_MODS, overall: calcTeamStats(lineup).overall, label };
+  return {
+    lineup, formation: PLACEHOLDER_FORMATION, mods: tacticalModsFor(formation),
+    overall: calcTeamStats(lineup).overall, label,
+  };
 }
 
 /** Build an opponent nation's best XI into a 4-3-3, filling each slot with a best fit. */
@@ -107,7 +135,10 @@ export function nationToFootballTeam(nation: Nation, mode: RatingsMode, formatio
       home: { x: slot.x, y: slot.y },
     });
   }
-  return { lineup, formation: NEUTRAL_MODS, overall: calcTeamStats(lineup).overall, label: nation.name };
+  return {
+    lineup, formation: PLACEHOLDER_FORMATION, mods: tacticalModsFor(formation),
+    overall: calcTeamStats(lineup).overall, label: nation.name,
+  };
 }
 
 // Seeded penalty shootout, weighted by squad overall (mirrors the card game's MatchRunner).
@@ -131,6 +162,7 @@ export function simulateFootballTie(
   const input = {
     userLineup: user.lineup, cpuLineup: opp.lineup,
     userFormation: user.formation, cpuFormation: opp.formation, seed,
+    userMods: user.mods, cpuMods: opp.mods,
   };
   const h1 = simulateHalfLogic(input, 1, { user: 0, cpu: 0 });
   const h2 = simulateHalfLogic(input, 2, h1.endScore, h1.involvements);

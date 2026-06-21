@@ -2,7 +2,7 @@ import seedrandom from "seedrandom";
 import {
   type AssignedPlayer, type Formation, type Position,
   type MatchEvent, type MatchEventType, type MatchPhase,
-  type PlayerInvolvement, type FootballCard, type MatchSimulation,
+  type PlayerInvolvement, type FootballCard, type MatchSimulation, type TacticalMods,
   calcTeamStats, FORMATION_MODS,
 } from "./football";
 import { getHomeCoord } from "./formation-positions";
@@ -21,6 +21,10 @@ export interface HalfInput {
   userFormation: Formation;
   cpuFormation: Formation;
   seed: string;
+  /** Explicit tactical multipliers (overrides FORMATION_MODS lookup). Used by the
+   *  11-a-side draft sim, whose shapes don't map to the 7-a-side formations. */
+  userMods?: TacticalMods;
+  cpuMods?: TacticalMods;
 }
 
 export interface Moment {
@@ -97,7 +101,8 @@ export function simulateHalfLogic(
   const moments: Moment[] = [];
 
   const us = calcTeamStats(userLineup), cs = calcTeamStats(cpuLineup);
-  const uMod = FORMATION_MODS[userFormation], cMod = FORMATION_MODS[cpuFormation];
+  const uMod = input.userMods ?? FORMATION_MODS[userFormation];
+  const cMod = input.cpuMods ?? FORMATION_MODS[cpuFormation];
   const uEff = { attack: us.attack * uMod.atkMult, defense: us.defense * uMod.defMult, midfield: us.midfield * uMod.midMult, goalkeeping: us.goalkeeping };
   const cEff = { attack: cs.attack * cMod.atkMult, defense: cs.defense * cMod.defMult, midfield: cs.midfield * cMod.midMult, goalkeeping: cs.goalkeeping };
 
