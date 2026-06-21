@@ -1,6 +1,11 @@
 import type { PlacedPlayer, Formation, RatingsMode } from "./types";
-import { NATIONS, effectiveRating, playerPositions } from "./nations";
+import { NATIONS, effectiveRating, playerPositions, getNation } from "./nations";
 import { POS_GROUP, playerFitsSlot } from "./formations";
+import {
+  placedToFootballTeam, nationToFootballTeam, simulateFootballTie, type FootballTeam,
+} from "./match-adapter";
+import type { AssignedPlayer } from "@/lib/football";
+import type { MatchFrame } from "@/lib/match-engine";
 
 // ─────────────────────────── Team rating ───────────────────────────
 
@@ -96,65 +101,18 @@ export interface MatchResult {
   outcome: "W" | "D" | "L";
 }
 
-function poisson(lambda: number): number {
-  // Knuth's algorithm.
-  const L = Math.exp(-lambda);
-  let k = 0;
-  let p = 1;
-  do {
-    k++;
-    p *= Math.random();
-  } while (p > L);
-  return k - 1;
-}
-
-/** Expected goals for `attack` line vs opposing `defence`, anchored at ~1.4. */
-function expectedGoals(attackMid: number, oppDefMid: number): number {
-  const diff = attackMid - oppDefMid;
-  const xg = 1.35 * Math.pow(1.045, diff);
-  return Math.max(0.15, Math.min(4.2, xg));
-}
-
-interface SimTeam {
-  att: number;
-  mid: number;
-  def: number;
-  overall: number;
-}
-
-function playMatch(user: SimTeam, opp: SimTeam, knockout: boolean): Scoreline {
-  const userAttMid = (user.att * 0.65 + user.mid * 0.35);
-  const oppAttMid = (opp.att * 0.65 + opp.mid * 0.35);
-  const userDefMid = (user.def * 0.65 + user.mid * 0.35);
-  const oppDefMid = (opp.def * 0.65 + opp.mid * 0.35);
-
-  let userGoals = poisson(expectedGoals(userAttMid, oppDefMid));
-  let oppGoals = poisson(expectedGoals(oppAttMid, userDefMid));
-
-  if (!knockout || userGoals !== oppGoals) {
-    return { userGoals, oppGoals };
-  }
-
-  // Extra time: one more low-scoring mini-period.
-  userGoals += poisson(expectedGoals(userAttMid, oppDefMid) * 0.35);
-  oppGoals += poisson(expectedGoals(oppAttMid, userDefMid) * 0.35);
-  if (userGoals !== oppGoals) {
-    return { userGoals, oppGoals };
-  }
-
-  // Penalties — edge to the stronger side, but always a coin-flip element.
-  const edge = (user.overall - opp.overall) * 0.012;
-  let userPens = 0;
-  let oppPens = 0;
-  for (let i = 0; i < 5; i++) {
-    if (Math.random() < 0.75 + edge) userPens++;
-    if (Math.random() < 0.75 - edge) oppPens++;
-  }
-  while (userPens === oppPens) {
-    if (Math.random() < 0.75 + edge) userPens++;
-    if (Math.random() < 0.75 - edge) oppPens++;
-  }
-  return { userGoals, oppGoals, userPens, oppPens };
+/** Animation tape + lineups for one tournament tie, played back in SimScreen. */
+export interface MatchPlayback {
+  stage: string;
+  opponent: Opponent;
+  userLineup: AssignedPlayer[];
+  cpuLineup: AssignedPlayer[];
+  userLabel: string;
+  cpuLabel: string;
+  frames: MatchFrame[];
+  /** Real-time length of the clip in seconds (final ties run longer). */
+  durationSec: number;
+  knockout: boolean;
 }
 
 // ─────────────────────────── Tournament ───────────────────────────
@@ -170,6 +128,8 @@ export type Placement =
 export interface TournamentResult {
   teamRating: number;
   matches: MatchResult[];
+  /** One animated playback per match in `matches`, same order. */
+  playbacks: MatchPlayback[];
   /** Group-stage points (3 games). */
   groupPoints: number;
   advancedFromGroup: boolean;
@@ -201,14 +161,15 @@ export function simulateTournament(
   formation: Formation,
   mode: RatingsMode,
 ): TournamentResult {
-  const lines = teamLines(placed, formation);
   const overall = teamRating(placed, formation);
-  const user: SimTeam = { att: lines.att, mid: lines.mid, def: lines.def, overall };
+  const userFb: FootballTeam = placedToFootballTeam(placed, formation, mode);
+  const seed = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   const pool = allOpponents(mode).filter((o) => o.rating > 0);
   const used = new Set<string>();
 
   const matches: MatchResult[] = [];
+  const playbacks: MatchPlayback[] = [];
   let wins = 0, draws = 0, losses = 0, goalsFor = 0, goalsAgainst = 0, groupPoints = 0;
 
   const record = (stage: string, opp: Opponent, sc: Scoreline) => {
@@ -225,13 +186,33 @@ export function simulateTournament(
     return outcome;
   };
 
+  // Run one tie through the football engine: animate it + record the scoreline.
+  const playTie = (stage: string, opp: Opponent, knockout: boolean): "W" | "D" | "L" => {
+    const nation = getNation(opp.id);
+    const oppFb = nation
+      ? nationToFootballTeam(nation, mode)
+      : userFb; // unreachable in practice — opponents always come from NATIONS
+    const tie = simulateFootballTie(userFb, oppFb, `${seed}:m${playbacks.length}`, knockout);
+    const sc: Scoreline = {
+      userGoals: tie.userGoals, oppGoals: tie.oppGoals,
+      userPens: tie.userPens, oppPens: tie.oppPens,
+    };
+    const outcome = record(stage, opp, sc);
+    playbacks.push({
+      stage, opponent: opp,
+      userLineup: userFb.lineup, cpuLineup: oppFb.lineup,
+      userLabel: userFb.label, cpuLabel: opp.name,
+      frames: tie.frames, durationSec: stage === "Final" ? 20 : 10, knockout,
+    });
+    return outcome;
+  };
+
   // Group stage — 3 matches vs a spread of opponents.
   const groupBands: [number, number][] = [[68, 78], [74, 84], [80, 90]];
   for (let g = 0; g < 3; g++) {
     const opp = pickOpponent(pool, groupBands[g][0], groupBands[g][1], used);
     used.add(opp.id);
-    const sc = playMatch(user, oppTeam(opp), false);
-    const outcome = record(`Group Match ${g + 1}`, opp, sc);
+    const outcome = playTie(`Group Match ${g + 1}`, opp, false);
     if (outcome === "W") groupPoints += 3;
     else if (outcome === "D") groupPoints += 1;
   }
@@ -244,33 +225,25 @@ export function simulateTournament(
   }
 
   let placement: Placement = "Round of 16";
-  let won = false;
   for (const ks of KNOCKOUT_STAGES) {
     const opp = pickOpponent(pool, ks.minRating, ks.maxRating, used);
     used.add(opp.id);
-    const sc = playMatch(user, oppTeam(opp), true);
-    const outcome = record(ks.stage, opp, sc);
+    const outcome = playTie(ks.stage, opp, true);
     if (outcome === "L") {
       placement = ks.placementIfLost;
       return finalize(matches, groupPoints, true, placement, overall, wins, draws, losses, goalsFor, goalsAgainst);
     }
-    if (ks.stage === "Final") {
-      placement = "Champions";
-      won = true;
-    }
+    if (ks.stage === "Final") placement = "Champions";
   }
 
   return finalize(matches, groupPoints, true, placement, overall, wins, draws, losses, goalsFor, goalsAgainst);
 
-  function oppTeam(o: Opponent): SimTeam {
-    return { att: o.rating, mid: o.rating, def: o.rating, overall: o.rating };
-  }
   function finalize(
     m: MatchResult[], pts: number, adv: boolean, place: Placement, ovr: number,
     w: number, d: number, l: number, gf: number, ga: number,
   ): TournamentResult {
     return {
-      teamRating: ovr, matches: m, groupPoints: pts, advancedFromGroup: adv,
+      teamRating: ovr, matches: m, playbacks, groupPoints: pts, advancedFromGroup: adv,
       placement: place, won: place === "Champions", wins: w, draws: d, losses: l,
       goalsFor: gf, goalsAgainst: ga,
     };
