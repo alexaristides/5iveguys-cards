@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import type { Formation, PlacedPlayer } from "@/lib/draft/types";
 import { simulateTournament, teamRating, type TournamentResult, type MatchResult } from "@/lib/draft/sim";
-import MatchPitch from "@/components/football/MatchPitch";
+import MatchPitch, { type MatchOutcome } from "@/components/football/MatchPitch";
+import type { MatchFrame } from "@/lib/match-engine";
 import type { DraftConfig } from "./SetupScreen";
 import Pitch from "./Pitch";
 import Leaderboard from "./Leaderboard";
@@ -18,10 +19,14 @@ interface SimScreenProps {
 
 type Phase = "ready" | "playing" | "done";
 
+// Stable empty array so MatchPitch's solo-mode effect deps don't churn on re-render.
+const NO_FRAMES: MatchFrame[] = [];
+
 export default function SimScreen({ config, formation, placed, onRestart }: SimScreenProps) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [result, setResult] = useState<TournamentResult | null>(null);
   const [matchIdx, setMatchIdx] = useState(0);
+  const [matchFinished, setMatchFinished] = useState(false);
   const [alias, setAlias] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -33,13 +38,19 @@ export default function SimScreen({ config, formation, placed, onRestart }: SimS
     const res = simulateTournament(placed, formation, config.ratingsMode);
     setResult(res);
     setMatchIdx(0);
+    setMatchFinished(false);
     setSubmitted(false);
     setPhase(res.playbacks.length > 0 ? "playing" : "done");
   }, [placed, formation, config.ratingsMode]);
 
-  // Advance once a match clip finishes; flip to results after the last one.
-  const advanceMatch = useCallback(() => setMatchIdx((i) => i + 1), []);
+  // A clip finishing freezes on a full-time result screen; the user advances.
+  const finishMatch = useCallback(() => setMatchFinished(true), []);
+  const advanceMatch = useCallback(() => {
+    setMatchFinished(false);
+    setMatchIdx((i) => i + 1);
+  }, []);
   const skipMatches = useCallback(() => {
+    setMatchFinished(false);
     setResult((r) => { if (r) setMatchIdx(r.playbacks.length); return r; });
   }, []);
   useEffect(() => {
@@ -105,25 +116,37 @@ export default function SimScreen({ config, formation, placed, onRestart }: SimS
   // ── Match playback (full-width while a tournament tie is animating) ──────────
   if (phase === "playing" && result) {
     const pb = result.playbacks[matchIdx];
-    if (pb) {
+    const m = result.matches[matchIdx];
+    if (pb && m) {
+      const isLast = matchIdx === result.playbacks.length - 1;
+      const outcome: MatchOutcome | null = matchFinished
+        ? {
+            outcome: m.outcome === "W" ? "win" : m.outcome === "D" ? "draw" : "loss",
+            label: m.outcome === "W" ? "Victory!" : m.outcome === "D" ? "Draw" : "Defeat",
+          }
+        : null;
+
       return (
         <div className="mx-auto max-w-5xl px-4 py-5">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[11px] font-bold uppercase tracking-wide text-zinc-500">
                 {pb.stage} · Match {matchIdx + 1} of {result.playbacks.length}
+                {matchFinished && <span className="ml-2 text-emerald-400">· Full Time</span>}
               </div>
               <div className="truncate text-sm font-extrabold text-white">
                 {pb.userLabel} vs {pb.opponent.flag} {pb.opponent.name}
                 {pb.knockout && <span className="ml-2 text-[10px] font-bold uppercase text-amber-400">Knockout</span>}
               </div>
             </div>
-            <button
-              onClick={skipMatches}
-              className="shrink-0 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-bold text-white transition hover:border-white/30"
-            >
-              Skip ⏭
-            </button>
+            {!matchFinished && (
+              <button
+                onClick={skipMatches}
+                className="shrink-0 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-bold text-white transition hover:border-white/30"
+              >
+                Skip ⏭
+              </button>
+            )}
           </div>
 
           <MatchPitch
@@ -132,17 +155,19 @@ export default function SimScreen({ config, formation, placed, onRestart }: SimS
             cpuLineup={pb.cpuLineup}
             userLabel={pb.userLabel}
             cpuLabel={pb.cpuLabel}
-            firstHalfFrames={[]}
+            firstHalfFrames={NO_FRAMES}
             secondHalfFrames={null}
             soloFrames={pb.frames}
             soloDurationSec={pb.durationSec}
-            onComplete={advanceMatch}
+            onComplete={finishMatch}
+            result={outcome}
+            resultPanel={outcome ? <MatchResultPanel match={m} isLast={isLast} onNext={advanceMatch} /> : null}
           />
 
           {matchIdx > 0 && (
             <div className="mt-4 space-y-1.5">
-              {result.matches.slice(0, matchIdx).map((m, i) => (
-                <MatchRow key={i} match={m} />
+              {result.matches.slice(0, matchIdx).map((mr, i) => (
+                <MatchRow key={i} match={mr} />
               ))}
             </div>
           )}
@@ -255,6 +280,41 @@ export default function SimScreen({ config, formation, placed, onRestart }: SimS
         </div>
       )}
     </div>
+  );
+}
+
+// Full-time card shown in MatchPitch's side column when a clip ends.
+function MatchResultPanel({ match, isLast, onNext }: { match: MatchResult; isLast: boolean; onNext: () => void }) {
+  const won = match.outcome === "W";
+  const drew = match.outcome === "D";
+  const color = won ? "text-emerald-400" : drew ? "text-zinc-300" : "text-rose-400";
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex h-full flex-col items-center justify-center text-center"
+    >
+      <div className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">{match.stage} · Full Time</div>
+      <div className="mt-2 flex items-center justify-center gap-2 text-sm font-bold text-white">
+        <span className="text-lg">{match.opponent.flag}</span>
+        <span className="truncate">{match.opponent.name}</span>
+      </div>
+      <div className="mt-3 text-6xl font-black tabular-nums text-white">
+        {match.userGoals}<span className="mx-2 text-zinc-600">–</span>{match.oppGoals}
+      </div>
+      {match.userPens != null && (
+        <div className="mt-1 text-sm font-bold text-amber-400">Penalties {match.userPens}–{match.oppPens}</div>
+      )}
+      <div className={`mt-2 text-xl font-extrabold uppercase tracking-wide ${color}`}>
+        {won ? "Win" : drew ? "Draw" : "Defeat"}
+      </div>
+      <button
+        onClick={onNext}
+        className="mt-6 rounded-2xl bg-[#FFC233] px-7 py-3 text-base font-extrabold text-zinc-950 shadow-lg shadow-[#FFC233]/20 transition hover:bg-[#ffce5c] active:scale-95"
+      >
+        {isLast ? "View final standings →" : "Next match →"}
+      </button>
+    </motion.div>
   );
 }
 
