@@ -1,4 +1,5 @@
 import { CARDS, type Rarity, type Attribute } from "./cards";
+import { computeOverall, type StatsMap } from "./card-rating";
 import {
   createCommentary, GOAL_GENERIC, GOAL_PACE, GOAL_SKILL, GOAL_POWER,
   SAVE_TEMPLATES, MISS_TEMPLATES, NEARPOST_TEMPLATES, TACKLE_TEMPLATES,
@@ -34,6 +35,16 @@ export interface FootballCard {
    * who carry their real FIFA overall instead of a card rarity.
    */
   overall?: number;
+  /**
+   * Optional fan-voted attribute averages (0-100 across the 11 rated stats).
+   * When present, the player's rating in any given position is computed from
+   * these stats with that position's weighting — so a strong defender rates
+   * highly at the back but poorly up front. Used by Exhibition mode, where
+   * every player is judged by what the fans actually rated them.
+   */
+  stats?: StatsMap;
+  /** Natural position (GK/DEF/CDM/CM/CAM/LW/RW/ST) from the card, for display. */
+  ratingPosition?: string;
 }
 
 export interface AssignedPlayer {
@@ -64,10 +75,25 @@ const POSITION_ATTR_BONUS: Record<Position, Record<Attribute, number>> = {
 // striker played at the back rates a touch lower than in their natural role.
 const POSITION_OVERALL_MOD: Record<Position, number> = { GK: 0, DEF: 0, MID: 1, ATT: 1 };
 
+// The match engine plays 4 broad roles; the fan-rating system weights 8 outfield
+// roles + GK. Map each engine slot to the rating role whose attribute weighting
+// best represents it, so a player's rating reflects how the fans rated the very
+// attributes that matter in that slot (defence/strength at the back, finishing up
+// top, etc.). This is what makes an all-defender side blunt in attack.
+const ENGINE_POS_TO_RATING: Record<Position, string> = {
+  GK: "GK", DEF: "DEF", MID: "CM", ATT: "ST",
+};
+
 export function getPlayerRating(card: FootballCard, position: Position): number {
+  // 1. Fan-voted stats → position-weighted overall (Exhibition mode).
+  if (card.stats) {
+    return computeOverall(card.stats, ENGINE_POS_TO_RATING[position]);
+  }
+  // 2. Explicit overall (World Cup national-team players).
   if (typeof card.overall === "number") {
     return card.overall + (POSITION_OVERALL_MOD[position] ?? 0);
   }
+  // 3. Fallback: rarity tier + attribute bonus (unvoted / legacy cards).
   const base = RARITY_RATING[card.rarity] ?? 63;
   const bonus = POSITION_ATTR_BONUS[position]?.[card.attribute] ?? 3;
   return base + bonus;
