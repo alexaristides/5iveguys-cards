@@ -44,6 +44,13 @@ export interface ExhibitionResult {
   aScorers: ExhibitionScorer[];
   bScorers: ExhibitionScorer[];
   events: MatchEvent[];
+  /**
+   * The lineups with side-prefixed card ids — these MUST be the ones handed to
+   * the pitch component, because the frame data references these same ids. Using
+   * the unprefixed lineups would leave every token stranded at kick-off.
+   */
+  aLineup: AssignedPlayer[];
+  bLineup: AssignedPlayer[];
 }
 
 /**
@@ -112,5 +119,7 @@ export function simulateExhibition(
     aScorers: scorersFor("user"),
     bScorers: scorersFor("cpu"),
     events,
+    aLineup,
+    bLineup,
   };
 }

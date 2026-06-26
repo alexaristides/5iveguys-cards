@@ -170,8 +170,8 @@ export default function ExhibitionGame() {
       <div className="w-full">
         <MatchPitch
           key={`exhibition-${result.frames.length}-${result.aScore}-${result.bScore}`}
-          userLineup={slotsToLineup(teamA.lineup)}
-          cpuLineup={slotsToLineup(teamB.lineup)}
+          userLineup={result.aLineup}
+          cpuLineup={result.bLineup}
           userLabel={teamA.name || "Team A"}
           cpuLabel={teamB.name || "Team B"}
           firstHalfFrames={[]}
