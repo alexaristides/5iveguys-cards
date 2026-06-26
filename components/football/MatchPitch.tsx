@@ -11,7 +11,7 @@ const FPS = 6.5; // motion frames per second — sets the constant speed of play
 const EVENT_ICON: Record<string, string> = {
   goal: "⚽", save: "🧤", miss: "💨", tackle: "💪", clearance: "↗", kickoff: "🏁",
   halftime: "⏸", fulltime: "🔔", possession: "●", freekick: "🎯", yellowcard: "🟨", nearpost: "🔔", counter: "⚡",
-  corner: "🚩", throwin: "🙌", goalkick: "🥅", redcard: "🟥",
+  corner: "🚩", throwin: "🙌", goalkick: "🥅", redcard: "🟥", blunder: "🤡",
 };
 
 function statusFor(ev: MatchEvent): { label: string; team: "user" | "cpu" } {
@@ -21,6 +21,7 @@ function statusFor(ev: MatchEvent): { label: string; team: "user" | "cpu" } {
     case "tackle": case "clearance":
       return { team: ev.team, label: "wins it back" };
     case "redcard": return { team: ev.team, label: "red card!" };
+    case "blunder": return { team: ev.team, label: "blunder!" };
     case "yellowcard": return { team: ev.team, label: "free kick" };
     case "goalkick": return { team: ev.team, label: "goal kick" };
     case "throwin": return { team: ev.team, label: "throw-in" };
@@ -45,6 +46,8 @@ function popupFor(ev: MatchEvent, cpuLabel: string): Popup | null {
       return { team: ev.team, icon: "🚩", title: "Corner", full: false, accent: ev.team === "user" ? "border-blue-400 text-blue-200" : "border-red-400 text-red-200", durationMs: 1000 };
     case "goalkick":
       return { team: ev.team, icon: "🥅", title: "Goal kick", full: false, accent: ev.team === "user" ? "border-blue-400 text-blue-200" : "border-red-400 text-red-200", durationMs: 900 };
+    case "blunder":
+      return { team: ev.team, icon: "🤡", title: "Blunder!", full: false, accent: "border-amber-300 text-amber-200", durationMs: 1500 };
     default:
       return null;
   }

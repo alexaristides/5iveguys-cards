@@ -163,7 +163,8 @@ export type MatchEventType =
   | "kickoff" | "goal" | "save" | "miss" | "tackle" | "clearance"
   | "halftime" | "fulltime" | "possession" | "freekick" | "yellowcard"
   | "nearpost" | "counter"
-  | "corner" | "throwin" | "goalkick" | "redcard";
+  | "corner" | "throwin" | "goalkick" | "redcard"
+  | "blunder";
 
 export interface MatchEvent {
   minute: number;

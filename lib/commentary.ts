@@ -109,6 +109,48 @@ export const REDCARD_TEMPLATES: Tpl[] = [
   (def, att) => `${def} sees red — a dreadful challenge on ${att} leaves his team a man down!`,
 ];
 
+// ── Unserious blunders ──────────────────────────────────────────────────────
+// The 5ive Guys lads are a bit chaotic. These fire as comedic moments using the
+// players actually involved, so you get "Stan went to shoot and fell over" etc.
+
+// Attacker robs/collides with his OWN teammate and loses it (a = culprit, b = teammate).
+export const BLUNDER_OWN_TEAM: Tpl[] = [
+  (a, b) => `${a} steals the ball off his own teammate ${b}… then immediately loses it! Absolute chaos!`,
+  (a, b) => `${a} and ${b} both go for it, crash into each other and end up in a heap! You can't write this!`,
+  (a, b) => `${a} barges ${b} off a certain goal to take it himself — and balloons it into orbit!`,
+  (a, b) => `Mix-up of the season! ${a} nutmegs his OWN teammate ${b} and gifts it straight to the opposition!`,
+  (a, b) => `${a} screams "MINE!", shoves ${b} out the way… and trips clean over the ball!`,
+  (a, b) => `${a} tries a no-look pass to ${b} who isn't even looking — gone! What was that?!`,
+];
+
+// Shooter slips / air-kicks instead of shooting (a = shooter, b unused).
+export const BLUNDER_FALL: Tpl[] = [
+  (a) => `${a} pulls back to shoot… and falls flat on his backside! Total air shot!`,
+  (a) => `${a} swings his leg, misses the ball completely, and lands on the floor!`,
+  (a) => `${a} slips at the vital moment — the ball trickles harmlessly wide. Bambi on ice!`,
+  (a) => `${a} goes for the worldie, loses his footing, and ends up sat on the grass!`,
+  (a) => `${a} winds up for the screamer, scuffs it off his own shin, and stumbles over!`,
+  (a) => `${a} tries to be clever, steps on the ball, and goes down like a sack of spuds!`,
+];
+
+// Attacker nutmegs the defender (a = attacker, b = embarrassed defender).
+export const BLUNDER_NUTMEG: Tpl[] = [
+  (a, b) => `${a} slips it through ${b}'s legs — NUTMEG! ${b} is left for dead!`,
+  (a, b) => `Megs! ${a} embarrasses ${b} with the ball through the legs and skips away!`,
+  (a, b) => `${b} tries to defend but ${a} nutmegs him and struts off — humiliating!`,
+  (a, b) => `${a} sends ${b} the wrong way, slots it through his legs, and the crowd goes "OLÉ!"`,
+];
+
+// Generic comedy on the ball (a = culprit, b = nearby teammate).
+export const BLUNDER_MISC: Tpl[] = [
+  (a, b) => `${a} attempts a flashy backheel to ${b} for absolutely no reason and loses it!`,
+  (a) => `${a} stops to celebrate before he's even scored — and the ball rolls out for a goal kick!`,
+  (a) => `${a} takes a wild air-swing at it and misses the ball entirely! Swing and a miss!`,
+  (a) => `${a} tried a rabona… why? Nobody knows. It's dribbled out for a throw.`,
+  (a, b) => `${a} plays it confidently first time… straight to ${b} on the other team. Oh dear.`,
+  (a) => `${a} does ten stepovers, runs out of ideas, and kicks it off his own standing leg!`,
+];
+
 export interface Commentary {
   pick: (pool: Tpl[], a: string, b: string) => string;
 }

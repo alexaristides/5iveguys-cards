@@ -11,6 +11,7 @@ import {
   SAVE_TEMPLATES, MISS_TEMPLATES, NEARPOST_TEMPLATES, TACKLE_TEMPLATES,
   CLEARANCE_TEMPLATES, FREEKICK_TEMPLATES, YELLOW_TEMPLATES, POSSESSION_TEMPLATES,
   CORNER_TEMPLATES, THROWIN_TEMPLATES, GOALKICK_TEMPLATES, REDCARD_TEMPLATES,
+  BLUNDER_OWN_TEAM, BLUNDER_FALL, BLUNDER_NUTMEG, BLUNDER_MISC,
 } from "./commentary";
 
 // ── Public types ────────────────────────────────────────────────────────────
@@ -57,6 +58,14 @@ const TUNING = {
   goalNoise: 0.12,
   goalFloor: 0.06,
   goalCap: 0.6,
+  // Match "form": each side gets a per-half day-form multiplier on its attacking
+  // output, so the better team is favoured but not guaranteed — underdogs can have
+  // a good day. ±this fraction around 1.0 (0.14 ⇒ a team plays at 86%–114%).
+  formSwing: 0.14,
+  // Comedy: how often the unserious lads produce a blunder at key moments.
+  blunderBuildup: 0.06,  // chance a build-up pass descends into farce (turnover)
+  blunderSlip: 0.07,     // chance a shot becomes a slip / air-kick (no goal)
+  nutmegOnTackle: 0.30,  // chance a would-be tackle is instead a nutmeg (attack survives)
 };
 
 // ── Geometry helpers ──────────────────────────────────────────────────────────
@@ -98,8 +107,13 @@ export function simulateHalfLogic(
 
   const us = calcTeamStats(userLineup), cs = calcTeamStats(cpuLineup);
   const uMod = FORMATION_MODS[userFormation], cMod = FORMATION_MODS[cpuFormation];
-  const uEff = { attack: us.attack * uMod.atkMult, defense: us.defense * uMod.defMult, midfield: us.midfield * uMod.midMult, goalkeeping: us.goalkeeping };
-  const cEff = { attack: cs.attack * cMod.atkMult, defense: cs.defense * cMod.defMult, midfield: cs.midfield * cMod.midMult, goalkeeping: cs.goalkeeping };
+  // Per-half day-form: a random multiplier on each side's attack + midfield, so the
+  // stronger side wins more often without winning every time. Drawn from the seeded
+  // rng up front, keeping the simulation deterministic.
+  const uForm = 1 + (rng() - 0.5) * 2 * TUNING.formSwing;
+  const cForm = 1 + (rng() - 0.5) * 2 * TUNING.formSwing;
+  const uEff = { attack: us.attack * uMod.atkMult * uForm, defense: us.defense * uMod.defMult, midfield: us.midfield * uMod.midMult * uForm, goalkeeping: us.goalkeeping };
+  const cEff = { attack: cs.attack * cMod.atkMult * cForm, defense: cs.defense * cMod.defMult, midfield: cs.midfield * cMod.midMult * cForm, goalkeeping: cs.goalkeeping };
 
   let userScore = startScore.user, cpuScore = startScore.cpu;
   const startMin = half === 1 ? 0 : 45, endMin = half === 1 ? 45 : 90;
@@ -206,6 +220,17 @@ export function simulateHalfLogic(
     const scorer = (preferred && (preferred.position === "ATT" || preferred.position === "MID"))
       ? preferred
       : (byPos(atkTeam, "ATT", "MID") ?? preferred ?? lineupOf(atkTeam)[0]);
+
+    // Comedy: in open play the shooter sometimes slips or air-kicks instead of
+    // actually getting the shot away. Counts as a chance gone begging (no goal).
+    if (!opts?.corner && rng() < TUNING.blunderSlip) {
+      const sgx = clamp(50 + (rng() - 0.5) * 20, 30, 70), sgy = goalYFor(atkTeam);
+      const slipShooter = { id: scorer.card.id, x: sgx, y: sgy + (atkTeam === "user" ? 20 : -20) };
+      emit(min, "blunder", atkTeam, `🤡 ${pick(BLUNDER_FALL, nameOf(scorer), "")}`, phase,
+        { x: slipShooter.x, y: slipShooter.y }, scorer.card.id, undefined, undefined, undefined, undefined, slipShooter);
+      return "miss";
+    }
+
     const assister = diff(atkTeam, scorer.card.id, "MID", "ATT", "DEF");
     const gk = byPos(defTeam, "GK");
     const dval = dE.defense * 0.42 + dE.goalkeeping * 0.58;
@@ -286,15 +311,33 @@ export function simulateHalfLogic(
     const passes = TUNING.passesMin + Math.floor(rng() * TUNING.passesExtra);
     let done = false;
     for (let k = 0; k < passes && !done; k++) {
+      // Comedy: the move descends into farce — a player robs his own teammate,
+      // tries something daft, and the attack breaks down. (Turnover.)
+      if (rng() < TUNING.blunderBuildup) {
+        const mate = diff(atk, holder.card.id, "MID", "ATT", "DEF") ?? byPos(atk, "MID") ?? holder;
+        const ownTeam = rng() < 0.5;
+        const pool = ownTeam ? BLUNDER_OWN_TEAM : BLUNDER_MISC;
+        emit(minute, "blunder", atk, `🤡 ${pick(pool, nameOf(holder), nameOf(mate))}`, phase, homeXY(holder, atk, homeCoordOf), holder.card.id);
+        done = true;
+        break;
+      }
+
       // Interception / turnover? (stronger defence vs weaker midfield → more turnovers)
       const interceptor = byPos(def, "DEF", "MID");
       const intercepted = (dEff.defense + rng() * 22) > (aEff.midfield + rng() * 22) && rng() < 0.6;
       if (intercepted && interceptor) {
-        const [dx, dy] = homeCoordOf(interceptor, def);
-        const isTackle = rng() > 0.45;
-        emit(minute, isTackle ? "tackle" : "clearance", def, pick(isTackle ? TACKLE_TEMPLATES : CLEARANCE_TEMPLATES, nameOf(interceptor), nameOf(holder)), phase, { x: dx, y: dy }, interceptor.card.id);
-        done = true;
-        break;
+        // Comedy: the would-be tackler gets nutmegged and the attack survives.
+        if (rng() < TUNING.nutmegOnTackle) {
+          const [nx, ny] = homeCoordOf(interceptor, def);
+          emit(minute, "blunder", atk, `🤡 ${pick(BLUNDER_NUTMEG, nameOf(holder), nameOf(interceptor))}`, phase, { x: nx, y: ny }, holder.card.id);
+          // fall through — holder keeps the ball and the move continues
+        } else {
+          const [dx, dy] = homeCoordOf(interceptor, def);
+          const isTackle = rng() > 0.45;
+          emit(minute, isTackle ? "tackle" : "clearance", def, pick(isTackle ? TACKLE_TEMPLATES : CLEARANCE_TEMPLATES, nameOf(interceptor), nameOf(holder)), phase, { x: dx, y: dy }, interceptor.card.id);
+          done = true;
+          break;
+        }
       }
 
       // Foul → card / free kick (and a shot if it's in a dangerous area).
@@ -377,6 +420,7 @@ const PAUSE_FRAMES: Partial<Record<MatchEventType, number>> = {
   corner: 5, throwin: 3, goalkick: 3,
   freekick: 5, yellowcard: 6, redcard: 11,
   tackle: 2, clearance: 2, kickoff: 3, counter: 2,
+  blunder: 7,
 };
 
 export function momentsToFrames(moments: Moment[], subframes = SUBFRAMES_PER_MOMENT): MatchFrame[] {

@@ -56,6 +56,34 @@ describe("exhibition fan-rating mechanics", () => {
     expect(["A", "B", "draw"]).toContain(res.winner);
   });
 
+  it("lets the better team win most of the time, but not always (form variance)", () => {
+    const strong = assignPositions(makeTeam("S", ATT_STATS), "2-2-2");
+    const weak = assignPositions(makeTeam("W", DEF_STATS), "2-2-2");
+    let strongWins = 0, weakWins = 0;
+    const N = 80;
+    for (let i = 0; i < N; i++) {
+      const res = simulateExhibition(strong, weak, "2-2-2", "2-2-2", `form-${i}`);
+      if (res.winner === "A") strongWins++;
+      else if (res.winner === "B") weakWins++;
+    }
+    // The stronger side should win clearly more often…
+    expect(strongWins).toBeGreaterThan(weakWins);
+    // …but the underdog (or a draw) should still get the odd result — never a clean sweep.
+    expect(strongWins).toBeLessThan(N);
+  });
+
+  it("produces unserious blunder events", () => {
+    // Across a batch of matches there should be at least one comedy blunder.
+    const a = assignPositions(makeTeam("A", ATT_STATS), "2-3-1");
+    const b = assignPositions(makeTeam("B", DEF_STATS), "2-3-1");
+    let blunders = 0;
+    for (let i = 0; i < 20; i++) {
+      const res = simulateExhibition(a, b, "2-3-1", "2-3-1", `blunder-${i}`);
+      blunders += res.events.filter((e) => e.type === "blunder").length;
+    }
+    expect(blunders).toBeGreaterThan(0);
+  });
+
   it("rewards a balanced shape over an all-defender side on average", () => {
     // Same player pool, but one side is built to attack and the other is all
     // defenders. Across many seeds the attacking side should score more.
