@@ -108,11 +108,21 @@ export default function MatchPitch({
     return arr;
   }, [userLineup, cpuLineup]);
 
+  // Kickoff positions, read from the first frame of whichever tape plays first.
+  // Seeding the tokens here means they start spread across the pitch rather than
+  // stacked at dead-centre before the first animation frame paints.
+  const initialPos = useMemo(() => {
+    const f0 = (soloFrames && soloFrames[0]) || (firstHalfFrames && firstHalfFrames[0]) || null;
+    const map: Record<string, { x: number; y: number }> = {};
+    if (f0) for (const p of f0.players) map[p.id] = { x: p.x, y: p.y };
+    return map;
+  }, [soloFrames, firstHalfFrames]);
+
   // Animation is driven by direct DOM mutation (no per-frame React re-render).
   const tokenEls = useRef(new Map<string, HTMLDivElement | null>());
   const ballEl = useRef<HTMLDivElement | null>(null);
   const progressEl = useRef<HTMLDivElement | null>(null);
-  const posRef = useRef<Record<string, { x: number; y: number }>>({});
+  const posRef = useRef<Record<string, { x: number; y: number }>>({ ...initialPos });
   const ballPosRef = useRef({ x: 50, y: 50 });
 
   const pRef = useRef(0);                // 0..1 progress within the current half
@@ -236,7 +246,7 @@ export default function MatchPitch({
             {cardList.map((info) => {
               const isPossessor = possessorId === info.id;
               const isSpotlight = spotlightId === info.id;
-              const init = posRef.current[info.id] ?? { x: 50, y: 50 };
+              const init = posRef.current[info.id] ?? initialPos[info.id] ?? { x: 50, y: 50 };
               return (
                 <div
                   key={info.id}
