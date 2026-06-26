@@ -5,7 +5,7 @@
 
 import {
   type AssignedPlayer, type Formation, type FootballCard, type MatchEvent,
-  type Rarity, calcTeamStats,
+  type Position, type Rarity, calcTeamStats, getPlayerRating,
 } from "./football";
 import { CARDS } from "./cards";
 import { simulateHalfLogic, momentsToFrames, type MatchFrame } from "./match-engine";
@@ -33,6 +33,19 @@ export interface ExhibitionScorer {
   minute: number;
 }
 
+export interface PlayerMatchRating {
+  cardId: string;          // side-prefixed id
+  side: "A" | "B";
+  name: string;
+  imageUrl: string;
+  rarity: Rarity;
+  position: Position;
+  rating: number;          // 4.5–10.0, one decimal
+  goals: number;
+  assists: number;
+  saves: number;
+}
+
 export interface ExhibitionResult {
   frames: MatchFrame[];
   durationSec: number;
@@ -44,6 +57,9 @@ export interface ExhibitionResult {
   aScorers: ExhibitionScorer[];
   bScorers: ExhibitionScorer[];
   events: MatchEvent[];
+  /** Per-player performance ratings (both teams), plus the man of the match. */
+  ratings: PlayerMatchRating[];
+  motmCardId: string | null;
   /**
    * The lineups with side-prefixed card ids — these MUST be the ones handed to
    * the pitch component, because the frame data references these same ids. Using
@@ -82,11 +98,40 @@ export function simulateExhibition(
 
   const h1 = simulateHalfLogic(input, 1, { user: 0, cpu: 0 });
   const h2 = simulateHalfLogic(input, 2, h1.endScore, h1.involvements);
-  const frames = momentsToFrames([...h1.moments, ...h2.moments]);
+  const moments = [...h1.moments, ...h2.moments];
+  const frames = momentsToFrames(moments);
   const events = [...h1.events, ...h2.events];
 
   const aScore = h2.endScore.user;
   const bScore = h2.endScore.cpu;
+
+  // ── Per-player match tallies (goals / assists / keeper saves) ──────────────
+  // Read straight off the moments so both teams are covered (the engine's own
+  // involvement map only tracks the "user" side).
+  const tally = new Map<string, { goals: number; assists: number; saves: number }>();
+  const bump = (id: string, key: "goals" | "assists" | "saves") => {
+    const t = tally.get(id) ?? { goals: 0, assists: 0, saves: 0 };
+    t[key]++;
+    tally.set(id, t);
+  };
+  for (const m of moments) {
+    if (m.type === "goal") {
+      if (m.scorerCardId) bump(m.scorerCardId, "goals");
+      if (m.assisterCardId) bump(m.assisterCardId, "assists");
+    } else if (m.type === "save" && m.possessorId) {
+      // Save moments record the goalkeeper as possessor.
+      bump(m.possessorId, "saves");
+    }
+  }
+
+  const ratings = ratePlayers(aLineup, bLineup, aScore, bScore, tally);
+  let motm: PlayerMatchRating | null = null;
+  for (const r of ratings) {
+    if (!motm || r.rating > motm.rating ||
+        (r.rating === motm.rating && r.goals > motm.goals)) {
+      motm = r;
+    }
+  }
 
   const nameOf = new Map<string, AssignedPlayer>();
   for (const p of [...aLineup, ...bLineup]) nameOf.set(p.card.id, p);
@@ -119,7 +164,51 @@ export function simulateExhibition(
     aScorers: scorersFor("user"),
     bScorers: scorersFor("cpu"),
     events,
+    ratings,
+    motmCardId: motm?.cardId ?? null,
     aLineup,
     bLineup,
   };
+}
+
+/**
+ * Turn a match into a 4.5–10.0 performance rating per player. Built from the
+ * unambiguous, position-aware signals: goals, assists, keeper saves, the result,
+ * and clean sheets — nudged by the player's own rating in the slot they played.
+ */
+function ratePlayers(
+  aLineup: AssignedPlayer[],
+  bLineup: AssignedPlayer[],
+  aScore: number,
+  bScore: number,
+  tally: Map<string, { goals: number; assists: number; saves: number }>,
+): PlayerMatchRating[] {
+  const out: PlayerMatchRating[] = [];
+
+  const rateSide = (lineup: AssignedPlayer[], side: "A" | "B", conceded: number, gd: number) => {
+    for (const p of lineup) {
+      const t = tally.get(p.card.id) ?? { goals: 0, assists: 0, saves: 0 };
+      const ovr = getPlayerRating(p.card, p.position);
+      const resultMod = gd > 0 ? 0.4 : gd === 0 ? 0.1 : -0.2;
+      const cleanSheet = conceded === 0 && (p.position === "GK" || p.position === "DEF") ? 0.5 : 0;
+      const raw =
+        6.4 +
+        (ovr - 75) * 0.025 +     // ±~0.5 from the player's quality in this slot
+        t.goals * 1.1 +
+        t.assists * 0.7 +
+        t.saves * 0.18 +
+        resultMod +
+        cleanSheet;
+      const rating = Math.round(Math.max(4.5, Math.min(10, raw)) * 10) / 10;
+      out.push({
+        cardId: p.card.id, side, name: p.card.name, imageUrl: p.card.imageUrl,
+        rarity: p.card.rarity, position: p.position, rating,
+        goals: t.goals, assists: t.assists, saves: t.saves,
+      });
+    }
+  };
+
+  rateSide(aLineup, "A", bScore, aScore - bScore);
+  rateSide(bLineup, "B", aScore, bScore - aScore);
+  return out;
 }

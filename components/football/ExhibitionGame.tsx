@@ -7,12 +7,28 @@ import {
   buildSlots, slotsToLineup, calcTeamStats,
 } from "@/lib/football";
 import type { StatsMap } from "@/lib/card-rating";
-import { simulateExhibition, EXHIBITION_POOL, type ExhibitionResult, type ExhibitionScorer } from "@/lib/exhibition";
+import {
+  simulateExhibition, EXHIBITION_POOL,
+  type ExhibitionResult, type ExhibitionScorer, type PlayerMatchRating,
+} from "@/lib/exhibition";
+import {
+  readExhibitionStats, recordExhibitionMatch, topPlayers,
+  type ExhibitionStats, type MatchPlayerEntry, type PlayerStat,
+} from "@/lib/exhibition-stats";
+import type { MatchEvent } from "@/lib/football";
 import FormationPitchSelector from "./FormationPitchSelector";
 import MatchPitch from "./MatchPitch";
 
 type Phase = "setup" | "playing" | "result";
 type Side = "A" | "B";
+
+const EVENT_ICON: Record<string, string> = {
+  goal: "⚽", save: "🧤", miss: "💨", nearpost: "🔔", blunder: "🤡",
+  freekick: "🎯", yellowcard: "🟨", redcard: "🟥", corner: "🚩",
+  halftime: "⏸", fulltime: "🔔", counter: "⚡",
+};
+// Events worth showing in the post-match log (skips filler like throw-ins/possession).
+const LOG_TYPES = new Set(Object.keys(EVENT_ICON));
 
 interface ApiPlayer {
   id: string;
@@ -51,6 +67,7 @@ export default function ExhibitionGame() {
   const [phase, setPhase] = useState<Phase>("setup");
   const [result, setResult] = useState<ExhibitionResult | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [stats, setStats] = useState<ExhibitionStats>({ gamesPlayed: 0, players: {} });
 
   // ── Load the player pool (every card across the channels, with fan stats) ──
   useEffect(() => {
@@ -81,6 +98,9 @@ export default function ExhibitionGame() {
     return () => { alive = false; };
   }, []);
 
+  // Load persisted all-time stats on mount (client only).
+  useEffect(() => { setStats(readExhibitionStats()); }, []);
+
   const team = editing === "A" ? teamA : teamB;
   const setTeam = editing === "A" ? setTeamA : setTeamB;
 
@@ -102,26 +122,29 @@ export default function ExhibitionGame() {
   const bInfo = statsFor(teamB);
   const ready = aInfo.filled === 7 && bInfo.filled === 7;
 
-  function handleKickOff() {
+  function runMatch() {
     const a = slotsToLineup(teamA.lineup);
     const b = slotsToLineup(teamB.lineup);
     if (a.length < 7 || b.length < 7) return;
     const seed = nanoid();
     const res = simulateExhibition(a, b, teamA.formation, teamB.formation, seed);
+
+    // Persist all-time stats from this match (strip the side prefix → real card id).
+    const entries: MatchPlayerEntry[] = res.ratings.map((r) => ({
+      id: r.cardId.replace(/^[AB]:/, ""),
+      name: r.name, imageUrl: r.imageUrl, rarity: r.rarity,
+      won: (r.side === "A" && res.winner === "A") || (r.side === "B" && res.winner === "B"),
+      goals: r.goals,
+    }));
+    setStats(recordExhibitionMatch(entries));
+
     setResult(res);
     setShareCopied(false);
     setPhase("playing");
   }
 
-  function handleRematch() {
-    const a = slotsToLineup(teamA.lineup);
-    const b = slotsToLineup(teamB.lineup);
-    const seed = nanoid();
-    const res = simulateExhibition(a, b, teamA.formation, teamB.formation, seed);
-    setResult(res);
-    setShareCopied(false);
-    setPhase("playing");
-  }
+  const handleKickOff = runMatch;
+  const handleRematch = runMatch;
 
   function handleEditTeams() {
     setPhase("setup");
@@ -197,6 +220,7 @@ export default function ExhibitionGame() {
     return (
       <ResultScreen
         result={result}
+        stats={stats}
         nameA={teamA.name || "Team A"}
         nameB={teamB.name || "Team B"}
         onRematch={handleRematch}
@@ -287,9 +311,10 @@ export default function ExhibitionGame() {
 // ── Result screen ──────────────────────────────────────────────────────────────
 
 function ResultScreen({
-  result, nameA, nameB, onRematch, onEdit, onShare, shareCopied,
+  result, stats, nameA, nameB, onRematch, onEdit, onShare, shareCopied,
 }: {
   result: ExhibitionResult;
+  stats: ExhibitionStats;
   nameA: string;
   nameB: string;
   onRematch: () => void;
@@ -303,8 +328,13 @@ function ResultScreen({
     winner === "B" ? `${nameB} win!` :
     "It's a draw!";
 
+  const ratingsA = result.ratings.filter((r) => r.side === "A").sort((x, y) => y.rating - x.rating);
+  const ratingsB = result.ratings.filter((r) => r.side === "B").sort((x, y) => y.rating - x.rating);
+  const motm = result.ratings.find((r) => r.cardId === result.motmCardId) ?? null;
+
   return (
-    <div className="max-w-sm mx-auto">
+    <div className="max-w-sm mx-auto space-y-3">
+      {/* Scoreline */}
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5 text-center">
         <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Full Time</div>
         <div className="mt-2 flex items-center justify-center gap-4">
@@ -325,10 +355,17 @@ function ResultScreen({
         }`}>
           {winner === "draw" ? "🤝 " : "🏆 "}{banner}
         </div>
+        {motm && (
+          <div className="mt-2 text-[11px] text-amber-300">
+            ⭐ Man of the Match — <span className="font-bold">{motm.name}</span>{" "}
+            <span className="text-amber-500/80">({motm.rating.toFixed(1)})</span>
+          </div>
+        )}
       </div>
 
+      {/* Goals quick-view */}
       {(result.aScorers.length > 0 || result.bScorers.length > 0) && (
-        <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
           <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Goals</div>
           <div className="flex gap-6">
             <ScorerColumn label={nameA} accent="text-blue-400" scorers={result.aScorers} />
@@ -337,7 +374,23 @@ function ResultScreen({
         </div>
       )}
 
-      <div className="mt-4 flex gap-3">
+      {/* Match events log */}
+      <MatchEventsLog events={result.events} />
+
+      {/* Player ratings */}
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
+        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Player Ratings</div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <RatingsColumn label={nameA} accent="text-blue-400" players={ratingsA} motmId={result.motmCardId} />
+          <RatingsColumn label={nameB} accent="text-red-400" players={ratingsB} motmId={result.motmCardId} />
+        </div>
+      </div>
+
+      {/* All-time stats */}
+      <StatsPanel stats={stats} />
+
+      {/* Actions */}
+      <div className="flex gap-3 pt-1">
         <button
           onClick={onRematch}
           className="flex-1 rounded-2xl bg-green-700 py-3.5 font-bold text-white shadow-lg shadow-green-900/40 transition hover:bg-green-600 active:scale-95 flex items-center justify-center gap-2"
@@ -357,7 +410,7 @@ function ResultScreen({
       </div>
       <button
         onClick={onEdit}
-        className="mt-3 w-full rounded-2xl border border-zinc-700 bg-zinc-900/60 py-3 text-sm font-bold text-zinc-300 transition hover:border-zinc-500"
+        className="w-full rounded-2xl border border-zinc-700 bg-zinc-900/60 py-3 text-sm font-bold text-zinc-300 transition hover:border-zinc-500"
       >
         ↺ Edit Teams
       </button>
@@ -378,6 +431,128 @@ function ScorerColumn({ label, accent, scorers }: { label: string; accent: strin
             <span className="text-zinc-600">{s.minute}&apos;</span>
           </div>
         ))
+      )}
+    </div>
+  );
+}
+
+function MatchEventsLog({ events }: { events: MatchEvent[] }) {
+  const log = events.filter((e) => LOG_TYPES.has(e.type));
+  if (log.length === 0) return null;
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Match Events</div>
+      <div className="max-h-56 overflow-y-auto pr-1 flex flex-col gap-1">
+        {log.map((ev, i) => {
+          const isGoal = ev.type === "goal";
+          const dot = ev.team === "user" ? "bg-blue-400" : "bg-red-400";
+          return (
+            <div
+              key={`${ev.minute}-${i}`}
+              className={`flex items-start gap-2 rounded-lg px-2 py-1.5 ${
+                isGoal ? "bg-zinc-800/70 border border-zinc-700/50" : "bg-zinc-900/40"
+              }`}
+            >
+              <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
+              <span className="shrink-0 text-sm leading-none mt-0.5">{EVENT_ICON[ev.type] ?? "●"}</span>
+              <div className="min-w-0 flex-1">
+                <span className="mr-1 font-mono text-[10px] text-zinc-500">{ev.minute}&apos;</span>
+                <span className={`text-[11px] leading-snug ${isGoal ? "font-semibold text-white" : "text-zinc-300"}`}>
+                  {ev.description}
+                </span>
+              </div>
+              {(isGoal || ev.type === "halftime" || ev.type === "fulltime") && (
+                <span className="shrink-0 text-[10px] font-bold text-white/70">{ev.scoreUser}–{ev.scoreCpu}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ratingColor(r: number): string {
+  if (r >= 8) return "bg-green-600 text-white";
+  if (r >= 7) return "bg-lime-600/90 text-white";
+  if (r >= 6) return "bg-zinc-600 text-white";
+  return "bg-red-700/90 text-white";
+}
+
+function RatingsColumn({
+  label, accent, players, motmId,
+}: { label: string; accent: string; players: PlayerMatchRating[]; motmId: string | null }) {
+  return (
+    <div className="min-w-0">
+      <div className={`mb-1.5 text-[10px] font-bold truncate ${accent}`}>{label.toUpperCase()}</div>
+      <div className="flex flex-col gap-1">
+        {players.map((p) => (
+          <div key={p.cardId} className="flex items-center gap-2">
+            <span className="w-7 shrink-0 text-[9px] font-bold uppercase text-zinc-500">{p.position}</span>
+            <span className="min-w-0 flex-1 truncate text-xs text-zinc-200">
+              {p.cardId === motmId && <span className="mr-0.5 text-amber-400">⭐</span>}
+              {p.name}
+            </span>
+            <span className="shrink-0 text-[10px] text-zinc-500">
+              {p.goals > 0 && <span className="mr-1">⚽{p.goals}</span>}
+              {p.assists > 0 && <span className="mr-1">🅰{p.assists}</span>}
+              {p.saves > 0 && p.position === "GK" && <span className="mr-1">🧤{p.saves}</span>}
+            </span>
+            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-black tabular-nums ${ratingColor(p.rating)}`}>
+              {p.rating.toFixed(1)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StatsPanel({ stats }: { stats: ExhibitionStats }) {
+  const mostPicked = topPlayers(stats, "picks", 5);
+  const mostWins = topPlayers(stats, "wins", 5);
+
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">All-Time Stats</span>
+        <span className="text-[11px] text-zinc-400">
+          <span className="font-black text-white">{stats.gamesPlayed}</span> game{stats.gamesPlayed === 1 ? "" : "s"} played
+        </span>
+      </div>
+      {mostPicked.length === 0 ? (
+        <p className="text-xs text-zinc-600">Play a few matches to build the leaderboards.</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <StatList title="Most Picked" players={mostPicked} valueOf={(p) => p.picks} suffix="picks" />
+          <StatList title="Most Wins" players={mostWins} valueOf={(p) => p.wins} suffix="wins" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatList({
+  title, players, valueOf, suffix,
+}: { title: string; players: PlayerStat[]; valueOf: (p: PlayerStat) => number; suffix: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500">{title}</div>
+      {players.length === 0 ? (
+        <div className="text-xs text-zinc-600">—</div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {players.map((p, i) => (
+            <div key={p.id} className="flex items-center gap-2">
+              <span className="w-3 shrink-0 text-[10px] font-bold text-zinc-600">{i + 1}</span>
+              <span className={`min-w-0 flex-1 truncate text-xs font-medium ${RARITY_OVR[p.rarity] ?? "text-zinc-200"}`}>
+                {p.name}
+              </span>
+              <span className="shrink-0 text-[11px] font-black tabular-nums text-white">{valueOf(p)}</span>
+              <span className="shrink-0 text-[9px] text-zinc-600">{suffix}</span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

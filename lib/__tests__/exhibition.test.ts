@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { simulateExhibition } from "../exhibition";
+import { recordExhibitionMatch, topPlayers, type ExhibitionStats } from "../exhibition-stats";
 import { assignPositions, getPlayerRating, type FootballCard } from "../football";
 import type { StatsMap } from "../card-rating";
 
@@ -82,6 +83,41 @@ describe("exhibition fan-rating mechanics", () => {
       blunders += res.events.filter((e) => e.type === "blunder").length;
     }
     expect(blunders).toBeGreaterThan(0);
+  });
+
+  it("rates all 14 players and names a man of the match", () => {
+    const a = assignPositions(makeTeam("A", ATT_STATS), "2-2-2");
+    const b = assignPositions(makeTeam("B", DEF_STATS), "2-2-2");
+    const res = simulateExhibition(a, b, "2-2-2", "2-2-2", "rate-seed");
+    expect(res.ratings.length).toBe(14);
+    for (const r of res.ratings) {
+      expect(r.rating).toBeGreaterThanOrEqual(4.5);
+      expect(r.rating).toBeLessThanOrEqual(10);
+    }
+    // Every goal is attributed to a rated player on the scoring side.
+    const goalSum = res.ratings.reduce((s, r) => s + r.goals, 0);
+    expect(goalSum).toBe(res.aScore + res.bScore);
+    if (res.motmCardId) {
+      expect(res.ratings.some((r) => r.cardId === res.motmCardId)).toBe(true);
+    }
+  });
+
+  it("aggregates all-time stats: picks, wins and games played", () => {
+    // recordExhibitionMatch falls back to pure computation when there's no window.
+    let stats: ExhibitionStats = { gamesPlayed: 0, players: {} };
+    const entry = (id: string, won: boolean, goals = 0) => ({
+      id, name: id, imageUrl: "", rarity: "common" as const, won, goals,
+    });
+    // One match: Milo on the winning side and scores twice, Stan loses.
+    stats = recordExhibitionMatch([entry("milo", true, 2), entry("stan", false)]);
+    expect(stats.gamesPlayed).toBe(1);
+    expect(stats.players.milo.picks).toBe(1);
+    expect(stats.players.milo.wins).toBe(1);
+    expect(stats.players.milo.goals).toBe(2);
+    expect(stats.players.stan.wins).toBe(0);
+    const picked = topPlayers(stats, "picks", 5);
+    expect(picked.map((p) => p.id).sort()).toEqual(["milo", "stan"]);
+    expect(topPlayers(stats, "wins", 5).map((p) => p.id)).toEqual(["milo"]);
   });
 
   it("rewards a balanced shape over an all-defender side on average", () => {
