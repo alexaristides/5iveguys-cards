@@ -30,24 +30,24 @@ export interface MatchPlayerEntry {
 
 const KEY = "exhibition_stats_v1";
 
-const EMPTY: ExhibitionStats = { gamesPlayed: 0, players: {} };
+export const EMPTY_EXHIBITION_STATS: ExhibitionStats = { gamesPlayed: 0, players: {} };
 
 export function readExhibitionStats(): ExhibitionStats {
-  if (typeof window === "undefined") return EMPTY;
+  if (typeof window === "undefined") return EMPTY_EXHIBITION_STATS;
   try {
     const raw = window.localStorage.getItem(KEY);
-    if (!raw) return EMPTY;
+    if (!raw) return EMPTY_EXHIBITION_STATS;
     const parsed = JSON.parse(raw) as ExhibitionStats;
-    if (typeof parsed.gamesPlayed !== "number" || typeof parsed.players !== "object") return EMPTY;
+    if (typeof parsed.gamesPlayed !== "number" || typeof parsed.players !== "object") return EMPTY_EXHIBITION_STATS;
     return parsed;
   } catch {
-    return EMPTY;
+    return EMPTY_EXHIBITION_STATS;
   }
 }
 
-/** Record one completed match and return the updated, persisted stats. */
-export function recordExhibitionMatch(entries: MatchPlayerEntry[]): ExhibitionStats {
-  const stats = readExhibitionStats();
+/** Pure: fold one completed match into `stats`. Shared with the iOS app, which
+ *  persists to AsyncStorage instead of localStorage. */
+export function mergeExhibitionMatch(stats: ExhibitionStats, entries: MatchPlayerEntry[]): ExhibitionStats {
   const next: ExhibitionStats = {
     gamesPlayed: stats.gamesPlayed + 1,
     players: { ...stats.players },
@@ -66,6 +66,12 @@ export function recordExhibitionMatch(entries: MatchPlayerEntry[]): ExhibitionSt
       goals: prev.goals + e.goals,
     };
   }
+  return next;
+}
+
+/** Record one completed match and return the updated, persisted stats. */
+export function recordExhibitionMatch(entries: MatchPlayerEntry[]): ExhibitionStats {
+  const next = mergeExhibitionMatch(readExhibitionStats(), entries);
   if (typeof window !== "undefined") {
     try { window.localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* quota / private mode */ }
   }

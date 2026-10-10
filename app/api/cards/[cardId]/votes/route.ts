@@ -93,15 +93,25 @@ export async function POST(req: NextRequest, { params }: Params) {
   });
 
   if (isFirstVote) {
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: userId },
-        data: { points: { increment: 10 }, totalEarned: { increment: 10 } },
-      }),
-      prisma.pointsEvent.create({
+    await prisma.$transaction(async (tx) => {
+      // Credit the card's channel balance (spendable on packs). Fall back to the
+      // legacy global balance only if the user hasn't joined that channel.
+      const credited = card?.channelId
+        ? await tx.userChannelStats.updateMany({
+            where: { userId, channelId: card.channelId },
+            data: { points: { increment: 10 }, totalEarned: { increment: 10 } },
+          })
+        : { count: 0 };
+      if (credited.count === 0) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { points: { increment: 10 }, totalEarned: { increment: 10 } },
+        });
+      }
+      await tx.pointsEvent.create({
         data: { userId, channelId: card?.channelId ?? null, type: "card_rating", points: 10 },
-      }),
-    ]);
+      });
+    });
   }
 
   // Write a rating snapshot so leaderboard history is trackable
