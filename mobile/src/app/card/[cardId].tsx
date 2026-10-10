@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, InputAccessoryView, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
 import Slider from "@react-native-community/slider";
@@ -29,6 +29,38 @@ const STATS: { key: StatKey; label: string; abbrev: string; color: string }[] = 
 ];
 
 const DEFAULT_VOTE = Object.fromEntries(STAT_FIELDS.map((f) => [f, 50])) as StatsMap;
+
+// The number pad has no return key, so every stat box shares a "Done" bar above the keyboard.
+const KEYPAD_BAR = "stat-keypad";
+
+/** The number beside each slider; tap it to type a value instead of dragging. */
+function StatInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  // Local text while editing; null shows the live value. Focus clears the box (the current
+  // value stays as the placeholder) so typing replaces it — selectTextOnFocus is unreliable on iOS.
+  const [text, setText] = useState<string | null>(null);
+  return (
+    <TextInput
+      style={styles.sliderVal}
+      value={text ?? String(Math.round(value))}
+      placeholder={String(Math.round(value))}
+      placeholderTextColor={colors.text3}
+      onFocus={() => setText("")}
+      onChangeText={(t) => {
+        const digits = t.replace(/\D/g, "");
+        if (!digits) return setText("");
+        const n = Math.min(100, Number(digits));
+        setText(String(n));
+        onChange(n);
+      }}
+      onBlur={() => setText(null)}
+      keyboardType="number-pad"
+      maxLength={3}
+      autoComplete="off"
+      contextMenuHidden
+      inputAccessoryViewID={KEYPAD_BAR}
+    />
+  );
+}
 
 export default function CardSheet() {
   const { cardId } = useLocalSearchParams<{ cardId: string }>();
@@ -88,7 +120,13 @@ export default function CardSheet() {
   if (!card) return <View style={styles.screen}><Loading /></View>;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      automaticallyAdjustKeyboardInsets
+    >
       <Pressable
         disabled={!card.backImageUrl}
         onPress={() => { Haptics.selectionAsync(); flip.set(withTiming(flip.get() > 0.5 ? 0 : 1, { duration: 450 })); }}
@@ -154,13 +192,21 @@ export default function CardSheet() {
                 maximumValue={100}
                 step={1}
                 value={draft[s.key]}
+                onSlidingStart={Keyboard.dismiss}
                 onValueChange={(v) => setEdits((d) => ({ ...d, [s.key]: v }))}
                 minimumTrackTintColor={s.color}
                 maximumTrackTintColor={colors.cardHi}
               />
-              <Text style={styles.sliderVal}>{Math.round(draft[s.key])}</Text>
+              <StatInput value={draft[s.key]} onChange={(v) => setEdits((d) => ({ ...d, [s.key]: v }))} />
             </View>
           ))}
+          <InputAccessoryView nativeID={KEYPAD_BAR}>
+            <View style={styles.keypadBar}>
+              <Pressable onPress={Keyboard.dismiss} hitSlop={10}>
+                <Text style={styles.keypadDone}>Done</Text>
+              </Pressable>
+            </View>
+          </InputAccessoryView>
           <Button title="Submit rating" onPress={submit} loading={submitting} style={{ marginTop: 8 }} />
           <Button title="Cancel" variant="secondary" onPress={() => { setEdits({}); setVoting(false); }} />
         </View>
@@ -199,5 +245,13 @@ const styles = StyleSheet.create({
   votePanel: { marginTop: 24, gap: 6 },
   sliderRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   sliderLabel: { width: 92, color: colors.text2, fontSize: 13, fontWeight: "600" },
-  sliderVal: { width: 30, color: colors.text, fontWeight: "800", textAlign: "right" },
+  sliderVal: {
+    width: 44, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.card, color: colors.text, fontSize: 15, fontWeight: "800", textAlign: "center",
+  },
+  keypadBar: {
+    flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingVertical: 10,
+    backgroundColor: colors.cardHi, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border,
+  },
+  keypadDone: { color: colors.accentHi, fontSize: 16, fontWeight: "700" },
 });
