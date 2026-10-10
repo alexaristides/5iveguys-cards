@@ -1,11 +1,15 @@
-// Sign-in for the iOS app. The app can't use NextAuth's browser redirect flow,
-// so it signs in natively (Google / Apple), posts the result here, and gets
-// back a token for a real NextAuth database Session row. middleware.ts turns
+// Sign-in for the iOS app. Either way the app ends up holding the token of a
+// real NextAuth database Session row; middleware.ts turns
 // `Authorization: Bearer <token>` into the session cookie, so every existing
 // route's getServerSession() works unchanged.
+//
+// - Google: the app opens /api/mobile/auth/web-start in the system auth sheet
+//   (ASWebAuthenticationSession), which runs the normal NextAuth Google flow
+//   and finishes at /api/mobile/auth/web-finish → redirect to the app with a token.
+// - Apple: native Sign in with Apple, identity token posted to /api/mobile/auth/apple.
 
 import { randomBytes } from "crypto";
-import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT, decodeJwt } from "jose";
+import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT } from "jose";
 import { prisma } from "./db";
 
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // matches NextAuth's default
@@ -29,10 +33,50 @@ export async function deleteMobileSession(sessionToken: string) {
   await prisma.session.deleteMany({ where: { sessionToken } });
 }
 
+/** NextAuth's session cookie name (secure-prefixed when the site runs on https). */
+export function sessionCookieName() {
+  return process.env.NEXTAUTH_URL?.startsWith("https://")
+    ? "__Secure-next-auth.session-token"
+    : "next-auth.session-token";
+}
+
+/** Cookie carrying the app redirect URL from web-start to web-finish. */
+export const REDIRECT_COOKIE = "mobile-auth-redirect";
+
+/** Where web-finish may send the token: the app's scheme, or Expo Go in development. */
+export function isAllowedAppRedirect(url: string) {
+  if (url.startsWith("fiveguys://")) return true;
+  return process.env.NODE_ENV !== "production" && url.startsWith("exp://");
+}
+
+const ticketKey = () => new TextEncoder().encode(process.env.NEXTAUTH_SECRET!);
+
+/**
+ * Short-lived ticket that lets the auth sheet act as an already signed-in app
+ * user, so NextAuth links Google to them ("Connect YouTube" for Apple users).
+ */
+export async function signLinkTicket(userId: string) {
+  return new SignJWT({ purpose: "mobile-link" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(userId)
+    .setIssuedAt()
+    .setExpirationTime("5m")
+    .sign(ticketKey());
+}
+
+export async function verifyLinkTicket(ticket: string): Promise<string | null> {
+  try {
+    const { payload } = await jwtVerify(ticket, ticketKey());
+    return payload.purpose === "mobile-link" && payload.sub ? payload.sub : null;
+  } catch {
+    return null;
+  }
+}
+
 export class AccountConflictError extends Error {}
 
 interface ProviderIdentity {
-  provider: "google" | "apple";
+  provider: "apple";
   providerAccountId: string;
   email: string | null;
   name: string | null;
@@ -45,7 +89,7 @@ interface ProviderIdentity {
     scope?: string | null;
     id_token?: string | null;
   };
-  /** Set when an already signed-in user is connecting this provider (e.g. Apple user → Connect YouTube). */
+  /** Set when an already signed-in user is connecting this provider. */
   linkToUserId?: string | null;
 }
 
@@ -113,42 +157,6 @@ export async function resolveMobileUser(identity: ProviderIdentity): Promise<Mob
 
 // ── Google ──────────────────────────────────────────────────────────────────
 
-interface GoogleTokenResponse {
-  access_token: string;
-  expires_in: number;
-  refresh_token?: string;
-  scope: string;
-  id_token: string;
-}
-
-/** Exchange the iOS SDK's serverAuthCode for tokens (web client id/secret, like NextAuth). */
-export async function exchangeGoogleServerAuthCode(code: string) {
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      code,
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-      grant_type: "authorization_code",
-      redirect_uri: "",
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(`Google code exchange failed: ${res.status} ${await res.text()}`);
-  }
-  const tokens = (await res.json()) as GoogleTokenResponse;
-  // Received directly from Google over TLS, so no signature check is needed.
-  const claims = decodeJwt(tokens.id_token) as {
-    sub: string;
-    email?: string;
-    email_verified?: boolean;
-    name?: string;
-    picture?: string;
-  };
-  return { tokens, claims };
-}
-
 export async function revokeGoogleToken(token: string) {
   await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, {
     method: "POST",
@@ -162,10 +170,9 @@ const APPLE_ISSUER = "https://appleid.apple.com";
 const appleJwks = createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"));
 
 export async function verifyAppleIdentityToken(identityToken: string) {
-  const { payload } = await jwtVerify(identityToken, appleJwks, {
-    issuer: APPLE_ISSUER,
-    audience: process.env.APPLE_BUNDLE_ID!,
-  });
+  const audience = [process.env.APPLE_BUNDLE_ID!];
+  if (process.env.NODE_ENV !== "production") audience.push("host.exp.Exponent"); // Expo Go
+  const { payload } = await jwtVerify(identityToken, appleJwks, { issuer: APPLE_ISSUER, audience });
   return payload as { sub: string; email?: string };
 }
 
