@@ -3,7 +3,7 @@ import { useFocusEffect } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 import { useChannel } from "./channel";
-import type { Account, CollectionItem, DbCard, Me, Record3, Video, VotesResponse } from "./types";
+import type { Account, CollectionItem, DbCard, Me, MotmResults, Record3, Video, VotesResponse } from "./types";
 
 /** Refetch when a screen comes back into focus (skips the first focus, which mounts). */
 export function useRefreshOnFocus(refetch: () => unknown) {
@@ -51,6 +51,15 @@ export function useVideos() {
   return useQuery({
     queryKey: ["videos", slug],
     queryFn: () => api<{ videos: Video[] }>(`/api/channels/${slug}/videos?page=1`).then((r) => r.videos),
+  });
+}
+
+/** Man of the Match standings for a video on the selected channel. */
+export function useMotm(videoId: string) {
+  const { slug } = useChannel();
+  return useQuery({
+    queryKey: ["motm", slug, videoId],
+    queryFn: () => api<MotmResults>(`/api/channels/${slug}/videos/${videoId}/motm`),
   });
 }
 

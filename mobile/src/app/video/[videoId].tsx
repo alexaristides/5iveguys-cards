@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Linking, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { useQueryClient } from "@tanstack/react-query";
 import { POINTS_CONFIG } from "@shared/cards";
@@ -85,6 +85,10 @@ export default function VideoSheet() {
         variant="secondary"
         onPress={() => Linking.openURL(`https://www.youtube.com/watch?v=${videoId}`)}
         style={{ marginTop: 8 }}
+      />
+      <Button
+        title="🏆  Vote MOTM"
+        onPress={() => router.push({ pathname: "/motm/[videoId]", params: { videoId } })}
       />
       <Text style={styles.hint}>Likes count after you tap Sync YouTube.</Text>
     </View>

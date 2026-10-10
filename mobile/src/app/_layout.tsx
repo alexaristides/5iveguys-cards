@@ -47,6 +47,10 @@ function RootStack() {
           options={{ presentation: "formSheet", sheetAllowedDetents: [0.6, 0.92], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
         />
         <Stack.Screen
+          name="motm/[videoId]"
+          options={{ presentation: "formSheet", sheetAllowedDetents: [0.92], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
+        />
+        <Stack.Screen
           name="settings"
           options={{ presentation: "formSheet", sheetAllowedDetents: [0.55], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
         />

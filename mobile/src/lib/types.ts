@@ -78,3 +78,25 @@ export interface Record3 {
   losses: number;
   draws: number;
 }
+
+export interface MotmCandidate {
+  /** One of the player's cards; send it back as `playerId` to vote. */
+  id: string;
+  name: string;
+  position: string | null;
+  imageUrl: string;
+  team: string;
+  /** From another channel's squad (crossover videos). */
+  isGuest: boolean;
+  votes: number;
+  percent: number;
+}
+
+export interface MotmResults {
+  video: { videoId: string; title: string | null; thumbnailUrl: string | null; publishedAt: string };
+  team: string;
+  totalVotes: number;
+  myVote: string | null;
+  /** Most votes first. */
+  candidates: MotmCandidate[];
+}

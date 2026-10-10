@@ -69,6 +69,7 @@ model User {
   forumLikes        ForumLike[]
   forumReplyLikes   ForumReplyLike[]
   videoWatches      VideoWatch[]
+  motmVotes         MotmVote[]
   notifications     Notification[]
   cardVotes         CardVote[]
   lobbiesCreated    Lobby[]  @relation("CreatedLobbies")
@@ -242,6 +243,24 @@ model VideoWatch {
 
   @@unique([userId, videoId])
   @@index([userId, channelId])
+}
+
+// Man of the Match: one vote per user per video, changeable. A player is identified by
+// name + team (their squad cards' channel), so a crossover video can feature the other squad.
+model MotmVote {
+  id              String   @id @default(cuid())
+  userId          String
+  videoId         String
+  channelId       String   // the video's channel
+  playerName      String
+  playerChannelId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+  @@index([videoId])
 }
 
 // ---------- Cards & packs ----------
