@@ -12,7 +12,18 @@ npm run db:push      # Push schema changes to DB (no migration file)
 npm run db:studio    # Open Prisma Studio
 ```
 
-No test suite exists.
+Unit tests: `npm test` (vitest, `lib/**/*.test.ts`).
+
+### iOS app (`mobile/`, Expo SDK 57)
+
+```bash
+cd mobile
+npx expo run:ios          # build + run the dev build in the Simulator (needs LANG=en_US.UTF-8 for CocoaPods)
+npx expo start --dev-client   # Metro only, once the dev build is installed (don't pass --localhost: it binds IPv6 only)
+npx tsc --noEmit && npx expo lint
+```
+
+`mobile/.env.local` sets `EXPO_PUBLIC_API_URL` (the Next site; `http://localhost:3000` for the Simulator) and the public Pusher key/cluster.
 
 ## Architecture
 
@@ -36,6 +47,15 @@ No test suite exists.
 NextAuth v4 + PrismaAdapter + Google OAuth. The `youtube.force-ssl` scope is mandatory — without it `videos.getRating` is unavailable and sync fails with `reauth_required`. Token refresh is handled automatically in the sync route when `expires_at` is within 60 seconds.
 
 New users receive 100 free starting points (via the `createUser` NextAuth event in `lib/auth.ts`).
+
+### iOS app architecture
+
+- Three tabs (YouTube · Cards · Game) over the **same API and database** as the website. Channels covered: `CHANNELS` in `mobile/src/lib/config.ts`.
+- **Auth:** the app holds the token of a real NextAuth database `Session` row and sends `Authorization: Bearer <token>`. `middleware.ts` rewrites that into the NextAuth session cookie, so every route's `getServerSession()` works unchanged.
+  - Google: the app opens `/api/mobile/auth/web-start` in the iOS auth sheet → `/mobile-auth` runs the normal NextAuth Google flow → `/api/mobile/auth/web-finish` redirects to `fiveguys://auth?token=…`. A `link-ticket` lets an Apple user link Google (Connect YouTube).
+  - Apple: `/api/mobile/auth/apple` verifies the identity token (needs `APPLE_*` env vars).
+  - `DELETE /api/account` deletes the user (App Store requirement).
+- Game logic is shared, not copied: the app imports `lib/match-engine.ts`, `lib/football.ts`, `lib/exhibition.ts` etc. via the `@shared/*` alias (see `mobile/metro.config.js`). Keep those files free of Next/Prisma imports.
 
 ### Key files
 

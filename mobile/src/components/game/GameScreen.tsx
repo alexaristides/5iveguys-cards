@@ -20,7 +20,7 @@ export function GameScreen({
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
         <View style={styles.side} />
       </View>
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + (footer ? 96 : 32) }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + (footer ? 124 : 32) }]}>
         {children}
       </ScrollView>
       {footer ? <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>{footer}</View> : null}

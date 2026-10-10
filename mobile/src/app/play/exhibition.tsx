@@ -32,6 +32,8 @@ interface Team { formation: Formation; slots: LineupSlot[] }
 
 const APP_CHANNELS = new Set<string>(CHANNELS.map((c) => c.slug));
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : word === word.toUpperCase() ? "S" : "s"}`;
+
 export default function Exhibition() {
   const players = useQuery({
     queryKey: ["exhibition-players"],
@@ -90,7 +92,11 @@ export default function Exhibition() {
 
   if (phase === "playing" && result) {
     return (
-      <GameScreen title="Exhibition" hideBack>
+      <GameScreen
+        title="Exhibition"
+        hideBack
+        footer={<Button title="Skip to result ⏭" variant="secondary" onPress={() => setPhase("result")} />}
+      >
         <MatchView
           key={`${result.frames.length}-${result.aScore}-${result.bScore}`}
           userLineup={result.aLineup}
@@ -103,7 +109,6 @@ export default function Exhibition() {
           soloDurationSec={result.durationSec}
           onComplete={() => setPhase("result")}
         />
-        <Button title="Skip to result ⏭" variant="secondary" onPress={() => setPhase("result")} style={{ marginTop: 12 }} />
       </GameScreen>
     );
   }
@@ -140,12 +145,12 @@ export default function Exhibition() {
               </View>
               {stats && stats.gamesPlayed > 0 && (
                 <View style={styles.box}>
-                  <Text style={styles.head}>HALL OF FAME · {stats.gamesPlayed} GAMES</Text>
+                  <Text style={styles.head}>HALL OF FAME · {plural(stats.gamesPlayed, "GAME")}</Text>
                   {topPlayers(stats, "goals", 3).map((p) => (
                     <View key={p.id} style={styles.ratingRow}>
                       <Image source={{ uri: imageUri(p.imageUrl) }} style={styles.hofImg} />
                       <Text style={styles.ratingName} numberOfLines={1}>{p.name}</Text>
-                      <Text style={styles.dim}>{p.goals} goals · {p.wins} wins</Text>
+                      <Text style={styles.dim}>{plural(p.goals, "goal")} · {plural(p.wins, "win")}</Text>
                     </View>
                   ))}
                 </View>

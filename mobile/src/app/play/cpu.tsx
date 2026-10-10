@@ -142,7 +142,7 @@ export default function VsCpu() {
           resultPanel={summary && (
             <ResultPanel
               events={summary.events}
-              userLabel="You" cpuLabel="CPU"
+              userLabel="Your" cpuLabel="CPU"
               userOverall={summary.userOverall} cpuOverall={summary.cpuOverall}
               nameOf={nameOf} mvp={summary.mvp}
             >

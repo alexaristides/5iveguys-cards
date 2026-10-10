@@ -1,6 +1,12 @@
-import Pusher from "pusher-js/react-native";
+import PusherTyped from "pusher-js/react-native";
 import { authHeader } from "./api";
 import { API_URL, PUSHER_CLUSTER, PUSHER_KEY } from "./config";
+
+// pusher-js's React Native build exports the class as `module.exports.Pusher`
+// while its typings declare a default export, so resolve it at runtime.
+const Pusher =
+  (PusherTyped as unknown as { Pusher?: typeof PusherTyped }).Pusher ?? PusherTyped;
+type Pusher = PusherTyped;
 
 let client: Pusher | null = null;
 

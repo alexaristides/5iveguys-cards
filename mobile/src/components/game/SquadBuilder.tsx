@@ -20,6 +20,7 @@ const SLOT_COORDS: Record<Formation, Record<Position, [number, number][]>> = {
 };
 
 const POS_COLOR: Record<Position, string> = { GK: "#ca8a04", DEF: "#1d4ed8", MID: "#15803d", ATT: "#b91c1c" };
+const POS_NAME: Record<Position, string> = { GK: "goalkeeper", DEF: "defender", MID: "midfielder", ATT: "attacker" };
 
 export function SquadBuilder({
   pool, formation, slots, onChange, accent = colors.green,
@@ -115,7 +116,7 @@ export function SquadBuilder({
       <Modal visible={picking !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setPicking(null)}>
         <View style={styles.sheet}>
           <View style={styles.sheetHead}>
-            <Text style={styles.sheetTitle}>Pick a {slotForPicker?.position ?? ""}</Text>
+            <Text style={styles.sheetTitle}>Choose your {slotForPicker ? POS_NAME[slotForPicker.position] : "player"}</Text>
             <Pressable onPress={() => setPicking(null)} hitSlop={10}><Text style={styles.done}>Done</Text></Pressable>
           </View>
           {slotForPicker?.card && (
