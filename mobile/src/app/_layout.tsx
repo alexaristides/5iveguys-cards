@@ -54,6 +54,13 @@ function RootStack() {
           name="settings"
           options={{ presentation: "formSheet", sheetAllowedDetents: [0.55], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
         />
+        <Stack.Screen name="fantasy/edit" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="fantasy/gameweek/[number]" />
+        <Stack.Screen name="fantasy/leaderboard" />
+        <Stack.Screen
+          name="fantasy/rules"
+          options={{ presentation: "formSheet", sheetAllowedDetents: [0.92], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
+        />
         <Stack.Screen name="play/cpu" options={{ gestureEnabled: false }} />
         <Stack.Screen name="play/exhibition" options={{ gestureEnabled: false }} />
         <Stack.Screen name="play/pvp" />

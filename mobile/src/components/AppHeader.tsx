@@ -8,8 +8,8 @@ import { useChannel } from "@/lib/channel";
 import { useAccount, useMe } from "@/lib/queries";
 import { colors } from "@/lib/theme";
 
-/** Shared top bar for the three tabs: channel switch, points, account. */
-export function AppHeader() {
+/** Shared top bar for the tabs: channel switch (or a title), points, account. */
+export function AppHeader({ title }: { title?: string } = {}) {
   const insets = useSafeAreaInsets();
   const { slug, setSlug } = useChannel();
   const { data: me } = useMe();
@@ -17,7 +17,7 @@ export function AppHeader() {
 
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
-      <View style={styles.switcher}>
+      {title ? <Text style={styles.title}>{title}</Text> : <View style={styles.switcher}>
         {CHANNELS.map((c) => {
           const active = c.slug === slug;
           return (
@@ -30,7 +30,7 @@ export function AppHeader() {
             </Pressable>
           );
         })}
-      </View>
+      </View>}
       <View style={styles.right}>
         <View style={styles.points}>
           <Text style={styles.pointsText}>⚡ {me ? me.points.toLocaleString() : "–"}</Text>
@@ -54,6 +54,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 16, paddingBottom: 10, backgroundColor: colors.bg,
   },
+  title: { color: colors.text, fontSize: 20, fontWeight: "900" },
   switcher: { flexDirection: "row", backgroundColor: colors.card, borderRadius: 12, padding: 3 },
   seg: { paddingHorizontal: 12, height: 30, borderRadius: 9, justifyContent: "center" },
   segActive: { backgroundColor: colors.accent },

@@ -1,5 +1,6 @@
 import type { Rarity } from "@shared/cards";
 import type { StatsMap } from "@shared/card-rating";
+import type { Chip, EntryScore, FantasyPosition, GameweekStatus, Pick } from "@shared/fantasy";
 
 /** A card row from the database (as returned by the website's API). */
 export interface DbCard {
@@ -99,4 +100,78 @@ export interface MotmResults {
   myVote: string | null;
   /** Most votes first. */
   candidates: MotmCandidate[];
+}
+
+// ── Fantasy Div 1 ──────────────────────────────────────────────────────────────
+
+export interface FantasyPlayer {
+  id: string;
+  name: string;
+  position: FantasyPosition;
+  /** Tenths of £1m. */
+  price: number;
+  imageUrl: string | null;
+  isActive: boolean;
+  totalPoints: number;
+  lastPoints: number | null;
+  selectedBy: number;
+}
+
+export interface FantasyDraft {
+  picks: Pick[];
+  captainId: string;
+  viceCaptainId: string;
+  chip: Chip | null;
+  transfersMade: number;
+  transferCost: number;
+  saved: boolean;
+}
+
+export interface FantasyOverview {
+  season: { id: string; name: string; budget: number } | null;
+  gameweeks: { number: number; name: string | null; deadline: string; status: GameweekStatus }[];
+  /** The gameweek being picked for, or null when none is open. */
+  nextGameweek: number | null;
+  players: FantasyPlayer[];
+  team: {
+    id: string;
+    name: string;
+    totalPoints: number;
+    rank: number;
+    teamCount: number;
+    lastGameweek: { number: number; points: number } | null;
+    /** The locked squad transfers are counted against (null before the first deadline). */
+    baseline: Pick[] | null;
+    /** null = unlimited (first team not locked yet). */
+    freeTransfers: number | null;
+    usedChips: Chip[];
+    draft: FantasyDraft | null;
+  } | null;
+}
+
+export interface FantasyLeaderboardRow {
+  rank: number;
+  id: string;
+  name: string;
+  manager: string | null;
+  image: string | null;
+  totalPoints: number;
+  lastPoints: number | null;
+}
+
+export interface FantasyLeaderboard {
+  teams: FantasyLeaderboardRow[];
+  me: FantasyLeaderboardRow | null;
+  teamCount: number;
+  lastGameweek: number | null;
+}
+
+export interface FantasyGameweekResult {
+  gameweek: { number: number; name: string | null; deadline: string; status: GameweekStatus };
+  team: { id: string; name: string; manager: string | null };
+  entry: { picks: Pick[]; captainId: string; viceCaptainId: string; chip: Chip | null; transferCost: number; transfersMade: number } | null;
+  score: EntryScore | null;
+  lines: Record<string, { label: string; points: number }[]>;
+  average: number | null;
+  highest: number | null;
 }

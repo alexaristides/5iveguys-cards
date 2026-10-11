@@ -15,7 +15,7 @@ export const POSITION_LABEL: Record<FantasyPosition, string> = {
 
 export type Chip = "double_points" | "triple_captain" | "bench_boost" | "wildcard";
 export const CHIPS: { id: Chip; name: string; emoji: string; description: string }[] = [
-  { id: "double_points", name: "Double Points", emoji: "✖️2", description: "Every player in your team scores double this week." },
+  { id: "double_points", name: "Double Points", emoji: "2️⃣", description: "Every player in your team scores double this week." },
   { id: "triple_captain", name: "Triple Captain", emoji: "👑", description: "Your captain scores triple instead of double." },
   { id: "bench_boost", name: "Bench Boost", emoji: "🪑", description: "Your subs' points count too." },
   { id: "wildcard", name: "Wildcard", emoji: "🃏", description: "Unlimited free transfers this week." },

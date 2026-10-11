@@ -12,6 +12,10 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Label>Cards</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="rectangle.stack.fill" />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="fantasy">
+        <NativeTabs.Trigger.Label>Fantasy</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="trophy.fill" />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="game">
         <NativeTabs.Trigger.Label>Game</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="soccerball" />

@@ -3,7 +3,10 @@ import { useFocusEffect } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 import { useChannel } from "./channel";
-import type { Account, CollectionItem, DbCard, Me, MotmResults, Record3, Video, VotesResponse } from "./types";
+import type {
+  Account, CollectionItem, DbCard, FantasyGameweekResult, FantasyLeaderboard, FantasyOverview, Me, MotmResults, Record3,
+  Video, VotesResponse,
+} from "./types";
 
 /** Refetch when a screen comes back into focus (skips the first focus, which mounts). */
 export function useRefreshOnFocus(refetch: () => unknown) {
@@ -92,5 +95,25 @@ export function usePvpRecord() {
     queryFn: () =>
       api<{ pvpWins: number; pvpLosses: number; pvpDraws: number }>("/api/pvp/record")
         .then((r) => ({ wins: r.pvpWins, losses: r.pvpLosses, draws: r.pvpDraws })),
+  });
+}
+
+/** Fantasy Div 1: the season, players, gameweeks and your team. */
+export function useFantasy() {
+  return useQuery({ queryKey: ["fantasy"], queryFn: () => api<FantasyOverview>("/api/fantasy") });
+}
+
+export function useFantasyLeaderboard(limit = 50) {
+  return useQuery({
+    queryKey: ["fantasy-leaderboard", limit],
+    queryFn: () => api<FantasyLeaderboard>(`/api/fantasy/leaderboard?limit=${limit}`),
+  });
+}
+
+/** A team's points for a locked gameweek (yours unless teamId is given). */
+export function useFantasyGameweek(number: number, teamId?: string) {
+  return useQuery({
+    queryKey: ["fantasy-gameweek", number, teamId ?? "me"],
+    queryFn: () => api<FantasyGameweekResult>(`/api/fantasy/gameweeks/${number}${teamId ? `?teamId=${teamId}` : ""}`),
   });
 }
