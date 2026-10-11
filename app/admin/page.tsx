@@ -160,6 +160,9 @@ export default function AdminPage() {
             <Link href="/admin/analytics" className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm transition-colors">
               Analytics →
             </Link>
+            <Link href="/admin/fantasy" className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm transition-colors">
+              Fantasy
+            </Link>
             <Link href="/admin/channels" className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm transition-colors">
               Channels →
             </Link>

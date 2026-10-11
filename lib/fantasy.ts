@@ -323,6 +323,21 @@ export function formatPrice(tenths: number) {
   return `£${(tenths / 10).toFixed(1)}m`;
 }
 
+/** "2d 4h", "3h 12m", "45m" until a deadline, or "Locked". */
+export function formatCountdown(ms: number) {
+  if (ms <= 0) return "Locked";
+  const mins = Math.floor(ms / 60000);
+  const d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60), m = mins % 60;
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+/** e.g. "Sun 1 Nov, 14:00" in the viewer's time zone. */
+export function formatDeadline(iso: string) {
+  return new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
 /** Card positions (LW, CAM…) → fantasy roles. */
 export function toFantasyPosition(cardPosition: string | null | undefined): FantasyPosition {
   switch (cardPosition) {

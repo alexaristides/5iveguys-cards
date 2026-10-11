@@ -13,15 +13,13 @@ import { GameScreen } from "@/components/game/GameScreen";
 import { Button, Chip as ChipButton, ErrorText, Loading } from "@/components/ui";
 import { api } from "@/lib/api";
 import {
-  changeFormation, EMPTY_LINEUP, formatCountdown, formatDeadline, FORMATIONS, formationLabel, inLineup, lineupFromIds,
-  lineupIds, placePlayer, removePlayer, slotPositions, swapWithBench, type Lineup,
+  autoComplete, changeFormation, EMPTY_LINEUP, formatCountdown, formatDeadline, FORMATIONS, formationLabel, inLineup, lineupFromIds,
+  lineupIds, placePlayer, removePlayer, slotPositions, swapWithBench, type Lineup, type Slot,
 } from "@/lib/fantasy";
 import { imageUri } from "@/lib/images";
 import { useFantasy } from "@/lib/queries";
 import { colors } from "@/lib/theme";
 import type { FantasyOverview, FantasyPlayer } from "@/lib/types";
-
-type Slot = { kind: "starter" | "bench"; index: number };
 
 /** Pick your team for the next gameweek: squad, formation, captain, subs, transfers and chips. */
 export default function FantasyEditScreen() {
@@ -340,41 +338,6 @@ function PlayerPicker({
       </View>
     </Modal>
   );
-}
-
-/**
- * Fill the empty slots: for each one take the priciest player who still leaves enough money
- * to fill the rest with the cheapest available.
- */
-function autoComplete(lineup: Lineup, players: FantasyPlayer[], budget: number, salePrice: (id: string) => number): Lineup {
-  let next = lineup;
-  const slots: { slot: Slot; position: FantasyPosition | null }[] = [
-    ...slotPositions(lineup.formation).map((position, index) => ({ slot: { kind: "starter" as const, index }, position })),
-    ...[0, 1].map((index) => ({ slot: { kind: "bench" as const, index }, position: null })),
-  ];
-  const isEmpty = (s: Slot) => !(s.kind === "starter" ? next.starters[s.index] : next.bench[s.index]);
-  const empty = slots.filter((s) => isEmpty(s.slot));
-
-  empty.forEach(({ slot, position }, n) => {
-    const taken = inLineup(next);
-    const spent = [...taken].reduce((sum, id) => sum + salePrice(id), 0);
-    const pool = players.filter((p) => p.isActive && !taken.has(p.id));
-    const rest = empty.slice(n + 1);
-    const cheapestRest = (exclude: string) => {
-      const used = new Set([exclude]);
-      return rest.reduce((sum, r) => {
-        const c = pool.filter((p) => !used.has(p.id) && (!r.position || p.position === r.position)).sort((a, b) => a.price - b.price)[0];
-        if (c) used.add(c.id);
-        return sum + (c?.price ?? 0);
-      }, 0);
-    };
-    const choice = pool
-      .filter((p) => !position || p.position === position)
-      .sort((a, b) => b.price - a.price)
-      .find((p) => spent + p.price + cheapestRest(p.id) <= budget);
-    if (choice) next = placePlayer(next, slot, choice.id);
-  });
-  return next;
 }
 
 const styles = StyleSheet.create({
