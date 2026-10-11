@@ -59,9 +59,9 @@ model User {
   rankSnapshots RankSnapshot[]
   channelStats  UserChannelStats[]
 
-  challengedBattles CardBattle[] @relation("ChallengerBattles")
-  acceptedBattles   CardBattle[] @relation("AcceptorBattles")
-  wonBattles        CardBattle[] @relation("WonBattles")
+  challengedBattles CardBattle[]        @relation("ChallengerBattles")
+  acceptedBattles   CardBattle[]        @relation("AcceptorBattles")
+  wonBattles        CardBattle[]        @relation("WonBattles")
   footballMatches   FootballMatch[]
   savedFootballTeam SavedFootballTeam[]
   forumPosts        ForumPost[]
@@ -69,10 +69,12 @@ model User {
   forumLikes        ForumLike[]
   forumReplyLikes   ForumReplyLike[]
   videoWatches      VideoWatch[]
+  motmVotes         MotmVote[]
+  fantasyTeams      FantasyTeam[]
   notifications     Notification[]
   cardVotes         CardVote[]
-  lobbiesCreated    Lobby[]  @relation("CreatedLobbies")
-  lobbiesJoined     Lobby[]  @relation("JoinedLobbies")
+  lobbiesCreated    Lobby[]             @relation("CreatedLobbies")
+  lobbiesJoined     Lobby[]             @relation("JoinedLobbies")
   worldCups         WorldCup[]
 }
 
@@ -94,7 +96,7 @@ model Channel {
   description      String?
   thumbnailUrl     String?
   isActive         Boolean  @default(true)
-  rewardTags       String?  // comma-separated, e.g. "Trading Cards,Merch,Exclusive Content"
+  rewardTags       String? // comma-separated, e.g. "Trading Cards,Merch,Exclusive Content"
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -107,8 +109,8 @@ model Channel {
   userStats       UserChannelStats[]
   forumPosts      ForumPost[]
   videoWatches    VideoWatch[]
-  battles         CardBattle[]    @relation("ChannelBattles")
-  footballMatches FootballMatch[] @relation("ChannelMatches")
+  battles         CardBattle[]       @relation("ChannelBattles")
+  footballMatches FootballMatch[]    @relation("ChannelMatches")
 }
 
 enum Rarity {
@@ -119,15 +121,15 @@ enum Rarity {
 }
 
 model Card {
-  id           String   @id @default(cuid())
-  channelId    String
-  channel      Channel  @relation(fields: [channelId], references: [id])
-  legacyId     String?
-  name         String
-  kit          String?
-  rarity       Rarity
-  imageUrl     String
-  backImageUrl String?
+  id               String   @id @default(cuid())
+  channelId        String
+  channel          Channel  @relation(fields: [channelId], references: [id])
+  legacyId         String?
+  name             String
+  kit              String?
+  rarity           Rarity
+  imageUrl         String
+  backImageUrl     String?
   attribute        String?
   description      String?
   position         String?
@@ -154,38 +156,38 @@ model CardRatingSnapshot {
 }
 
 model CardVote {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cardId     String
-  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  attack       Int
-  defense      Int
-  speed        Int
-  strength     Int
-  skillMoves   Int
-  iq           Int
-  aura         Int
-  goalkeeping  Int
-  agility      Int
-  celebration  Int
-  clutch       Int
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId      String
+  card        Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  attack      Int
+  defense     Int
+  speed       Int
+  strength    Int
+  skillMoves  Int
+  iq          Int
+  aura        Int
+  goalkeeping Int
+  agility     Int
+  celebration Int
+  clutch      Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([userId, cardId])
   @@index([cardId])
 }
 
 model UserChannelStats {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   userId           String
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   channelId        String
-  channel          Channel  @relation(fields: [channelId], references: [id])
-  points           Int      @default(0)
-  totalEarned      Int      @default(0)
-  fanTotalEarned   Int      @default(0)
+  channel          Channel   @relation(fields: [channelId], references: [id])
+  points           Int       @default(0)
+  totalEarned      Int       @default(0)
+  fanTotalEarned   Int       @default(0)
   watchTimeSeconds Int       @default(0)
   lastDailyReward  DateTime?
   createdAt        DateTime  @default(now())
@@ -242,6 +244,24 @@ model VideoWatch {
 
   @@unique([userId, videoId])
   @@index([userId, channelId])
+}
+
+// Man of the Match: one vote per user per video, changeable. A player is identified by
+// name + team (their squad cards' channel), so a crossover video can feature the other squad.
+model MotmVote {
+  id              String   @id @default(cuid())
+  userId          String
+  videoId         String
+  channelId       String // the video's channel
+  playerName      String
+  playerChannelId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+  @@index([videoId])
 }
 
 // ---------- Cards & packs ----------
@@ -352,7 +372,7 @@ model FootballMatch {
   formation   String
   userScore   Int
   cpuScore    Int
-  result      String   // "win" | "loss" | "draw"
+  result      String // "win" | "loss" | "draw"
   playedAt    DateTime @default(now())
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -366,7 +386,7 @@ model SavedFootballTeam {
   id        String   @id @default(cuid())
   userId    String   @unique
   formation String
-  slotData  Json     // [{ position, posIndex, cardId }]
+  slotData  Json // [{ position, posIndex, cardId }]
   savedAt   DateTime @default(now()) @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -375,37 +395,37 @@ model SavedFootballTeam {
 // ---------- Forum ----------
 
 model ForumPost {
-  id        String       @id @default(cuid())
+  id        String   @id @default(cuid())
   channelId String
-  channel   Channel      @relation(fields: [channelId], references: [id])
+  channel   Channel  @relation(fields: [channelId], references: [id])
   authorId  String
-  author    User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   title     String
   body      String
-  isPinned  Boolean      @default(false)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  replies   ForumReply[]
-  likes     ForumLike[]
+  replies ForumReply[]
+  likes   ForumLike[]
 
   @@index([channelId, createdAt(sort: Desc)])
 }
 
 model ForumReply {
-  id        String           @id @default(cuid())
+  id        String    @id @default(cuid())
   postId    String
-  post      ForumPost        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post      ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId  String
-  author    User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   body      String
-  createdAt DateTime         @default(now())
+  createdAt DateTime  @default(now())
 
-  parentId  String?
-  parent    ForumReply?      @relation("ReplyThread", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  children  ForumReply[]     @relation("ReplyThread")
+  parentId String?
+  parent   ForumReply?  @relation("ReplyThread", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children ForumReply[] @relation("ReplyThread")
 
-  likes     ForumReplyLike[]
+  likes ForumReplyLike[]
 
   @@index([postId, createdAt])
   @@index([parentId])
@@ -429,7 +449,7 @@ model Notification {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String   // post_liked | reply_liked | new_reply | new_nested_reply | points_earned | battle_won | battle_lost | battle_tie | welcome
+  type      String // post_liked | reply_liked | new_reply | new_nested_reply | points_earned | battle_won | battle_lost | battle_tie | welcome
   title     String
   body      String?
   link      String?
@@ -461,20 +481,20 @@ enum LobbyStatus {
 }
 
 model Lobby {
-  id            String      @id
-  creatorId     String
-  creator       User        @relation("CreatedLobbies", fields: [creatorId], references: [id])
-  opponentId    String?
-  opponent      User?       @relation("JoinedLobbies", fields: [opponentId], references: [id])
-  creatorSquad  Json?
-  opponentSquad Json?
+  id                 String      @id
+  creatorId          String
+  creator            User        @relation("CreatedLobbies", fields: [creatorId], references: [id])
+  opponentId         String?
+  opponent           User?       @relation("JoinedLobbies", fields: [opponentId], references: [id])
+  creatorSquad       Json?
+  opponentSquad      Json?
   creatorFormation2  String?
   opponentFormation2 String?
-  status        LobbyStatus @default(WAITING)
-  createdAt     DateTime    @default(now())
-  expiresAt     DateTime
+  status             LobbyStatus @default(WAITING)
+  createdAt          DateTime    @default(now())
+  expiresAt          DateTime
 
-  matchResult   MatchResult?
+  matchResult MatchResult?
 
   @@index([status, createdAt])
   @@index([creatorId])
@@ -500,11 +520,11 @@ model WorldCup {
   status     String   @default("ACTIVE") // ACTIVE | FINISHED | ABANDONED
   difficulty String   @default("even")
   seed       String
-  state      Json     // full TournamentState
-  champion   String?  // entrant id of the winner (once finished)
-  placement  String?  // user's finishing position, e.g. "Champions"
+  state      Json // full TournamentState
+  champion   String? // entrant id of the winner (once finished)
+  placement  String? // user's finishing position, e.g. "Champions"
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -516,10 +536,10 @@ model WorldCup {
 model DraftEntry {
   id            String   @id @default(cuid())
   alias         String
-  userId        String?  // attached if the player happened to be logged in
+  userId        String? // attached if the player happened to be logged in
   formation     String
   teamRating    Int
-  placement     String   // "Champions" | "Runners-up" | ... | "Group stage"
+  placement     String // "Champions" | "Runners-up" | ... | "Group stage"
   placementRank Int      @default(0) // 6=Champions … 1=Group stage, for ordering
   won           Boolean  @default(false)
   wins          Int      @default(0)
@@ -529,7 +549,7 @@ model DraftEntry {
   goalsAgainst  Int      @default(0)
   difficulty    String   @default("normal")
   ratingsMode   String   @default("current")
-  squad         Json?    // [{ name, nation, flag, rating, slot }]
+  squad         Json? // [{ name, nation, flag, rating, slot }]
   createdAt     DateTime @default(now())
 
   @@index([placementRank, goalsFor])
@@ -537,4 +557,114 @@ model DraftEntry {
   @@index([goalsFor])
   @@index([teamRating])
   @@index([createdAt])
+}
+
+// ---------- Fantasy Div 1 ----------
+// Rules and scoring live in lib/fantasy.ts. Prices are tenths of £1m (65 = £6.5m).
+
+model FantasySeason {
+  id        String   @id @default(cuid())
+  name      String
+  isActive  Boolean  @default(true)
+  budget    Int      @default(600)
+  createdAt DateTime @default(now())
+
+  players   FantasyPlayer[]
+  gameweeks FantasyGameweek[]
+  teams     FantasyTeam[]
+}
+
+model FantasyPlayer {
+  id        String   @id @default(cuid())
+  seasonId  String
+  name      String
+  position  String // GK | DEF | MID | FWD
+  price     Int
+  imageUrl  String?
+  isActive  Boolean  @default(true) // false = left the squad: owners keep them, nobody can buy them
+  createdAt DateTime @default(now())
+
+  season FantasySeason        @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  stats  FantasyPlayerStats[]
+
+  @@index([seasonId])
+}
+
+model FantasyGameweek {
+  id          String    @id @default(cuid())
+  seasonId    String
+  number      Int
+  name        String? // e.g. "vs Hackney Wick"
+  deadline    DateTime // teams lock at kickoff
+  finalizedAt DateTime? // set once results are scored
+  createdAt   DateTime  @default(now())
+
+  season  FantasySeason        @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  stats   FantasyPlayerStats[]
+  entries FantasyEntry[]
+
+  @@unique([seasonId, number])
+}
+
+model FantasyPlayerStats {
+  id            String  @id @default(cuid())
+  gameweekId    String
+  playerId      String
+  played        Boolean @default(false)
+  goals         Int     @default(0)
+  assists       Int     @default(0)
+  cleanSheet    Boolean @default(false)
+  yellowCards   Int     @default(0)
+  redCard       Boolean @default(false)
+  ownGoals      Int     @default(0)
+  penaltySaves  Int     @default(0)
+  penaltyMisses Int     @default(0)
+  motm          Boolean @default(false)
+  bonus         Int     @default(0)
+  points        Int     @default(0)
+
+  gameweek FantasyGameweek @relation(fields: [gameweekId], references: [id], onDelete: Cascade)
+  player   FantasyPlayer   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([gameweekId, playerId])
+}
+
+model FantasyTeam {
+  id          String   @id @default(cuid())
+  userId      String
+  seasonId    String
+  name        String
+  totalPoints Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  season  FantasySeason  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  entries FantasyEntry[]
+
+  @@unique([userId, seasonId])
+  @@index([seasonId, totalPoints])
+}
+
+// A team as picked for one gameweek: editable until that gameweek's deadline, then locked.
+// Gameweeks a fan didn't touch get a copy of their previous entry when results are scored.
+model FantasyEntry {
+  id            String   @id @default(cuid())
+  teamId        String
+  gameweekId    String
+  picks         Json // [{ playerId, price }]: 7 starters then 2 subs in bench order; price = what was paid
+  captainId     String
+  viceCaptainId String
+  chip          String? // double_points | triple_captain | bench_boost | wildcard
+  transfersMade Int      @default(0)
+  transferCost  Int      @default(0)
+  points        Int? // set when the gameweek is scored
+  breakdown     Json? // EntryScore from lib/fantasy.ts
+  updatedAt     DateTime @updatedAt
+
+  team     FantasyTeam     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  gameweek FantasyGameweek @relation(fields: [gameweekId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, gameweekId])
+  @@index([gameweekId])
 }
