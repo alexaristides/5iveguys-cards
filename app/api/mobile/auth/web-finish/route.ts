@@ -19,11 +19,13 @@ export async function GET(req: NextRequest) {
   }
 
   const target = new URL(redirect);
-  const session = await getServerSession(authOptions);
+  // Set by /auth/error when NextAuth failed (e.g. OAuthAccountNotLinked).
+  const error = req.nextUrl.searchParams.get("error");
+  const session = error ? null : await getServerSession(authOptions);
   if (session?.user?.id) {
     target.searchParams.set("token", await createMobileSession(session.user.id));
   } else {
-    target.searchParams.set("error", "signin_failed");
+    target.searchParams.set("error", error && /^\w+$/.test(error) ? error : "signin_failed");
   }
 
   // The auth sheet's own browser session is single-use.

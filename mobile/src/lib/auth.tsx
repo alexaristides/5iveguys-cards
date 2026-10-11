@@ -51,6 +51,9 @@ async function runWebGoogleFlow(ticket?: string): Promise<string> {
   const { queryParams } = Linking.parse(result.url);
   const token = queryParams?.token;
   if (typeof token !== "string") {
+    if (ticket && queryParams?.error === "OAuthAccountNotLinked") {
+      throw new Error("That Google account already has its own 5iveG profile. To use it, sign out and choose Sign in with Google.");
+    }
     throw new Error(ticket
       ? "Couldn't connect that Google account. It may already belong to another profile."
       : "Google sign-in failed. Please try again.");
