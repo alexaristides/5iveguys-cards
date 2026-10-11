@@ -40,6 +40,14 @@ export function sessionCookieName() {
     : "next-auth.session-token";
 }
 
+/**
+ * Production origin whose /api/auth/callback/google is registered on the Google
+ * OAuth client. The app may call the API on another domain of the deployment
+ * (e.g. 5iveguys-cards.vercel.app), but Google sign-in has to run here or Google
+ * blocks it with redirect_uri_mismatch.
+ */
+export const GOOGLE_SIGNIN_ORIGIN = process.env.VERCEL_ENV === "production" ? "https://www.5iveg.com" : null;
+
 /** Cookie carrying the app redirect URL from web-start to web-finish. */
 export const REDIRECT_COOKIE = "mobile-auth-redirect";
 

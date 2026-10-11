@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   createMobileSession,
+  GOOGLE_SIGNIN_ORIGIN,
   isAllowedAppRedirect,
   REDIRECT_COOKIE,
   sessionCookieName,
@@ -15,6 +16,11 @@ export async function GET(req: NextRequest) {
   const redirect = req.nextUrl.searchParams.get("redirect") ?? "";
   if (!isAllowedAppRedirect(redirect)) {
     return NextResponse.json({ error: "Invalid redirect" }, { status: 400 });
+  }
+
+  // Run the whole flow (cookies included) on the domain Google knows about.
+  if (GOOGLE_SIGNIN_ORIGIN && req.nextUrl.host !== new URL(GOOGLE_SIGNIN_ORIGIN).host) {
+    return NextResponse.redirect(new URL(req.nextUrl.pathname + req.nextUrl.search, GOOGLE_SIGNIN_ORIGIN));
   }
 
   const res = NextResponse.redirect(new URL("/mobile-auth", req.url));
