@@ -10,6 +10,7 @@ import { computeOverall, STAT_FIELDS, type StatKey, type StatsMap } from "@share
 import { Button, Loading } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useChannel } from "@/lib/channel";
+import { FEATURES } from "@/lib/config";
 import { imageUri } from "@/lib/images";
 import { useChannelCards, useMe, useVotes } from "@/lib/queries";
 import { colors, rarityColor, rarityLabel } from "@/lib/theme";
@@ -153,7 +154,9 @@ export default function CardSheet() {
       <Text style={[styles.meta, { color: rarityColor[card.rarity] }]}>
         {rarityLabel[card.rarity]}{card.position ? ` · ${card.position}` : ""}{card.kit ? ` · ${card.kit}` : ""}
       </Text>
-      <Text style={styles.owned}>{owned > 0 ? `In your collection${owned > 1 ? ` ×${owned}` : ""}` : "Not collected yet. Rip a pack!"}</Text>
+      {FEATURES.packs && (
+        <Text style={styles.owned}>{owned > 0 ? `In your collection${owned > 1 ? ` ×${owned}` : ""}` : "Not collected yet. Rip a pack!"}</Text>
+      )}
 
       <View style={styles.statsHead}>
         <Text style={styles.section}>Fan ratings</Text>

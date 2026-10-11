@@ -156,7 +156,11 @@ export default function YouTubeTab() {
             icon="👍" title="Like any video" points={`+${POINTS_CONFIG.like}`} sub="Per video"
             onPress={channelUrl ? () => Linking.openURL(`${channelUrl}/videos`) : undefined}
           />
-          <EarnRow icon="▶️" title="Watch in the app" points={`+${POINTS_CONFIG.watchMinute}/min`} sub="Pick a video below" last />
+          <EarnRow icon="▶️" title="Watch in the app" points={`+${POINTS_CONFIG.watchMinute}/min`} sub="Pick a video below" />
+          <EarnRow
+            icon="⭐" title="Rate a player" points="+10" sub="First rating of each player"
+            onPress={() => router.navigate("/players")} last
+          />
         </Panel>
 
         <SectionTitle>Latest videos</SectionTitle>

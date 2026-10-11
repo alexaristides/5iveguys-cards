@@ -12,3 +12,6 @@ export type ChannelSlug = (typeof CHANNELS)[number]["slug"];
 
 export const PRIVACY_URL = `${API_URL}/privacy`;
 export const TERMS_URL = `${API_URL}/terms`;
+
+/** Features held back from the first App Store release. Set one to true to bring it back. */
+export const FEATURES = { packs: false, fantasy: false, game: false } as const;

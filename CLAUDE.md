@@ -50,7 +50,9 @@ New users receive 100 free starting points (via the `createUser` NextAuth event 
 
 ### iOS app architecture
 
-- Three tabs (YouTube · Cards · Game) over the **same API and database** as the website. Channels covered: `CHANNELS` in `mobile/src/lib/config.ts`.
+- Tabs over the **same API and database** as the website. Channels covered: `CHANNELS` in `mobile/src/lib/config.ts`.
+  - First App Store release ships **YouTube · Players** only. Cards (packs/collection), Fantasy and Game are held back by `FEATURES` in `mobile/src/lib/config.ts`: each flag hides its tab and guards its stack screens in `src/app/_layout.tsx`, so flipping it to `true` brings the feature back.
+  - Players lists one tile per player (`buildSquad` from `lib/motm.ts`, Home Kit card preferred) and opens the card sheet to rate them.
 - **Auth:** the app holds the token of a real NextAuth database `Session` row and sends `Authorization: Bearer <token>`. `middleware.ts` rewrites that into the NextAuth session cookie, so every route's `getServerSession()` works unchanged.
   - Google: the app opens `/api/mobile/auth/web-start` in the iOS auth sheet → `/mobile-auth` runs the normal NextAuth Google flow → `/api/mobile/auth/web-finish` redirects to `fiveguys://auth?token=…`. A `link-ticket` lets an Apple user link Google (Connect YouTube).
   - Apple: `/api/mobile/auth/apple` verifies the identity token (needs `APPLE_*` env vars).

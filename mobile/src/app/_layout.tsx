@@ -6,6 +6,7 @@ import { StatusBar } from "expo-status-bar";
 import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ChannelProvider } from "@/lib/channel";
+import { FEATURES } from "@/lib/config";
 import { colors } from "@/lib/theme";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -37,7 +38,6 @@ function RootStack() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
       <Stack.Protected guard={signedIn}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="pack/[packId]" options={{ presentation: "fullScreenModal", animation: "fade" }} />
         <Stack.Screen
           name="card/[cardId]"
           options={{ presentation: "formSheet", sheetAllowedDetents: [0.92], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
@@ -54,6 +54,12 @@ function RootStack() {
           name="settings"
           options={{ presentation: "formSheet", sheetAllowedDetents: [0.55], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
         />
+      </Stack.Protected>
+      {/* Held back for launch (FEATURES in lib/config.ts); guarded so deep links can't reach them either. */}
+      <Stack.Protected guard={signedIn && FEATURES.packs}>
+        <Stack.Screen name="pack/[packId]" options={{ presentation: "fullScreenModal", animation: "fade" }} />
+      </Stack.Protected>
+      <Stack.Protected guard={signedIn && FEATURES.fantasy}>
         <Stack.Screen name="fantasy/edit" options={{ gestureEnabled: false }} />
         <Stack.Screen name="fantasy/gameweek/[number]" />
         <Stack.Screen name="fantasy/leaderboard" />
@@ -61,6 +67,8 @@ function RootStack() {
           name="fantasy/rules"
           options={{ presentation: "formSheet", sheetAllowedDetents: [0.92], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
         />
+      </Stack.Protected>
+      <Stack.Protected guard={signedIn && FEATURES.game}>
         <Stack.Screen name="play/cpu" options={{ gestureEnabled: false }} />
         <Stack.Screen name="play/exhibition" options={{ gestureEnabled: false }} />
         <Stack.Screen name="play/pvp" />

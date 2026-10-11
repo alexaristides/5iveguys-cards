@@ -72,7 +72,7 @@ export default function SignIn() {
         )}
         <Text style={styles.title}>5iveG Cards</Text>
         <Text style={styles.sub}>
-          Earn points by supporting the channel on YouTube, rip packs, rate the players and take your squad into battle.
+          Earn points by supporting the channel on YouTube and rate the players.
         </Text>
       </View>
 
