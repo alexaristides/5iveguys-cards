@@ -3,6 +3,7 @@ import { useFocusEffect } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 import { useChannel } from "./channel";
+import { ROSTER, type FanAverages } from "../../street/src/roster";
 import type {
   Account, CollectionItem, DbCard, FantasyGameweekResult, FantasyLeaderboard, FantasyOverview, Me, MotmResults, Record3,
   Video, VotesResponse,
@@ -82,6 +83,28 @@ export function useRatings() {
       api<{ cards: { id: string; overall: number }[] }>(`/api/cards/ratings?sort=top&channelSlug=${slug}`)
         .then((r) => new Map(r.cards.map((c) => [c.id, c.overall]))),
     staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Fan ratings for the 5IVE STREET squad (from each player's Home Kit card),
+ * keyed by roster key. The game blends them into its own stats.
+ */
+export function useStreetRatings() {
+  return useQuery({
+    queryKey: ["street-ratings"],
+    queryFn: async () => {
+      const { cards } = await api<{ cards: DbCard[] }>("/api/channels/5iveguysfc/cards");
+      const wanted = new Map(ROSTER.map((p) => [p.name, p.key]));
+      const home = cards.filter((c) => c.kit === "Home Kit" && wanted.has(c.name));
+      const entries = await Promise.all(home.map(async (c) => {
+        const v = await api<VotesResponse>(`/api/cards/${c.id}/votes`);
+        return [wanted.get(c.name)!, { averages: v.averages as FanAverages, voteCount: v.voteCount }] as const;
+      }));
+      return Object.fromEntries(entries);
+    },
+    staleTime: 10 * 60_000,
+    retry: 0,
   });
 }
 

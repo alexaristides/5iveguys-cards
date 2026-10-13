@@ -59,6 +59,14 @@ New users receive 100 free starting points (via the `createUser` NextAuth event 
   - `DELETE /api/account` deletes the user (App Store requirement).
 - Game logic is shared, not copied: the app imports `lib/match-engine.ts`, `lib/football.ts`, `lib/exhibition.ts` etc. via the `@shared/*` alias (see `mobile/metro.config.js`). Keep those files free of Next/Prisma imports.
 
+### 5IVE STREET (3D 3v3 game, `mobile/street/`)
+
+- A three.js game bundled into one HTML page and run in a WebView by `mobile/src/app/play/street.tsx` (landscape via `expo-screen-orientation`; portrait everywhere else through the plugin's `initialOrientation`). Entry: banner on the Players tab, behind `FEATURES.street` (dev builds only until switched on).
+- Edit `mobile/street/src/**`, then `npm run build:street` (in `mobile/`) to regenerate `mobile/src/street/html.generated.ts` — the app imports that file, so commit it with the source. `npm run dev:street` (or the `street` entry in `.claude/launch.json`) serves the game at http://localhost:5180 with live rebuilds; card art comes from `public/cards` via a symlink.
+- Players are procedural models (`street/src/rig/model.ts`) with the real face cut from each Home Kit card (`look.face` in `street/src/roster.ts` = eye midpoint and chin as fractions of the card image). Add a player there: look, stats, face crop, celebration.
+- Stats in `roster.ts` are blended with the fans' votes on each player's Home Kit card (`useStreetRatings` → `window.__STREET__`).
+- Balance: in the browser console `__sim(20)` plays 20 headless CPU-vs-CPU matches and reports goals, shots, tackles…; `?autopilot` lets the CPU play both sides on screen. Aim for ~5–7 goals per 3-minute match.
+
 ### Key files
 
 | File | Purpose |

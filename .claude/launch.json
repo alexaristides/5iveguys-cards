@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "street",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["mobile/street/build.mjs", "--watch"],
+      "port": 5180
+    }
+  ]
+}

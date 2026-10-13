@@ -3,7 +3,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { AppHeader } from "@/components/AppHeader";
+import { StreetBanner } from "@/components/StreetBanner";
 import { SectionTitle } from "@/components/ui";
+import { FEATURES } from "@/lib/config";
 import { readExhibitionStats } from "@/lib/exhibitionStore";
 import { useFootballRecord, usePvpRecord, useRefreshOnFocus } from "@/lib/queries";
 import { colors } from "@/lib/theme";
@@ -27,6 +29,7 @@ export default function GameTab() {
       <AppHeader />
       <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
         <SectionTitle>Play</SectionTitle>
+        {FEATURES.street && <StreetBanner />}
         <Mode
           emoji="🤖" title="vs CPU" sub="Build a 7-a-side squad from your cards and take on the computer."
           record={fmt(cpu.data)} gradient={["#15803d", "#14532d"]} onPress={() => router.push("/play/cpu")}

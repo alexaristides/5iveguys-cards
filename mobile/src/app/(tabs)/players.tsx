@@ -4,8 +4,10 @@ import { router } from "expo-router";
 import { buildSquad } from "@shared/motm";
 import { AppHeader } from "@/components/AppHeader";
 import { CardTile } from "@/components/CardTile";
+import { StreetBanner } from "@/components/StreetBanner";
 import { Chip, ErrorText, Loading, SectionTitle } from "@/components/ui";
 import { useChannel } from "@/lib/channel";
+import { FEATURES } from "@/lib/config";
 import { useChannelCards, useRatings } from "@/lib/queries";
 import { colors } from "@/lib/theme";
 
@@ -61,6 +63,7 @@ export default function PlayersTab() {
           <RefreshControl refreshing={false} onRefresh={() => { cards.refetch(); ratings.refetch(); }} tintColor={colors.text2} />
         }
       >
+        {FEATURES.street && <StreetBanner />}
         <SectionTitle right={<Text style={styles.count}>{players.length}</Text>}>Rate the players</SectionTitle>
         <View style={styles.chips}>
           <Chip label="Top rated" active={sort === "rating"} onPress={() => setSort("rating")} />
