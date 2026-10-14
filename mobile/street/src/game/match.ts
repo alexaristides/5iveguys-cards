@@ -814,7 +814,12 @@ export class Match {
     // rainbow flick you chase your own ball.
     const chasing = !b.owner && b.kick?.by === u && (b.kick.kind === "panna" || b.kick.kind === "rainbow");
     u.sprint = pad.sprint;
-    if (stick) u.want = { x: pad.move.x * u.topSpeed, z: pad.move.z * u.topSpeed };
+    if (stick) {
+      // How far the stick is pushed sets the pace (capped at a run in Player.move);
+      // Sprint is flat out whatever the push, so a short thumb drag still sprints.
+      const sp = pad.sprint ? u.topSpeed / len(pad.move.x, pad.move.z) : u.topSpeed;
+      u.want = { x: pad.move.x * sp, z: pad.move.z * sp };
+    }
     else if (!b.owner && (b.kick?.target === u || chasing)) {
       const d = len(b.pos.x - u.pos.x, b.pos.z - u.pos.z);
       const sp = chasing ? u.topSpeed : 4;

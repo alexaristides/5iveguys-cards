@@ -69,6 +69,7 @@ New users receive 100 free starting points (via the `createUser` NextAuth event 
 - Sprint: hold the Sprint button (Shift on a keyboard). Without it players run at `JOG` (80%) of sprint speed. Sprinting drains stamina (ring round the button, bar under the name tag) and pushes the ball further ahead; empty = winded until it's back to a third. The CPU sprints to chase, close down, recover and run into space.
 - Balance and glitches (`street/src/dev.ts`, browser console only): `__sim(20)` plays 20 headless CPU-vs-CPU matches between random 3v3s from the squad (`__sim(20, 1, ["neymar", …])` narrows the pool) and reports goals, shots, tackles, goals per player… (aim for ~5–7 goals per 3-minute match); `__glitch(10)` checks every frame for NaNs, teleports, overlaps, spins, ping-pong possession and the camera losing the ball — it should come back empty; `__duel(200, { pace: 95 }, { pace: 55 })` plays identical teams except for the stats you pass, so the win rate shows what a stat is worth (each stat at 95 vs 55 should win clearly more than half; about 50% means it does nothing). `?autopilot` lets the CPU play both sides on screen.
 - The match camera must keep the ball inside `SAFE` (`world/camera.ts`), clear of the scoreboard and touch controls.
+- iOS ignores `user-scalable=no`/`touch-action` for double-tap zoom and pinch, which cancel held touches; `ui/input.ts` cancels the touch events on the stick and buttons to stop that (the game reads pointer events). Keep new controls inside those elements.
 
 ### Key files
 

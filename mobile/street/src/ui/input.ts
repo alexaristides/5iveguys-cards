@@ -52,6 +52,16 @@ export class Input {
     this.tank = this.root.querySelector("#b-sprint circle") as SVGCircleElement;
     this.resetStick();
 
+    // iOS ignores user-scalable=no and touch-action for its own gestures: a double
+    // tap zooms the page, two thumbs down reads as a pinch, and a long press wants to
+    // select. Any of those cancels the touch (dropping a held Sprint or the stick).
+    // Cancelling the touch events stops them; the pointer events we use still arrive.
+    const block = (e: Event) => { if (e.cancelable) e.preventDefault(); };
+    for (const el of [this.zone, this.buttons]) {
+      for (const type of ["touchstart", "touchmove", "touchend"]) el.addEventListener(type, block, { passive: false });
+    }
+    for (const type of ["gesturestart", "gesturechange", "dblclick"]) document.addEventListener(type, block, { passive: false });
+
     this.zone.addEventListener("pointerdown", (e) => {
       if (this.stickId !== null) return;
       this.stickId = e.pointerId;
