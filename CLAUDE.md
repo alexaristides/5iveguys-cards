@@ -65,7 +65,8 @@ New users receive 100 free starting points (via the `createUser` NextAuth event 
 - Edit `mobile/street/src/**`, then `npm run build:street` (in `mobile/`) to regenerate `mobile/src/street/html.generated.ts` — the app imports that file, so commit it with the source. `npm run dev:street` (or the `street` entry in `.claude/launch.json`) serves the game at http://localhost:5180 with live rebuilds; card art comes from `public/cards` via a symlink.
 - Players are procedural models (`street/src/rig/model.ts`) with the real face cut from each Home Kit card (`look.face` in `street/src/roster.ts` = eye midpoint and chin as fractions of the card image). Add a player there: look, stats, face crop, celebration.
 - Stats in `roster.ts` are blended with the fans' votes on each player's Home Kit card (`useStreetRatings` → `window.__STREET__`).
-- Balance: in the browser console `__sim(20)` plays 20 headless CPU-vs-CPU matches and reports goals, shots, tackles…; `?autopilot` lets the CPU play both sides on screen. Aim for ~5–7 goals per 3-minute match.
+- Balance and glitches (`street/src/dev.ts`, browser console only): `__sim(20)` plays 20 headless CPU-vs-CPU matches and reports goals, shots, tackles… (aim for ~5–7 goals per 3-minute match); `__glitch(10)` checks every frame for NaNs, teleports, overlaps, spins, ping-pong possession and the camera losing the ball — it should come back empty. `?autopilot` lets the CPU play both sides on screen.
+- The match camera must keep the ball inside `SAFE` (`world/camera.ts`), clear of the scoreboard and touch controls.
 
 ### Key files
 

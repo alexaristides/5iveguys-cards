@@ -747,10 +747,12 @@ export class Match {
   tackle(p: Player) {
     if (this.t < p.tackleReadyAt || p.busy) return;
     p.tackleReadyAt = this.t + 0.85;
-    // Aim the lunge at the ball if it's close.
+    // Aim the lunge at the ball if it's close (turned into over the first frames, not snapped).
     const b = this.ball;
-    if (len(b.pos.x - p.pos.x, b.pos.z - p.pos.z) < 3.2) p.facing = angleOf(b.pos.x - p.pos.x, b.pos.z - p.pos.z);
-    p.start("tackle", 0.42);
+    const aim = len(b.pos.x - p.pos.x, b.pos.z - p.pos.z) < 3.2
+      ? p.facing + clamp(wrapAngle(angleOf(b.pos.x - p.pos.x, b.pos.z - p.pos.z) - p.facing), -0.9, 0.9)
+      : undefined;
+    p.start("tackle", 0.42, { aim });
     this.sound("kick", 0.15);
   }
 

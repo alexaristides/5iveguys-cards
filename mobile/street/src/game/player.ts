@@ -24,6 +24,8 @@ export interface Action {
   shift?: number;
   /** A tackle that has already hit or missed. */
   resolved?: boolean;
+  /** Direction a tackle turns into. */
+  aim?: number;
 }
 
 export type Mood = "play" | "celebrate" | "cheer" | "dejected" | "idle";
@@ -75,9 +77,11 @@ export class Player {
     this.model = model;
     this.anim = new Animator(this.model);
     const s = this.stats;
-    this.topSpeed = 5.6 + (s.pace / 100) * 2.6;
-    this.accel = 13 + (s.pace / 100) * 6;
-    this.turnRate = 7 + (s.dribbling / 100) * 6;
+    // Roughly real sprint speeds (6.5–7.2 m/s) and a believable burst off the mark.
+    this.topSpeed = 5.0 + (s.pace / 100) * 2.2;
+    this.accel = 9 + (s.pace / 100) * 4;
+    // Radians per second; a 180° turn takes about a quarter of a second.
+    this.turnRate = 5 + (s.dribbling / 100) * 4;
   }
 
   get name() { return this.info.name; }
@@ -104,7 +108,8 @@ export class Player {
       const k = a.t / a.dur;
       switch (a.kind) {
         case "tackle": {
-          // Lunge forward, then recover.
+          // Turn into the ball, lunge forward, then recover.
+          if (a.aim !== undefined) this.facing = turnToward(this.facing, a.aim, 12 * dt);
           const lunge = k < 0.55 ? 1 : 0.15;
           wantX = dirX(this.facing) * 7 * lunge;
           wantZ = dirZ(this.facing) * 7 * lunge;
@@ -163,14 +168,16 @@ export class Player {
       if (sp > 0.6 && len(wantX, wantZ) > 0.3) this.facing = turnToward(this.facing, angleOf(this.vel.x, this.vel.z), rate);
       else if (this.look !== null) this.facing = turnToward(this.facing, this.look, rate * 0.7);
     }
-    this.runPhase += (sp * dt * Math.PI * 2) / (1.25 + 0.12 * sp);
+    // One cycle = two steps. Longer strides as speed rises, so the feet match the
+    // ground: ~1.5 steps/s walking, ~2.4 jogging, ~3.4 sprinting.
+    this.runPhase += (sp * dt * Math.PI * 2) / (1.4 + 0.38 * sp);
   }
 
   /** Pose the model for this frame. */
   render(dt: number, t: number, ball: THREE.Vector3) {
     const p = this.anim.target;
     const a = this.action;
-    const s = clamp(this.speed / 7.5, 0, 1);
+    const s = clamp(this.speed / 7, 0, 1);
     const yaw = this.facing;
 
     if (this.mood === "celebrate") celebrate(p, this.info.celebration, this.moodT, this.runPhase, s);

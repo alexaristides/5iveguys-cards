@@ -29,7 +29,7 @@ export default function GameTab() {
       <AppHeader />
       <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
         <SectionTitle>Play</SectionTitle>
-        {FEATURES.street && <StreetBanner />}
+        {FEATURES.street && <StreetBanner hero />}
         <Mode
           emoji="🤖" title="vs CPU" sub="Build a 7-a-side squad from your cards and take on the computer."
           record={fmt(cpu.data)} gradient={["#15803d", "#14532d"]} onPress={() => router.push("/play/cpu")}

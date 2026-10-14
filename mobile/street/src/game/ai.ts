@@ -132,10 +132,7 @@ export class TeamAI {
     p.jockeying = d < 3;
     if (d < 1.5 && this.think(p, this.cpu ? 0.5 : 0.7)) {
       const rate = this.cpu ? 0.22 * this.m.difficulty.steal : 0.15;
-      if (Math.random() < rate) {
-        p.facing = angleOf(b.pos.x - p.pos.x, b.pos.z - p.pos.z);
-        m.tackle(p);
-      }
+      if (Math.random() < rate) m.tackle(p);
     }
   }
 

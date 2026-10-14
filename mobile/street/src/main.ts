@@ -6,7 +6,8 @@ import * as THREE from "three";
 import { Audio } from "./audio";
 import { haptic, host, rosterWithRatings, send } from "./bridge";
 import { loadImage } from "./faces";
-import { DIFFICULTIES, Match, type Difficulty } from "./game/match";
+import { installDevTools } from "./dev";
+import { Match, type Difficulty } from "./game/match";
 import { KITS } from "./rig/kits";
 import { buildPlayer, type PlayerModel } from "./rig/model";
 import type { RosterPlayer } from "./roster";
@@ -251,33 +252,8 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, rig.cam);
 });
 
-// Dev: headless CPU-vs-CPU matches for balancing — run `__sim(10)` in the console.
-if (!inApp) {
-  (window as unknown as { __sim: (n: number, d?: number) => unknown }).__sim = (n: number, d = 1) => {
-    const dummy = new THREE.Group();
-    const out: unknown[] = [];
-    const goalDist: number[] = [];
-    const total = { goals: [0, 0], shots: [0, 0], blocks: [0, 0], tackles: [0, 0], pokes: [0, 0], tricks: [0, 0], passes: [0, 0], possession: [0, 0] };
-    for (let i = 0; i < n; i++) {
-      const sim = new Match(dummy, roster.slice(0, 3), roster.slice(3), DIFFICULTIES[d], (p) => buildPlayer(p.name, p.look, "home"));
-      sim.autopilot = true;
-      const pad = { move: { x: 0, z: 0 }, pass: false, shootDown: false, shootHeld: false, shootUp: false, skill: false };
-      let guard = 0;
-      while (sim.state !== "over" && guard++ < 60 * 400) sim.step(1 / 60, pad);
-      sim.events.length = 0;
-      out.push(`${sim.score[0]}-${sim.score[1]}`);
-      goalDist.push(...sim.log.goalDist);
-      total.goals[0] += sim.score[0]; total.goals[1] += sim.score[1];
-      for (const k of ["shots", "blocks", "tackles", "pokes", "tricks", "passes", "possession"] as const) {
-        total[k][0] += sim.log[k][0]; total[k][1] += sim.log[k][1];
-      }
-    }
-    const avg = Object.fromEntries(Object.entries(total).map(([k, v]) => [k, v.map((x) => +(x / n).toFixed(1))]));
-    const hist: Record<string, number> = {};
-    for (const g of goalDist) { const k = `${Math.floor(g / 3) * 3}m`; hist[k] = (hist[k] ?? 0) + 1; }
-    return { scores: out.join(" "), avg, goalsFrom: hist };
-  };
-}
+// Dev: `__sim(20)` / `__glitch(10)` in the browser console (see dev.ts).
+if (!inApp) installDevTools(roster);
 
 document.getElementById("loading")?.remove();
 showSelect();
