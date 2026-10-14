@@ -133,6 +133,11 @@ function endMatch() {
   input.setEnabled(false);
 }
 
+/** Auto switch (pause menu), on unless turned off. */
+const AUTO_SWITCH_KEY = "street.autoSwitch";
+let autoSwitch = true;
+try { autoSwitch = localStorage.getItem(AUTO_SWITCH_KEY) !== "0"; } catch { /* storage unavailable */ }
+
 function startMatch(home: RosterPlayer[], away: RosterPlayer[], d: Difficulty) {
   endMatch();
   select.hide();
@@ -143,6 +148,7 @@ function startMatch(home: RosterPlayer[], away: RosterPlayer[], d: Difficulty) {
   for (const p of away) models.get(p.key)!.setKit("black");
   for (const p of [...home, ...away]) models.get(p.key)!.root.visible = true;
   match = new Match(scene, home, away, d, (p) => models.get(p.key)!);
+  match.autoSwitch = autoSwitch;
   if (!inApp) {
     // Dev: inspect from the console; ?autopilot lets the CPU play both sides.
     (window as unknown as { __match: Match }).__match = match;
@@ -159,11 +165,16 @@ function pause() {
   if (!match || paused || match.state === "over") return;
   paused = true;
   audio.click();
-  pauseSheet(ui, audio.muted, {
+  pauseSheet(ui, audio.muted, autoSwitch, {
     resume: () => { paused = false; },
     restart: () => { if (lastTeams) startMatch(lastTeams.home, lastTeams.away, lastTeams.d); },
     quit: () => showSelect(),
     mute: (m) => audio.setMuted(m),
+    autoSwitch: (on) => {
+      autoSwitch = on;
+      if (match) match.autoSwitch = on;
+      try { localStorage.setItem(AUTO_SWITCH_KEY, on ? "1" : "0"); } catch { /* storage unavailable */ }
+    },
   });
 }
 

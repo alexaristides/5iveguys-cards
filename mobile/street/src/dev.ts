@@ -4,6 +4,7 @@
  *   __glitch(10)  the same, checking every frame for glitches and the camera
  *                 losing the ball
  *   __duel(200, { pace: 90 })  what one stat is worth (see below)
+ *   __switching(10)  how auto switch behaves for a stand-in user (see below)
  * Each match draws two random teams of three from the squad; pass player keys
  * as the third argument to draw from just those (`__sim(20, 1, ["neymar", …])`).
  *
@@ -84,6 +85,62 @@ export function installDevTools(roster: RosterPlayer[]) {
       goals: [per(r.aGoals), per(r.bGoals)],
       ...Object.fromEntries(Object.entries(log).map(([k, v]) => [k, v.map(per)])),
     };
+  };
+
+  // `__switching(10, "wander")`: auto switch with a stand-in for the user: "idle" (no
+  // input), "chase" (stick always at the ball) or "wander" (a random direction each
+  // second), against the same with it off. Reports switches per minute spent
+  // defending, the shortest gap between two, switches straight back to the player
+  // just switched from (within 4 s), switches away from a user going for the ball
+  // within 8 m (should be 0), and how much of the defending the user had the player
+  // nearest the ball.
+  w.__switching = (n = 10, mode: "idle" | "chase" | "wander" = "wander", d = 1) => {
+    const run = (auto: boolean) => {
+      let defT = 0, nearestT = 0, switches = 0, awayFromChase = 0, backs = 0, minGap = Infinity;
+      for (let i = 0; i < n; i++) {
+        const sim = newSim(roster, d);
+        sim.autopilot = false;
+        sim.autoSwitch = auto;
+        let wander = { x: 0, z: 0 }, nextWander = 0, lastAt = -Infinity, guard = 0;
+        let lastFrom: unknown = null;
+        while (sim.state !== "over" && guard++ < 60 * 400) {
+          const u = sim.user, b = sim.ball;
+          let move = { x: 0, z: 0 };
+          if (mode === "chase") {
+            const l = Math.max(0.01, dist(u.pos, b.pos));
+            move = { x: (b.pos.x - u.pos.x) / l, z: (b.pos.z - u.pos.z) / l };
+          } else if (mode === "wander") {
+            if (sim.t > nextWander) { const a = Math.random() * Math.PI * 2; wander = { x: Math.cos(a), z: Math.sin(a) }; nextWander = sim.t + 1; }
+            move = wander;
+          }
+          const defending = () => sim.state === "play" && !!b.owner && b.owner.team !== sim.userTeam;
+          const before = defending();
+          sim.step(1 / 60, { ...PAD, move });
+          sim.events.length = 0;
+          if (!before || !defending()) continue;
+          defT += 1 / 60;
+          const mates = sim.teams[sim.userTeam];
+          if (mates.every((m) => dist(m.pos, b.pos) >= dist(sim.user.pos, b.pos))) nearestT += 1 / 60;
+          if (sim.user !== u) {
+            switches++;
+            if (sim.user === lastFrom && sim.t - lastAt < 4) backs++;
+            lastFrom = u;
+            minGap = Math.min(minGap, sim.t - lastAt);
+            lastAt = sim.t;
+            if (mode === "chase" && dist(u.pos, b.pos) < 8) awayFromChase++;
+          }
+        }
+      }
+      return {
+        perDefendingMinute: +(switches / Math.max(1e-6, defT / 60)).toFixed(1),
+        shortestGap: minGap === Infinity ? null : +minGap.toFixed(2),
+        switchBacks: backs,
+        switches,
+        awayFromChase,
+        userNearestPct: Math.round((100 * nearestT) / Math.max(1e-6, defT)),
+      };
+    };
+    return { on: run(true), off: run(false) };
   };
 
   w.__glitch = (n: number, d = 1, aspect = 844 / 390, keys?: string[]) => {

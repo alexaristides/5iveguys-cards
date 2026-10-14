@@ -87,6 +87,8 @@ export class Match {
 
   /** Both teams AI-driven (demo / balance testing). */
   autopilot = false;
+  /** Defending, hand the user the teammate nearest the ball when theirs is out of the play. */
+  autoSwitch = true;
   /** Stats for balancing. */
   log = { goalDist: [] as number[], shots: [0, 0], blocks: [0, 0], tackles: [0, 0], pokes: [0, 0], tricks: [0, 0], passes: [0, 0], possession: [0, 0], sprint: [0, 0] };
 
@@ -97,7 +99,13 @@ export class Match {
   private kickoffTeam: 0 | 1 = 0;
   private possessionTeam: 0 | 1 | null = null;
   private graceUntil = 0;
+  /** Last Switch press (manual). */
   private lastSwitch = 0;
+  private lastAutoSwitch = -Infinity;
+  /** Who the last auto switch took the user off. */
+  private switchedFrom: Player | null = null;
+  /** How long an auto switch has been on the cards. */
+  private switchFor = 0;
   private ai: [TeamAI, TeamAI];
   private ballEvents: BallEvent[] = [];
 
@@ -288,7 +296,10 @@ export class Match {
   // ── Play ──────────────────────────────────────────────────────────────────
 
   private play(dt: number, pad: Pad) {
-    if (!this.autopilot) this.userControl(pad);
+    if (!this.autopilot) {
+      this.autoSwitchUser(dt, pad);
+      this.userControl(pad);
+    }
     const pt = this.possession;
     if (pt !== null) this.log.possession[pt] += dt;
     this.ai[0].update(dt);
@@ -361,10 +372,13 @@ export class Match {
         if (q.kind === "shot") this.shoot(p, q.power, null, true);
         else this.pass(p, this.pickPassTarget(p, null), null);
       }
-    } else if (prevTeam === this.userTeam && this.ball.owner) {
+    } else if (prevTeam === this.userTeam && this.ball.owner && this.autoSwitch) {
       // Lost it: give the user the defender nearest the ball.
       const u = this.nearestTo(this.teams[this.userTeam], this.ball.pos);
-      if (u !== this.user && dist(u.pos, this.ball.pos) + 1.5 < dist(this.user.pos, this.ball.pos)) this.user = u;
+      if (u !== this.user && dist(u.pos, this.ball.pos) + 1.5 < dist(this.user.pos, this.ball.pos)) {
+        this.user = u;
+        this.lastAutoSwitch = this.t;
+      }
     }
   }
 
@@ -852,6 +866,47 @@ export class Match {
     }
     if (pad.pass && !ourBall) this.switchPlayer();
     if (pad.shootDown && !ourBall && !comingToUs) this.tackle(u);
+  }
+
+  /**
+   * Defending, switch the user to the teammate nearest the ball, but only when the
+   * player they have is out of the play: clearly further away, not already going
+   * for the ball, and not just picked with Switch. It has to stay that way for a
+   * moment, so play rushing past doesn't flick control back and forth.
+   */
+  private autoSwitchUser(dt: number, pad: Pad) {
+    const b = this.ball;
+    const u = this.user;
+    const carrier = b.owner;
+    if (!this.autoSwitch || !carrier || carrier.team === this.userTeam || u.busy
+      || this.t - this.lastSwitch < 3 || this.t - this.lastAutoSwitch < 1.5) {
+      this.switchFor = 0;
+      return;
+    }
+    // Nearest to the ball, counting goal side of it as a metre closer (they can step in, not chase).
+    const own = -attackX(this.userTeam);
+    const score = (p: Player) => dist(p.pos, b.pos) - (Math.abs(p.pos.x - own) < Math.abs(b.pos.x - own) ? 1 : 0);
+    let best: Player | null = null;
+    for (const m of this.teams[this.userTeam]) {
+      if (m !== u && m.action?.kind !== "stumble" && (!best || score(m) < score(best))) best = m;
+    }
+    const dU = dist(u.pos, b.pos);
+    const dB = best ? dist(best.pos, b.pos) : Infinity;
+    // Going for it: the stick points at the ball. Leave them be unless they're miles off.
+    const s = pad.move;
+    const engaged = len(s.x, s.z) > 0.3
+      && Math.abs(wrapAngle(angleOf(s.x, s.z) - angleOf(b.pos.x - u.pos.x, b.pos.z - u.pos.z))) < 0.9;
+    // Straight back to the player it just took them off needs a much bigger gap.
+    const back = best === this.switchedFrom && this.t - this.lastAutoSwitch < 4;
+    const margin = back ? 5 : 2.5, ratio = back ? 0.5 : 0.65;
+    const outOfIt = dU > 3 && dB + margin < dU && dB < dU * ratio && (!engaged || dU > 8);
+    if (!best || !outOfIt) { this.switchFor = 0; return; }
+    this.switchFor += dt;
+    if (this.switchFor < 0.4) return;
+    this.switchFor = 0;
+    this.switchedFrom = u;
+    this.user = best;
+    this.lastAutoSwitch = this.t;
   }
 
   switchPlayer() {

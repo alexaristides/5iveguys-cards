@@ -132,7 +132,13 @@ export class Hud {
   destroy() { this.root.remove(); }
 }
 
-export function pauseSheet(parent: HTMLElement, muted: boolean, actions: { resume(): void; restart(): void; quit(): void; mute(m: boolean): void }) {
+export function pauseSheet(
+  parent: HTMLElement,
+  muted: boolean,
+  autoSwitch: boolean,
+  actions: { resume(): void; restart(): void; quit(): void; mute(m: boolean): void; autoSwitch(on: boolean): void },
+) {
+  const autoLabel = (on: boolean) => `Auto switch ${on ? "on" : "off"}`;
   const s = el(`
     <div class="layer"><div class="sheet"><div class="panel">
       <h2 class="display">Paused</h2>
@@ -141,8 +147,9 @@ export function pauseSheet(parent: HTMLElement, muted: boolean, actions: { resum
         <button class="btn ghost" data-s>Restart</button>
         <button class="btn ghost" data-q>Change teams</button>
         <button class="btn ghost" data-m>${muted ? "Sound off" : "Sound on"}</button>
+        <button class="btn ghost" data-auto>${autoLabel(autoSwitch)}</button>
       </div>
-      <p style="color:#a1a1aa;font-size:12px;margin:14px 0 0">Stick: move · Sprint (hold; the ring is your stamina) · Pass/Switch · Shoot (hold for power)/Tackle · Skill: auto trick (panna, rainbow, roulette)</p>
+      <p style="color:#a1a1aa;font-size:12px;margin:14px 0 0">Stick: move · Sprint (hold; the ring is your stamina) · Pass/Switch · Shoot (hold for power)/Tackle · Skill: auto trick (panna, rainbow, roulette) · Auto switch hands you the defender nearest the ball when yours is out of the play</p>
     </div></div></div>`);
   parent.appendChild(s);
   const close = (fn: () => void) => () => { s.remove(); fn(); };
@@ -152,6 +159,9 @@ export function pauseSheet(parent: HTMLElement, muted: boolean, actions: { resum
   const mb = s.querySelector("[data-m]") as HTMLElement;
   let m = muted;
   mb.addEventListener("click", () => { m = !m; mb.textContent = m ? "Sound off" : "Sound on"; actions.mute(m); });
+  const ab = s.querySelector("[data-auto]") as HTMLElement;
+  let a = autoSwitch;
+  ab.addEventListener("click", () => { a = !a; ab.textContent = autoLabel(a); actions.autoSwitch(a); });
   return s;
 }
 
