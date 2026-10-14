@@ -114,15 +114,15 @@ export class Hud {
 
   /** One-time controls tip on a player's first match. */
   firstMatchTip() {
-    const KEY = "street.tipSeen.sprint";
+    const KEY = "street.tipSeen.redcard";
     try {
       if (localStorage.getItem(KEY)) return;
       localStorage.setItem(KEY, "1");
     } catch { /* storage unavailable: show it anyway */ }
     const keyboard = matchMedia("(hover: hover) and (pointer: fine)").matches;
     const tip = el(keyboard
-      ? `<div class="tip"><b>WASD</b>/arrows move · hold <b>Shift</b> to sprint · <b>J</b> pass/switch · hold <b>K</b> or <b>Space</b> to shoot/tackle · <b>L</b> skill · <b>P</b> pause</div>`
-      : `<div class="tip">Drag on the left to move · hold <b>Sprint</b> to burst · <b>Pass</b> · hold <b>Shoot</b> for power · <b>Skill</b> beats your man</div>`);
+      ? `<div class="tip"><b>WASD</b>/arrows move · hold <b>Shift</b> to sprint · <b>J</b> pass/switch · <b>K</b> or <b>Space</b> shoot/tackle (hold either for power) · <b>L</b> skill · <b>P</b> pause</div>`
+      : `<div class="tip">Push the stick right out to <b>sprint</b> · hold <b>Pass</b> or <b>Shoot</b> for power · <b>Tackle</b> hard, there are no fouls</div>`);
     this.root.appendChild(tip);
     setTimeout(() => tip.classList.add("out"), 7000);
     setTimeout(() => tip.remove(), 7600);
@@ -132,7 +132,13 @@ export class Hud {
   destroy() { this.root.remove(); }
 }
 
-export function pauseSheet(parent: HTMLElement, muted: boolean, actions: { resume(): void; restart(): void; quit(): void; mute(m: boolean): void }) {
+export function pauseSheet(
+  parent: HTMLElement,
+  muted: boolean,
+  autoSwitch: boolean,
+  actions: { resume(): void; restart(): void; quit(): void; mute(m: boolean): void; autoSwitch(on: boolean): void },
+) {
+  const autoLabel = (on: boolean) => `Auto switch ${on ? "on" : "off"}`;
   const s = el(`
     <div class="layer"><div class="sheet"><div class="panel">
       <h2 class="display">Paused</h2>
@@ -141,8 +147,9 @@ export function pauseSheet(parent: HTMLElement, muted: boolean, actions: { resum
         <button class="btn ghost" data-s>Restart</button>
         <button class="btn ghost" data-q>Change teams</button>
         <button class="btn ghost" data-m>${muted ? "Sound off" : "Sound on"}</button>
+        <button class="btn ghost" data-auto>${autoLabel(autoSwitch)}</button>
       </div>
-      <p style="color:#a1a1aa;font-size:12px;margin:14px 0 0">Stick: move · Sprint (hold; the ring is your stamina) · Pass/Switch · Shoot (hold for power)/Tackle · Skill: auto trick (panna, rainbow, roulette)</p>
+      <p style="color:#a1a1aa;font-size:12px;margin:14px 0 0">Stick: half push to walk, right out to sprint (the ring is your stamina) · Pass (hold to drive it through) / Switch · Shoot (hold for power) / Tackle: anything goes, no fouls · Skill: auto trick · Auto switch hands you the defender nearest the ball when yours is out of the play</p>
     </div></div></div>`);
   parent.appendChild(s);
   const close = (fn: () => void) => () => { s.remove(); fn(); };
@@ -152,6 +159,9 @@ export function pauseSheet(parent: HTMLElement, muted: boolean, actions: { resum
   const mb = s.querySelector("[data-m]") as HTMLElement;
   let m = muted;
   mb.addEventListener("click", () => { m = !m; mb.textContent = m ? "Sound off" : "Sound on"; actions.mute(m); });
+  const ab = s.querySelector("[data-auto]") as HTMLElement;
+  let a = autoSwitch;
+  ab.addEventListener("click", () => { a = !a; ab.textContent = autoLabel(a); actions.autoSwitch(a); });
   return s;
 }
 

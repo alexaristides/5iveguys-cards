@@ -6,13 +6,18 @@ import type * as THREE from "three";
 import { angleOf, clamp, dirX, dirZ, len, turnToward, type V2 } from "../math";
 import type { PlayerModel } from "../rig/model";
 import {
-  Animator, celebrate, cheer, dejected, flick, idle, jockey, kick, panna, roulette, run, stepover, stumble, tackle,
+  Animator, barge, celebrate, cheer, dejected, flick, floored, idle, jockey, kick, kungfu, panna, roulette, run, slide,
+  stepover, stumble,
 } from "../rig/pose";
 import type { RosterPlayer, Stats } from "../roster";
 import { HALF_L, HALF_W } from "./field";
 
 export type ActionKind =
-  | "kick" | "tackle" | "stepover" | "roulette" | "flick" | "panna" | "stumble";
+  | "kick" | "stepover" | "roulette" | "flick" | "panna" | "stumble"
+  // Tackles (there are no fouls), and being on the end of one.
+  | "barge" | "slide" | "kungfu" | "floored";
+
+export const TACKLE_KINDS: readonly ActionKind[] = ["barge", "slide", "kungfu"];
 
 export interface Action {
   kind: ActionKind;
@@ -22,10 +27,12 @@ export interface Action {
   power?: number;
   /** Sideways shift during a trick (metres, + = player's left). */
   shift?: number;
-  /** A tackle that has already hit or missed. */
-  resolved?: boolean;
   /** Direction a tackle turns into. */
   aim?: number;
+  /** Everyone this tackle has already been through. */
+  hit?: Player[];
+  /** Floored: lands on their back (1) or face down (-1). */
+  flip?: number;
 }
 
 export type Mood = "play" | "celebrate" | "cheer" | "dejected" | "idle";
@@ -70,6 +77,9 @@ export class Player {
   /** Sprint left in the tank, 0..1. Empty = winded until it's back to a third. */
   stamina = 1;
   winded = false;
+  /** Height off the ground (flying kicks, being sent flying) and its vertical speed. */
+  air = 0;
+  vy = 0;
 
   mood: Mood = "play";
   moodT = 0;
@@ -117,7 +127,9 @@ export class Player {
   }
 
   canControl(now: number) {
-    return now >= this.noControlUntil && this.action?.kind !== "stumble" && this.mood === "play";
+    // Not while knocked down, stumbling, or mid slide/flying kick (a barge can take it).
+    const k = this.action?.kind;
+    return now >= this.noControlUntil && k !== "stumble" && k !== "floored" && k !== "slide" && k !== "kungfu" && this.mood === "play";
   }
 
   /** Integrate movement toward `want`. `speedMul` scales top speed (dribbling, 5IVE MODE…). */
@@ -133,16 +145,42 @@ export class Player {
       a.t += dt;
       const k = a.t / a.dur;
       switch (a.kind) {
-        case "tackle": {
-          // Turn into the ball, lunge forward, then recover.
+        case "barge": {
+          // Shoulder down and charge.
           if (a.aim !== undefined) this.facing = turnToward(this.facing, a.aim, 12 * dt);
-          const lunge = k < 0.55 ? 1 : 0.15;
-          wantX = dirX(this.facing) * 7 * lunge;
-          wantZ = dirZ(this.facing) * 7 * lunge;
-          top = 7.5;
+          const go = k < 0.55 ? 1 : 0.2;
+          wantX = dirX(this.facing) * 7.5 * go;
+          wantZ = dirZ(this.facing) * 7.5 * go;
+          top = 8;
           accel = 40;
           break;
         }
+        case "slide": {
+          // Feet first along the ground, fading out, then back up.
+          if (a.aim !== undefined && k < 0.15) this.facing = turnToward(this.facing, a.aim, 12 * dt);
+          const go = k < 0.65 ? 1 - k / 0.65 : 0;
+          wantX = dirX(this.facing) * 10 * go;
+          wantZ = dirZ(this.facing) * 10 * go;
+          top = 10;
+          accel = k < 0.12 ? 60 : 16;
+          break;
+        }
+        case "kungfu": {
+          // Leap in feet first, land on your back, get up.
+          if (a.aim !== undefined && k < 0.12) this.facing = turnToward(this.facing, a.aim, 12 * dt);
+          const flying = this.air > 0 || k < 0.1;
+          wantX = flying ? dirX(this.facing) * 7.5 : 0;
+          wantZ = flying ? dirZ(this.facing) * 7.5 : 0;
+          top = 8;
+          accel = flying ? 40 : 14;
+          break;
+        }
+        case "floored":
+          // Sent flying: carried by the hit through the air, then skidding to a stop.
+          wantX = 0;
+          wantZ = 0;
+          accel = this.air > 0 ? 0 : 10;
+          break;
         case "stumble":
           wantX = this.vel.x * 0.3;
           wantZ = this.vel.z * 0.3;
@@ -185,6 +223,11 @@ export class Player {
     this.pos.z += this.vel.z * dt;
     this.pos.x = clamp(this.pos.x, -HALF_L + 0.3, HALF_L - 0.3);
     this.pos.z = clamp(this.pos.z, -HALF_W + 0.3, HALF_W - 0.3);
+    if (this.air > 0 || this.vy > 0) {
+      this.vy -= 16 * dt;
+      this.air = Math.max(0, this.air + this.vy * dt);
+      if (this.air === 0) this.vy = 0;
+    }
 
     // The tank empties while going faster than a run and refills otherwise (quicker stood still).
     const sp = this.speed;
@@ -220,7 +263,10 @@ export class Player {
       const k = clamp(a.t / a.dur, 0, 1);
       switch (a.kind) {
         case "kick": kick(p, k, a.power ?? 0.5); break;
-        case "tackle": tackle(p, k); break;
+        case "barge": barge(p, k); break;
+        case "slide": slide(p, k); break;
+        case "kungfu": kungfu(p, k); break;
+        case "floored": floored(p, k, a.flip ?? 1); break;
         case "stepover": stepover(p, k); break;
         case "roulette": roulette(p, k); break;
         case "flick": flick(p, k); break;
@@ -232,16 +278,16 @@ export class Player {
     else idle(p, t + this.runPhase);
 
     // Look at the ball.
-    if (this.mood === "play") {
+    if (this.mood === "play" && a?.kind !== "floored") {
       const toBall = angleOf(ball.x - this.pos.x, ball.z - this.pos.z) - yaw;
       const wrapped = Math.atan2(Math.sin(toBall), Math.cos(toBall));
       p.y("neck", clamp(wrapped, -1.0, 1.0) * 0.8);
     }
 
-    const rate = a?.kind === "kick" || a?.kind === "tackle" ? 30 : 14;
+    const rate = a?.kind === "kick" || (a && TACKLE_KINDS.includes(a.kind)) ? 30 : a?.kind === "floored" ? 22 : 14;
     this.anim.update(dt, rate);
     const root = this.model.root;
-    root.position.set(this.pos.x, 0, this.pos.z);
+    root.position.set(this.pos.x, this.air, this.pos.z);
     root.rotation.y = yaw;
     if (this.glow !== this.lastGlow) { this.model.setGlow(this.glow); this.lastGlow = this.glow; }
   }

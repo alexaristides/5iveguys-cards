@@ -117,6 +117,11 @@
   .stick { position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.06); pointer-events: none; }
   .stick i { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(255,255,255,0.35); box-shadow: 0 0 0 2px rgba(255,255,255,0.4); }
   .stick.idle { opacity: 0.45; }
+  /* Stamina ring round the stick (once it isn't full); the stick glows while sprinting. */
+  .stick .ring { position: absolute; left: -10px; top: -10px; width: calc(100% + 20px); height: calc(100% + 20px); opacity: 0; transition: opacity 0.3s; }
+  .stick.tired .ring { opacity: 1; }
+  .stick.sprint { border-color: rgba(74,222,128,0.9); box-shadow: 0 0 18px rgba(74,222,128,0.45); }
+  .stick.sprint i { background: rgba(74,222,128,0.55); }
   #buttons { position: absolute; right: var(--sr); bottom: var(--sb); width: 220px; height: 190px; pointer-events: none; }
   .pad { position: absolute; border-radius: 50%; display: flex; align-items: center; justify-content: center; pointer-events: auto; color: #fff;
     font-family: var(--display); font-weight: 800; font-style: italic; text-transform: uppercase; letter-spacing: 0.03em; touch-action: none;
@@ -125,9 +130,7 @@
   .pad .ring { position: absolute; inset: -6px; border-radius: 50%; pointer-events: none; }
   #b-shoot { width: 96px; height: 96px; right: 0; bottom: 6px; font-size: 18px; background: radial-gradient(circle at 35% 30%, #c084fc, #7e22ce); border-color: #e9d5ff; }
   #b-pass { width: 70px; height: 70px; right: 112px; bottom: 0; font-size: 15px; }
-  #b-skill { width: 66px; height: 66px; right: 86px; bottom: 104px; font-size: 14px; }
-  #b-sprint { width: 70px; height: 70px; right: 13px; bottom: 112px; font-size: 13px; background: radial-gradient(circle at 35% 30%, rgba(74,222,128,0.4), rgba(22,101,52,0.35)); border-color: rgba(187,247,208,0.6); }
-  #b-sprint.winded { opacity: 0.6; }
+  #b-skill { width: 70px; height: 70px; right: 72px; bottom: 112px; font-size: 15px; }
   #buttons.def #b-shoot { background: radial-gradient(circle at 35% 30%, #fb7185, #be123c); border-color: #fecdd3; }
   #buttons.def #b-skill { opacity: 0.35; }
 

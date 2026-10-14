@@ -21,6 +21,8 @@ export class CameraRig {
   private v = new THREE.Vector3();
   /** Team select: x along the line of players (the select screen scrolls it). */
   selectX = 0;
+  private shakeT = 0;
+  private shakeAmp = 0;
 
   constructor() {
     this.cam = new THREE.PerspectiveCamera(36, 1, 0.1, 900);
@@ -86,6 +88,20 @@ export class CameraRig {
     }
     this.snap();
     if (follow && m) this.keepOnScreen(m.ball.pos);
+    // Big hits shake the picture (on top of the framing, so it never drifts).
+    if (this.shakeT > 0) {
+      this.shakeT = Math.max(0, this.shakeT - dt);
+      const a = this.shakeAmp * (this.shakeT / 0.3);
+      this.cam.position.x += (Math.random() - 0.5) * a;
+      this.cam.position.y += (Math.random() - 0.5) * a;
+      this.cam.updateMatrixWorld();
+    }
+  }
+
+  /** Shake the camera for a moment (metres). */
+  shake(amount: number) {
+    this.shakeAmp = Math.max(this.shakeT > 0 ? this.shakeAmp : 0, amount);
+    this.shakeT = 0.3;
   }
 
   /**

@@ -139,16 +139,70 @@ export function kick(p: Pose, t: number, power: number) {
     .lift(key(t, [[0, -0.03], [0.5, -0.07], [1, -0.02]]));
 }
 
-/** Lunging poke tackle with the left leg. */
-export function tackle(p: Pose, t: number) {
-  const reach = key(t, [[0, 0], [0.35, 1], [0.75, 1], [1, 0]]);
+// ── Tackles (no fouls) ──────────────────────────────────────────────────────
+// The body pivots at the feet, so tilting it back lays the player down with
+// their feet where they were.
+
+/** Shoulder charge: head down, leaning into the shoulder. */
+export function barge(p: Pose, t: number) {
+  const go = key(t, [[0, 0], [0.2, 1], [0.6, 1], [1, 0]]);
   p.reset()
-    .x("spine", 0.15 + 0.3 * reach).x("neck", 0.1)
-    .set("lHip", -1.05 * reach, 0, 0.05).x("lKnee", 0.15 + 0.2 * (1 - reach)).x("lAnkle", -0.3 * reach)
-    .x("rHip", 0.35 * reach).x("rKnee", 0.25 + 0.6 * reach)
-    .set("lShoulder", -0.3, 0, 0.6 * reach).set("rShoulder", 0.4, 0, -0.7 * reach)
-    .x("lElbow", -0.3).x("rElbow", -0.4)
-    .lift(-0.22 * reach);
+    .x("spine", 0.45 * go).x("neck", -0.2 * go)
+    .set("lHip", -0.6 * go, 0, 0.05).x("lKnee", 0.5 * go).x("rHip", 0.4 * go).x("rKnee", 0.6 * go)
+    .set("lShoulder", -0.4, 0, 0.15).x("lElbow", -1.6 * go)
+    .set("rShoulder", 0.3 * go, 0, -0.2).x("rElbow", -0.8)
+    .tilt(0.1 * go, 0, -0.38 * go)
+    .lift(-0.08 * go);
+}
+
+/** Slide tackle: down on one hip, lead leg out along the ground, then back up. */
+export function slide(p: Pose, t: number) {
+  const down = key(t, [[0, 0], [0.12, 1], [0.72, 1], [1, 0]]);
+  p.reset()
+    .x("spine", 0.35 * down).x("neck", 0.35 * down)
+    .set("lHip", -0.75 * down, 0, 0.08).x("lKnee", 0.05).x("lAnkle", -0.35 * down)
+    .set("rHip", -0.2 * down, 0, -0.1).x("rKnee", 1.6 * down)
+    .set("lShoulder", -0.6 * down, 0, 0.9 * down).x("lElbow", -0.3)
+    .set("rShoulder", 0.9 * down, 0, -0.5 * down).x("rElbow", -0.2)
+    .tilt(-1.05 * down, 0, 0.18 * down)
+    .lift(0.06 * down);
+}
+
+/** Flying two-footed kung-fu kick, landing flat on your back, then up again. */
+export function kungfu(p: Pose, t: number) {
+  const fly = key(t, [[0, 0], [0.12, 1], [0.38, 1], [0.48, 0]]);
+  const flat = key(t, [[0.38, 0], [0.5, 1], [0.78, 1], [1, 0]]);
+  const legs = Math.max(fly, 0.4 * flat);
+  p.reset()
+    .x("spine", 0.3 * fly + 0.2 * flat).x("neck", 0.4 * fly + 0.5 * flat)
+    .set("lHip", -1.25 * legs, 0, 0.1).set("rHip", -1.1 * legs, 0, -0.1)
+    .x("lKnee", 0.1).x("rKnee", 0.25 * fly)
+    .x("lAnkle", -0.4 * fly).x("rAnkle", -0.4 * fly)
+    .set("lShoulder", -0.5 * fly, 0, 1.3 * fly + 0.9 * flat).set("rShoulder", -0.5 * fly, 0, -1.3 * fly - 0.9 * flat)
+    .x("lElbow", -0.4).x("rElbow", -0.4)
+    .tilt(-0.95 * fly - 1.45 * flat, 0, 0)
+    .lift(0.12 * flat);
+}
+
+/**
+ * Sent flying by a tackle: spinning through the air with arms and legs going,
+ * flat out on the ground (on their back, or face down if `flip` is -1), then up.
+ */
+export function floored(p: Pose, t: number, flip: number) {
+  const air = key(t, [[0, 0.3], [0.08, 1], [0.24, 1], [0.32, 0]]);
+  const flat = key(t, [[0.2, 0], [0.32, 1], [0.74, 1], [0.95, 0]]);
+  const flail = Math.sin(t * 60) * air;
+  const twitch = flat * Math.max(0, Math.sin(t * 9)) * 0.25;
+  p.reset()
+    .x("spine", -0.2 * air + 0.1 * flat).x("neck", -0.4 * air - 0.2 * flat * flip)
+    .set("lShoulder", -1.6 * air + flail, 0, 1.2 * air + 1.4 * flat).set("rShoulder", -1.4 * air - flail, 0, -1.2 * air - 1.4 * flat)
+    .x("lElbow", -0.6 * air - 0.3 * flat).x("rElbow", -0.6 * air - 0.3 * flat)
+    .set("lHip", -0.9 * air + 0.5 * flail, 0, 0.35 * flat).set("rHip", -0.3 * air - 0.5 * flail, 0, -0.35 * flat)
+    .x("lKnee", 0.8 * air + twitch).x("rKnee", 0.4 * air + 0.3 * flat)
+    .tilt(-flip * (1.1 * air + 1.5 * flat), 0, 0.3 * air)
+    .lift(0.1 * flat)
+    // A spin or two in the air (whole turns, so it ends facing the same way).
+    .yaw(Math.PI * 2 * smooth(clamp(t / 0.3, 0, 1)));
 }
 
 export function stepover(p: Pose, t: number) {

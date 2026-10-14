@@ -155,6 +155,12 @@ export class Audio {
         this.burst(0.12, 300, 0.8, 0.25 * v);
         this.tone(95, 0.1, 0.2 * v, "sine", 55);
         break;
+      case "smash":
+        // Crunch, thud, and a cartoon "boing" on the way down.
+        this.burst(0.18, 380, 0.9, 0.32 * v);
+        this.tone(130, 0.28, 0.4 * v, "sine", 40);
+        this.tone(620, 0.22, 0.05 * v, "square", 210, 0.05);
+        break;
       case "trick":
         this.tone(660, 0.08, 0.05 * v, "triangle");
         this.tone(990, 0.12, 0.05 * v, "triangle", undefined, 0.07);
