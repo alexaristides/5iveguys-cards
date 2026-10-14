@@ -112,7 +112,10 @@ export class Hud {
       if (localStorage.getItem(KEY)) return;
       localStorage.setItem(KEY, "1");
     } catch { /* storage unavailable: show it anyway */ }
-    const tip = el(`<div class="tip">Drag on the left to move · <b>Pass</b> · hold <b>Shoot</b> for power · <b>Skill</b> beats your man · play it off the walls</div>`);
+    const keyboard = matchMedia("(hover: hover) and (pointer: fine)").matches;
+    const tip = el(keyboard
+      ? `<div class="tip"><b>WASD</b>/arrows move · <b>J</b> pass/switch · hold <b>K</b> or <b>Space</b> to shoot/tackle · <b>L</b> skill · <b>P</b> pause</div>`
+      : `<div class="tip">Drag on the left to move · <b>Pass</b> · hold <b>Shoot</b> for power · <b>Skill</b> beats your man · play it off the walls</div>`);
     this.root.appendChild(tip);
     setTimeout(() => tip.classList.add("out"), 7000);
     setTimeout(() => tip.remove(), 7600);
@@ -166,7 +169,7 @@ export function resultSheet(
       <div class="row">
         <button class="btn" data-r>Rematch</button>
         <button class="btn ghost" data-t>Change teams</button>
-        ${inApp ? `<button class="btn ghost" data-x>Exit</button>` : ""}
+        <button class="btn ghost" data-x>${inApp ? "Exit" : "Back"}</button>
       </div>
     </div></div></div>`);
   s.querySelector(".motm b")!.textContent = motm.name;

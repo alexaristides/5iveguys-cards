@@ -4,7 +4,6 @@ import { signIn, useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { STATS } from "@/lib/draft/nations";
 
 interface Channel {
   id: string;
@@ -91,34 +90,32 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* World Cup Draft hero */}
-        <Link
-          href="/draft"
-          className="group relative mb-14 block overflow-hidden rounded-3xl border border-[#FFC233]/30 bg-gradient-to-br from-[#0e8a3e]/25 via-[#070b14] to-[#070b14] p-8 transition hover:border-[#FFC233]/60 sm:p-10"
+        {/* 5IVE STREET hero — a static page (public/street), so a plain link rather than <Link>. */}
+        <a
+          href="/street"
+          className="group relative mb-14 block overflow-hidden rounded-3xl border border-purple-500/40 bg-gradient-to-br from-[#a326d6]/30 via-[#12061f] to-[#070b14] p-8 transition hover:border-purple-400/70 sm:p-10"
         >
-          <div className="pointer-events-none absolute -right-10 -top-10 text-[160px] opacity-10 transition group-hover:scale-110">
-            🏆
+          <div className="pointer-events-none absolute -right-8 -top-8 text-[150px] opacity-10 transition group-hover:scale-110">
+            ⚽
           </div>
           <div className="relative">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FFC233]/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-[#FFC233]">
-              ⚽ Free to play · no account needed
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-500/20 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-purple-200">
+              New · 3D · Free to play · no account needed
             </span>
-            <h2 className="mt-4 text-3xl font-extrabold leading-tight text-white sm:text-4xl">
-              Build your ultimate <span className="text-[#FFC233]">2026 World Cup XI</span>
+            <h2 className="mt-4 text-3xl font-extrabold italic leading-tight text-white sm:text-4xl">
+              5IVE STREET <span className="text-purple-300">3v3</span>
             </h2>
             <p className="mt-2 text-base text-zinc-300 sm:text-lg">
-              Spin. Draft. Simulate. <span className="text-zinc-400">Free to play.</span>
+              Street football in a cage with the 5ive Guys squad. Play it off the walls, nutmeg the CPU.
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-4">
-              <span className="rounded-2xl bg-[#FFC233] px-6 py-3 text-base font-extrabold text-zinc-950 shadow-lg shadow-[#FFC233]/20 transition group-hover:bg-[#ffce5c]">
-                Start Draft →
+              <span className="rounded-2xl bg-purple-600 px-6 py-3 text-base font-extrabold text-white shadow-lg shadow-purple-600/30 transition group-hover:bg-purple-500">
+                Play now →
               </span>
-              <span className="text-sm font-semibold text-zinc-400">
-                {STATS.nations} Nations · {STATS.players.toLocaleString()}+ Players · 1 Dream Team
-              </span>
+              <span className="text-sm font-semibold text-zinc-400">Best on a phone held sideways · keyboard on desktop</span>
             </div>
           </div>
-        </Link>
+        </a>
 
         {/* 5ive Verse hero */}
         {loading ? (

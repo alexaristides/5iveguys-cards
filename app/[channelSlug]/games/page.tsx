@@ -5,6 +5,17 @@ import { useParams } from "next/navigation";
 
 const GAMES = [
   {
+    href: "/street",
+    emoji: "🏙️",
+    title: "5IVE STREET · 3v3",
+    description: "Street football in 3D with the squad. Play it off the walls and nutmeg the CPU",
+    color: "from-purple-800/40 via-[#12061f] to-[#12061f]",
+    border: "border-purple-500/40 hover:border-purple-400/70",
+    badge: "bg-purple-600/25 text-purple-200",
+    badgeText: "New · 3D",
+    cta: "bg-purple-600 hover:bg-purple-500 shadow-purple-600/20",
+  },
+  {
     href: "/game?tab=sp",
     emoji: "⚽",
     title: "Single Player",
@@ -26,17 +37,6 @@ const GAMES = [
     badgeText: "Live 1v1",
     cta: "bg-orange-600 hover:bg-orange-500 shadow-orange-600/20",
   },
-  {
-    href: "/game/worldcup",
-    emoji: "🏆",
-    title: "World Cup — Road to Glory",
-    description: "Take 5ive Guys FC through the 48-team World Cup tournament",
-    color: "from-amber-800/30 via-[#170f00] to-[#170f00]",
-    border: "border-amber-600/30 hover:border-amber-500/60",
-    badge: "bg-amber-600/20 text-amber-300",
-    badgeText: "Tournament",
-    cta: "bg-amber-600 hover:bg-amber-500 shadow-amber-600/20",
-  },
 ];
 
 export default function GamesPage() {
@@ -55,29 +55,32 @@ export default function GamesPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {GAMES.map((game) => (
-            <Link
-              key={game.href}
-              href={game.href}
-              className={`group relative block overflow-hidden rounded-3xl border ${game.border} bg-gradient-to-br ${game.color} p-7 transition`}
-            >
-              <div className="pointer-events-none absolute -right-4 -top-4 text-[90px] opacity-10 transition group-hover:scale-110">
-                {game.emoji}
-              </div>
-              <div className="relative">
-                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${game.badge}`}>
-                  {game.badgeText}
-                </span>
-                <h2 className="mt-3 text-lg font-extrabold text-white leading-snug">{game.title}</h2>
-                <p className="mt-1 text-sm text-zinc-400">{game.description}</p>
-                <div className="mt-5">
-                  <span className={`rounded-xl ${game.cta} px-5 py-2.5 text-sm font-bold text-white shadow-lg transition`}>
-                    Play →
-                  </span>
+          {GAMES.map((game) => {
+            const className = `group relative block overflow-hidden rounded-3xl border ${game.border} bg-gradient-to-br ${game.color} p-7 transition`;
+            const body = (
+              <>
+                <div className="pointer-events-none absolute -right-4 -top-4 text-[90px] opacity-10 transition group-hover:scale-110">
+                  {game.emoji}
                 </div>
-              </div>
-            </Link>
-          ))}
+                <div className="relative">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${game.badge}`}>
+                    {game.badgeText}
+                  </span>
+                  <h2 className="mt-3 text-lg font-extrabold text-white leading-snug">{game.title}</h2>
+                  <p className="mt-1 text-sm text-zinc-400">{game.description}</p>
+                  <div className="mt-5">
+                    <span className={`rounded-xl ${game.cta} px-5 py-2.5 text-sm font-bold text-white shadow-lg transition`}>
+                      Play →
+                    </span>
+                  </div>
+                </div>
+              </>
+            );
+            // 5IVE STREET is a static page (public/street), so it needs a full page load.
+            return game.href === "/street"
+              ? <a key={game.href} href={game.href} className={className}>{body}</a>
+              : <Link key={game.href} href={game.href} className={className}>{body}</Link>;
+          })}
         </div>
       </div>
     </main>

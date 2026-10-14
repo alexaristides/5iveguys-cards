@@ -4,7 +4,7 @@
  */
 import * as THREE from "three";
 import { Audio } from "./audio";
-import { haptic, host, rosterWithRatings, send } from "./bridge";
+import { applyRatings, fetchWebRatings, haptic, host, rosterWithRatings, send } from "./bridge";
 import { loadImage } from "./faces";
 import { faceSheet, installDevTools } from "./dev";
 import { Match, type Difficulty } from "./game/match";
@@ -95,9 +95,24 @@ input.setEnabled(false);
 const select = new Select(
   ui, roster, models, rig.cam, inApp,
   (home, away, d) => { audio.click(); startMatch(home, away, d); },
-  () => send({ type: "exit" }),
+  () => leave(),
   () => { audio.unlock(); audio.click(); },
 );
+
+/** Exit: back to the app, or on the website back to where you came from. */
+function leave() {
+  if (inApp) { send({ type: "exit" }); return; }
+  const fromSite = document.referrer && new URL(document.referrer).origin === location.origin;
+  if (fromSite && history.length > 1) history.back();
+  else location.assign("/");
+}
+
+// On the website, fetch the fan ratings ourselves (the app passes them in).
+if (!inApp && !host.ratings) {
+  fetchWebRatings()
+    .then((r) => { applyRatings(roster, r); select.refreshStats(); })
+    .catch(() => { /* not on the site (local dev) or offline: built-in stats */ });
+}
 
 function showSelect() {
   endMatch();
@@ -183,7 +198,7 @@ function handleEvents(m: Match) {
         resultSheet(ui, m, m.motm(), inApp, {
           rematch: () => { if (lastTeams) startMatch(lastTeams.home, lastTeams.away, lastTeams.d); },
           teams: () => showSelect(),
-          exit: () => send({ type: "exit" }),
+          exit: () => leave(),
         });
         input.setEnabled(false);
         break;

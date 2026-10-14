@@ -40,3 +40,32 @@ export function rosterWithRatings(): RosterPlayer[] {
     return { ...p, stats: blendStats(p.stats, r?.averages, r?.voteCount ?? 0) };
   });
 }
+
+/**
+ * On the website there's no app to pass ratings in, so fetch them from the
+ * site's own API (same origin as the page). Resolves to {} if that fails.
+ */
+export async function fetchWebRatings(): Promise<NonNullable<HostConfig["ratings"]>> {
+  const get = async <T,>(url: string): Promise<T> => {
+    const res = await fetch(url, { credentials: "omit" });
+    if (!res.ok) throw new Error(`${url}: ${res.status}`);
+    return (await res.json()) as T;
+  };
+  const { cards } = await get<{ cards: { id: string; name: string; kit: string | null }[] }>("/api/channels/5iveguysfc/cards");
+  const wanted = new Map(ROSTER.map((p) => [p.name, p.key]));
+  const home = cards.filter((c) => c.kit === "Home Kit" && wanted.has(c.name));
+  const entries = await Promise.all(home.map(async (c) => {
+    const v = await get<{ averages: FanAverages; voteCount: number }>(`/api/cards/${c.id}/votes`);
+    return [wanted.get(c.name)!, { averages: v.averages, voteCount: v.voteCount }] as const;
+  }));
+  return Object.fromEntries(entries);
+}
+
+/** Re-blend each player's stats with newly arrived fan ratings (in place). */
+export function applyRatings(roster: RosterPlayer[], ratings: NonNullable<HostConfig["ratings"]>) {
+  for (const p of roster) {
+    const base = ROSTER.find((r) => r.key === p.key)?.stats;
+    const r = ratings[p.key];
+    if (base && r) p.stats = blendStats(base, r.averages, r.voteCount);
+  }
+}

@@ -1,6 +1,7 @@
 // Builds 5IVE STREET (the 3D 3v3 game) into one self-contained HTML page:
 //   street/dist/index.html           — open in a browser for development
 //   src/street/html.generated.ts     — the same page as a string, loaded by the app's WebView
+//   ../public/street/index.html      — the same page on the website, at /street
 //
 //   node street/build.mjs            one-off production build
 //   node street/build.mjs --watch    rebuild on change (dev, unminified) and serve dist/ on :5180
@@ -14,6 +15,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const watch = process.argv.includes("--watch");
 const distDir = join(here, "dist");
 const generated = join(here, "../src/street/html.generated.ts");
+// The website serves the same page at /street (rewrite in next.config.ts).
+const website = join(here, "../../public/street/index.html");
 
 function writeOutputs(js) {
   const template = readFileSync(join(here, "index.html"), "utf8");
@@ -25,6 +28,8 @@ function writeOutputs(js) {
   const cards = join(distDir, "cards");
   if (!existsSync(cards)) symlinkSync(join(here, "../../public/cards"), cards);
   if (!watch) {
+    mkdirSync(dirname(website), { recursive: true });
+    writeFileSync(website, html);
     mkdirSync(dirname(generated), { recursive: true });
     writeFileSync(
       generated,

@@ -51,6 +51,17 @@ function save(key: string, v: unknown) {
   try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* storage unavailable */ }
 }
 
+function tagHtml(p: RosterPlayer) {
+  const s = p.stats;
+  // Their two best attributes.
+  const best = (Object.entries({ PAC: s.pace, SHO: s.shooting, PAS: s.passing, DRI: s.dribbling, DEF: s.defending, PHY: s.physical }) as [string, number][])
+    .sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k, v]) => `${k} <b>${v}</b>`).join(" · ");
+  return `
+    <div class="nm">${p.name}</div>
+    <span class="ovr">${overall(s)}</span><span class="side"></span>
+    <div class="best">${best}</div>`;
+}
+
 export class Select {
   readonly root: HTMLElement;
   /** Camera x along the line; CameraRig frames the select screen around it. */
@@ -93,7 +104,7 @@ export class Select {
         <div class="seg sides"></div>
         <div style="display:flex;gap:10px;align-items:center">
           <div class="hint"></div>
-          ${inApp ? `<button class="btn ghost exit" style="padding:8px 14px;font-size:15px">Exit</button>` : ""}
+          <button class="btn ghost exit" style="padding:8px 14px;font-size:15px">${inApp ? "Exit" : "Back"}</button>
         </div>
       </div>
       <div class="tags"></div>
@@ -159,14 +170,7 @@ export class Select {
       model.root.add(ring);
       const tag = document.createElement("div");
       tag.className = "tag display";
-      const s = p.stats;
-      // Their two best attributes.
-      const best = (Object.entries({ PAC: s.pace, SHO: s.shooting, PAS: s.passing, DRI: s.dribbling, DEF: s.defending, PHY: s.physical }) as [string, number][])
-        .sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k, v]) => `${k} <b>${v}</b>`).join(" · ");
-      tag.innerHTML = `
-        <div class="nm">${p.name}</div>
-        <span class="ovr">${overall(s)}</span><span class="side"></span>
-        <div class="best">${best}</div>`;
+      tag.innerHTML = tagHtml(p);
       tags.appendChild(tag);
       this.slots.push({ p, model, anim: new Animator(model), hit, ring, tag, x: (i - (n - 1) / 2) * SPACING, side: null, out: 0, hop: 0 });
     });
@@ -253,6 +257,12 @@ export class Select {
     // Show who you're playing.
     this.targetX = this.clampX(this.order[1].reduce((a, s) => a + s.x, 0) / 3);
     this.vel = 0;
+  }
+
+  /** Stats changed (fan ratings arrived on the website): redraw the name tags. */
+  refreshStats() {
+    for (const s of this.slots) s.tag.innerHTML = tagHtml(s.p);
+    this.refresh();
   }
 
   private refresh() {
