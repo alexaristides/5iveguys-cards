@@ -19,6 +19,8 @@ export class CameraRig {
   private look = new THREE.Vector3(0, 0.5, 0);
   private t = 0;
   private v = new THREE.Vector3();
+  /** Team select: x along the line of players (the select screen scrolls it). */
+  selectX = 0;
 
   constructor() {
     this.cam = new THREE.PerspectiveCamera(36, 1, 0.1, 900);
@@ -48,8 +50,8 @@ export class CameraRig {
     let follow = false;
 
     if (mode === "select" || !m) {
-      P.set(0, 1.3, 6.3);
-      L.set(0, 0.78, 0);
+      P.set(this.selectX, 1.3, 6.3);
+      L.set(this.selectX, 0.68, 0);
       rate = 2.5;
     } else if (m.state === "goal" && m.lastScorer && m.stateT > 0.5) {
       const s = m.lastScorer.pos;
@@ -77,6 +79,11 @@ export class CameraRig {
     }
     this.pos.set(damp(this.pos.x, P.x, rate, dt), damp(this.pos.y, P.y, rate, dt), damp(this.pos.z, P.z, rate, dt));
     this.look.set(damp(this.look.x, L.x, rate * 1.3, dt), damp(this.look.y, L.y, rate * 1.3, dt), damp(this.look.z, L.z, rate * 1.3, dt));
+    // Scrolling the select line is already eased (and dragged 1:1), so follow it exactly.
+    if (mode === "select") {
+      this.pos.x = P.x;
+      this.look.x = L.x;
+    }
     this.snap();
     if (follow && m) this.keepOnScreen(m.ball.pos);
   }

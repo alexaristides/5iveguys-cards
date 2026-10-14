@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { Audio } from "./audio";
 import { haptic, host, rosterWithRatings, send } from "./bridge";
 import { loadImage } from "./faces";
-import { installDevTools } from "./dev";
+import { faceSheet, installDevTools } from "./dev";
 import { Match, type Difficulty } from "./game/match";
 import { KITS } from "./rig/kits";
 import { buildPlayer, type PlayerModel } from "./rig/model";
@@ -79,6 +79,8 @@ for (const p of roster) {
 for (const p of roster) {
   loadImage(p.card).then((img) => models.get(p.key)!.applyFace(img, p.look.face)).catch(() => {});
 }
+// Dev: `?faces` draws every player's head close up instead of the game (see dev.ts).
+const faces = inApp ? null : faceSheet(renderer, scene, roster, models);
 
 // ── Screens ────────────────────────────────────────────────────────────────
 
@@ -120,8 +122,11 @@ function startMatch(home: RosterPlayer[], away: RosterPlayer[], d: Difficulty) {
   endMatch();
   select.hide();
   lastTeams = { home, away, d };
+  // Only the six on the pitch are drawn; the bench waits for the next team select.
+  for (const m of models.values()) m.root.visible = false;
   for (const p of home) models.get(p.key)!.setKit("home");
   for (const p of away) models.get(p.key)!.setKit("black");
+  for (const p of [...home, ...away]) models.get(p.key)!.root.visible = true;
   match = new Match(scene, home, away, d, (p) => models.get(p.key)!);
   if (!inApp) {
     // Dev: inspect from the console; ?autopilot lets the CPU play both sides.
@@ -247,9 +252,11 @@ renderer.setAnimationLoop(() => {
   } else {
     select.update(dt);
     fx.update(dt, offscreen, false, "#fff");
+    rig.selectX = select.viewX;
     rig.update(dt, "select", null);
   }
-  renderer.render(scene, rig.cam);
+  if (faces) faces();
+  else renderer.render(scene, rig.cam);
 });
 
 // Dev: `__sim(20)` / `__glitch(10)` in the browser console (see dev.ts).
@@ -257,4 +264,8 @@ if (!inApp) installDevTools(roster);
 
 document.getElementById("loading")?.remove();
 showSelect();
+if (faces) {
+  select.cull = false;
+  select.root.style.display = "none";
+}
 send({ type: "ready" });

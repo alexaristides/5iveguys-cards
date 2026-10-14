@@ -34,11 +34,18 @@
   .btn:disabled { opacity: 0.4; }
 
   /* ── Team select ─────────────────────────────────────────────── */
+  #select { pointer-events: auto; }
   #select .title { position: absolute; top: max(10px, env(safe-area-inset-top)); left: var(--sl); right: var(--sr); display: flex; align-items: center; justify-content: space-between; pointer-events: none; }
   #select .logo { font-size: 30px; line-height: 1; text-shadow: 0 2px 0 var(--purple-deep), 0 0 18px rgba(168,85,247,0.6); }
   #select .logo small { display: block; font-size: 13px; color: var(--text2); letter-spacing: 0.12em; text-shadow: none; margin-top: 2px; }
-  #select .hint { font-size: 13px; color: var(--text2); text-align: right; }
-  #select .exit { pointer-events: auto; }
+  #select .hint { font-size: 13px; color: var(--text2); text-align: right; white-space: nowrap; }
+  #select .exit, #select .sides { pointer-events: auto; }
+  #select .sides button { min-width: 78px; font-family: var(--display); font-style: italic; font-weight: 800; letter-spacing: 0.04em; }
+  #select .sides button.home.on { background: var(--purple-deep); }
+  #select .sides button.away.on { background: #1c1917; color: var(--gold); box-shadow: inset 0 0 0 1px #a16207; }
+  #select .arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 42px; height: 64px; border-radius: 12px; background: rgba(0,0,0,0.45); font-size: 34px; font-weight: 800; line-height: 1; }
+  #select .arrow.prev { left: var(--sl); }
+  #select .arrow.next { right: var(--sr); }
   #select .tags { position: absolute; inset: 0; pointer-events: none; }
   .tag { position: absolute; transform: translate(-50%, 0); text-align: center; width: 104px; pointer-events: none; }
   .tag .nm { font-size: 17px; line-height: 1; text-shadow: 0 2px 6px rgba(0,0,0,0.7); }
@@ -46,6 +53,8 @@
   .tag .side { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 6px; margin-top: 3px; margin-left: 3px; }
   .tag.home .side { background: var(--purple-deep); }
   .tag.away .side { background: #1c1917; color: var(--gold); border: 1px solid #a16207; }
+  .tag.bench { opacity: 0.6; }
+  .tag.bench .side { display: none; }
   .tag .best { font: 600 10px -apple-system, Helvetica, Arial, sans-serif; color: var(--text2); margin-top: 4px; text-shadow: 0 1px 3px #000; }
   .tag .best b { color: #fff; }
   #select .bar { position: absolute; left: var(--sl); right: var(--sr); bottom: var(--sb); display: flex; align-items: center; justify-content: space-between; gap: 12px; }

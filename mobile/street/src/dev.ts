@@ -3,19 +3,28 @@
  *   __sim(20)     headless CPU-vs-CPU matches → goals, shots, tackles… (balance)
  *   __glitch(10)  the same, checking every frame for glitches and the camera
  *                 losing the ball
+ * Each match draws two random teams of three from the squad; pass player keys
+ * as the third argument to draw from just those (`__sim(20, 1, ["neymar", …])`).
+ *
+ * And `?faces` in the URL shows every player's head close up (see `faceSheet`).
  */
 import * as THREE from "three";
 import { dist, wrapAngle } from "./math";
 import { DIFFICULTIES, Match, type Pad } from "./game/match";
 import { BALL_R, GOAL_DEPTH, HALF_L, HALF_W } from "./game/field";
-import { buildPlayer } from "./rig/model";
+import { buildPlayer, type PlayerModel } from "./rig/model";
 import type { RosterPlayer } from "./roster";
 import { CameraRig, SAFE } from "./world/camera";
 
 const PAD: Pad = { move: { x: 0, z: 0 }, pass: false, shootDown: false, shootHeld: false, shootUp: false, skill: false };
 
-function newSim(roster: RosterPlayer[], d: number) {
-  const sim = new Match(new THREE.Group(), roster.slice(0, 3), roster.slice(3, 6), DIFFICULTIES[d], (p) => buildPlayer(p.name, p.look, "home"));
+function newSim(roster: RosterPlayer[], d: number, keys?: string[]) {
+  const pool = roster.filter((p) => !keys || keys.includes(p.key));
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const sim = new Match(new THREE.Group(), pool.slice(0, 3), pool.slice(3, 6), DIFFICULTIES[d], (p) => buildPlayer(p.name, p.look, "home"));
   sim.autopilot = true;
   return sim;
 }
@@ -23,16 +32,18 @@ function newSim(roster: RosterPlayer[], d: number) {
 export function installDevTools(roster: RosterPlayer[]) {
   const w = window as unknown as Record<string, unknown>;
 
-  w.__sim = (n: number, d = 1) => {
+  w.__sim = (n: number, d = 1, keys?: string[]) => {
     const out: string[] = [];
     const goalDist: number[] = [];
+    const goalsBy: Record<string, number> = {};
     const total = { goals: [0, 0], shots: [0, 0], blocks: [0, 0], tackles: [0, 0], pokes: [0, 0], tricks: [0, 0], passes: [0, 0], possession: [0, 0] };
     for (let i = 0; i < n; i++) {
-      const sim = newSim(roster, d);
+      const sim = newSim(roster, d, keys);
       let guard = 0;
       while (sim.state !== "over" && guard++ < 60 * 400) sim.step(1 / 60, PAD);
       out.push(`${sim.score[0]}-${sim.score[1]}`);
       goalDist.push(...sim.log.goalDist);
+      for (const g of sim.scorers) if (!g.og) goalsBy[g.name] = (goalsBy[g.name] ?? 0) + 1;
       total.goals[0] += sim.score[0]; total.goals[1] += sim.score[1];
       for (const k of ["shots", "blocks", "tackles", "pokes", "tricks", "passes", "possession"] as const) {
         total[k][0] += sim.log[k][0]; total[k][1] += sim.log[k][1];
@@ -41,10 +52,10 @@ export function installDevTools(roster: RosterPlayer[]) {
     const avg = Object.fromEntries(Object.entries(total).map(([k, v]) => [k, v.map((x) => +(x / n).toFixed(1))]));
     const hist: Record<string, number> = {};
     for (const g of goalDist) { const k = `${Math.floor(g / 3) * 3}m`; hist[k] = (hist[k] ?? 0) + 1; }
-    return { scores: out.join(" "), avg, goalsFrom: hist };
+    return { scores: out.join(" "), avg, goalsFrom: hist, goalsBy };
   };
 
-  w.__glitch = (n: number, d = 1, aspect = 844 / 390) => {
+  w.__glitch = (n: number, d = 1, aspect = 844 / 390, keys?: string[]) => {
     const count: Record<string, number> = {};
     const examples: string[] = [];
     let frames = 0, playFrames = 0;
@@ -53,7 +64,7 @@ export function installDevTools(roster: RosterPlayer[]) {
       if (examples.length < 30 && count[kind] <= 8) examples.push(`${kind} @${sim.t.toFixed(1)}s ${sim.state} ${detail}`);
     };
     for (let i = 0; i < n; i++) {
-      const sim = newSim(roster, d);
+      const sim = newSim(roster, d, keys);
       const rig = new CameraRig();
       rig.resize(aspect * 390, 390);
       const prevPos = new Map(sim.players.map((p) => [p, { ...p.pos }]));
@@ -138,5 +149,61 @@ export function installDevTools(roster: RosterPlayer[]) {
       }
     }
     return { matches: n, frames, playFrames, count, examples };
+  };
+}
+
+/**
+ * `?faces`: instead of the game, every player's head close up — straight on
+ * and from the side (`?faces=1.2` sets that angle in radians; `&p=milo,theo`
+ * picks players) — for lining up the photo crops in roster.ts. Returns the
+ * function that draws it each frame, or null without `?faces`.
+ */
+export function faceSheet(renderer: THREE.WebGLRenderer, scene: THREE.Scene, roster: RosterPlayer[], models: Map<string, PlayerModel>) {
+  const params = new URLSearchParams(location.search);
+  if (!params.has("faces")) return null;
+  const yaw = Number(params.get("faces")) || 0.7;
+  const only = params.get("p")?.split(",");
+  const players = only ? roster.filter((p) => only.includes(p.key)) : roster;
+  const cam = new THREE.PerspectiveCamera(24, 1, 0.05, 30);
+  const head = new THREE.Vector3();
+  const dir = new THREE.Vector3();
+  const q = new THREE.Quaternion();
+  const labels = players.map((p) => {
+    const l = document.createElement("div");
+    l.className = "display";
+    l.textContent = p.name;
+    l.style.cssText = "position:fixed;font-size:13px;padding:1px 5px;background:rgba(0,0,0,.6);border-radius:4px;pointer-events:none";
+    document.body.appendChild(l);
+    return l;
+  });
+
+  return () => {
+    const views = [0, yaw];
+    const n = players.length;
+    const perRow = n <= 2 ? n : n <= 6 ? Math.ceil(n / 2) : 4;
+    const cw = Math.floor(innerWidth / (perRow * views.length)), ch = Math.floor(innerHeight / Math.ceil(n / perRow));
+    renderer.setScissorTest(true);
+    players.forEach((p, i) => {
+      const m = models.get(p.key)!;
+      m.head.getWorldPosition(head);
+      m.head.getWorldQuaternion(q);
+      const col = (i % perRow) * views.length, row = Math.floor(i / perRow);
+      views.forEach((a, v) => {
+        const x = (col + v) * cw, y = innerHeight - (row + 1) * ch;
+        dir.set(Math.sin(a), 0.08, Math.cos(a)).applyQuaternion(q);
+        // Far enough back to fit the whole head (about 0.36 × 0.42 m) in the cell.
+        cam.aspect = cw / ch;
+        cam.updateProjectionMatrix();
+        cam.position.copy(head).addScaledVector(dir, Math.max(0.99, 0.85 / cam.aspect));
+        cam.lookAt(head);
+        renderer.setViewport(x, y, cw, ch);
+        renderer.setScissor(x, y, cw, ch);
+        renderer.render(scene, cam);
+      });
+      labels[i].style.left = `${col * cw + 4}px`;
+      labels[i].style.top = `${row * ch + 4}px`;
+    });
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, innerWidth, innerHeight);
   };
 }

@@ -29,6 +29,8 @@ export interface Joints {
 
 export interface PlayerModel {
   root: THREE.Group;
+  /** The head (for close-ups). */
+  head: THREE.Group;
   /** Rotates/offsets the whole body (slides, celebrations) without moving `root`. */
   body: THREE.Group;
   joints: Joints;
@@ -181,11 +183,15 @@ function buildHair(style: HairStyle, look: Look, seed: number): THREE.BufferGeom
   const fade = base.clone().lerp(skin, 0.4);
   const pieces: THREE.BufferGeometry[] = [];
   const shade = (c: THREE.Color, v = 0.18) => c.clone().multiplyScalar(1 - v / 2 + r() * v);
+  const size = look.hairSize ?? 1;
 
   const add = (geo: THREE.BufferGeometry, color: THREE.Color) => pieces.push(colorize(geo.toNonIndexed(), color));
 
-  /** Skull cap following the head, down to `thetaSide` at the sides/back, raised to `thetaFront` at the hairline. */
-  const cap = (thetaSide: number, thetaFront: number, scale: number, color: THREE.Color) => {
+  /**
+   * Skull cap following the head, down to `thetaSide` at the sides/back, raised to `thetaFront` at the hairline.
+   * `lift` puffs it out by a height that depends on theta and how far the point is above the hairline (afros).
+   */
+  const cap = (thetaSide: number, thetaFront: number, scale: number, color: THREE.Color, lift?: (th: number, edge: number) => number) => {
     const geo = new THREE.SphereGeometry(HEAD_R * scale, 40, 24, 0, Math.PI * 2, 0, thetaSide);
     const pos = geo.attributes.position;
     const v = new THREE.Vector3();
@@ -194,8 +200,9 @@ function buildHair(style: HairStyle, look: Look, seed: number): THREE.BufferGeom
       const th = Math.acos(THREE.MathUtils.clamp(v.y / (HEAD_R * scale), -1, 1));
       const front = Math.max(0, v.z / (HEAD_R * scale)) ** 1.5;
       const limit = thetaSide + (thetaFront - thetaSide) * front;
-      if (th > limit) {
-        v.copy(onHead(HEAD_R * scale, limit, Math.atan2(v.x, v.z)));
+      if (th > limit || lift) {
+        const t = Math.min(th, limit);
+        v.copy(onHead(HEAD_R * scale + (lift?.(t, limit - t) ?? 0), t, Math.atan2(v.x, v.z)));
         pos.setXYZ(i, v.x, v.y, v.z);
       }
     }
@@ -263,7 +270,7 @@ function buildHair(style: HairStyle, look: Look, seed: number): THREE.BufferGeom
         const th = Math.acos(1 - r() * 0.48);
         const ph = (r() * 2 - 1) * Math.PI;
         const lift = 0.038 * (1 - th / 1.05) + r() * 0.014;
-        const p = onHead(HEAD_R * 1.04 + lift, th, ph);
+        const p = onHead(HEAD_R * 1.04 + lift * size, th, ph);
         p.z += 0.008;
         curl(p, 0.017 + r() * 0.008, shade(base.clone().lerp(tip, Math.min(1, lift / 0.045 * 0.8 + r() * 0.35)), 0.2));
       }
@@ -334,6 +341,71 @@ function buildHair(style: HairStyle, look: Look, seed: number): THREE.BufferGeom
       }
       break;
     }
+    case "longCurly": {
+      // Milo: curls parted in the middle, falling past the ears to the jaw and framing the face.
+      cap(1.9, 0.92, 1.03, base);
+      const hue = () => shade(base.clone().lerp(tip, r() * 0.7), 0.3);
+      for (let i = 0; i < 300; i++) {
+        const th = Math.acos(1 - r() * 1.25);
+        const ph = (r() * 2 - 1) * Math.PI;
+        // Keep the face and the parting clear.
+        if (onFace(th, ph, 0.88) || (Math.abs(ph) < 0.14 && th < 0.95)) continue;
+        curl(onHead(HEAD_R * (1.06 + (0.05 + r() * 0.07) * size), th, ph), 0.018 + r() * 0.01, hue());
+      }
+      // The fall: curls hanging from the temples round the back, a little fuller toward the ends.
+      for (let i = 0; i < 260; i++) {
+        const ph = (r() * 2 - 1) * Math.PI;
+        if (Math.cos(ph) > 0.4) continue;
+        const ny = 0.3 - r() * 1.3;
+        const rad = HEAD_R * (1.08 + (0.06 * Math.max(0, -ny) + 0.04 + r() * 0.06) * size);
+        curl(new THREE.Vector3(Math.sin(ph) * rad, HEAD_R * ny, Math.cos(ph) * rad * 0.95), 0.019 + r() * 0.01, hue());
+      }
+      break;
+    }
+    case "afro": {
+      // SweetChilli and Ryan: a rounded afro of tight curls, fullest on top, ears showing.
+      const [side, front] = [1.6, 0.8];
+      /** Hairline theta at this angle around the head (the same edge `cap` uses). */
+      const hairline = (th: number, ph: number) => side + (front - side) * Math.max(0, Math.sin(th) * Math.cos(ph)) ** 1.5;
+      // Fullest on top, thinning to a soft edge at the hairline.
+      const vol = (th: number, edge: number) =>
+        (0.012 + 0.046 * Math.max(0, Math.cos(th * 0.9))) * size * THREE.MathUtils.smoothstep(edge, 0, 0.45);
+      // A solid layer so it reads as one mass, then tight curls over it.
+      cap(side, front, 1.03, base, (th, edge) => vol(th, edge) * 0.8);
+      for (let i = 0; i < 650; i++) {
+        const th = Math.acos(1 - r() * 1.05);
+        const ph = (r() * 2 - 1) * Math.PI;
+        const edge = hairline(th, ph) - th;
+        if (edge < 0) continue;
+        const p = onHead(HEAD_R * 1.03 + vol(th, edge) * (0.85 + 0.25 * r()), th, ph);
+        curl(p, 0.011 + r() * 0.006, shade(base.clone().lerp(tip, r() * 0.8), 0.45));
+      }
+      break;
+    }
+    case "twists": {
+      // Theo: springy coils from the crown, falling over the forehead and the ears, lighter at the tips.
+      cap(1.6, 0.95, 1.025, base);
+      const down = new THREE.Vector3(0, -1, 0);
+      for (let i = 0; i < 160; i++) {
+        const th = Math.acos(1 - r() * 1.0);
+        const ph = (r() * 2 - 1) * Math.PI;
+        if (th > 1.5 || onFace(th, ph, 0.82)) continue;
+        const p = onHead(HEAD_R * 1.035, th, ph);
+        // Out of the scalp (a little up), then curving outward and down.
+        const dir = p.clone().normalize().add(new THREE.Vector3(0, 0.35, 0)).normalize();
+        const fall = new THREE.Vector3(Math.sin(ph), 0, Math.cos(ph)).multiplyScalar(0.55 + r() * 0.3).add(down).normalize();
+        const beads = 5 + Math.floor(r() * 3);
+        for (let b = 0; b < beads; b++) {
+          const t = b / (beads - 1);
+          const g = sphereGeo(0.0115 - 0.003 * t, 6, 4);
+          g.translate(p.x, p.y, p.z);
+          add(g, shade(base.clone().lerp(tip, Math.max(0, t - 0.3) * 1.4 * (0.5 + 0.5 * r())), 0.25));
+          dir.lerp(fall, 0.4).normalize();
+          p.addScaledVector(dir, 0.0125);
+        }
+      }
+      break;
+    }
   }
 
   return shapeHead(mergeGeometries(pieces, false)!);
@@ -396,7 +468,11 @@ function faceTexture(img: HTMLImageElement, crop: FaceCrop) {
   const ky = ((crop.chin - crop.y) * H) / (EYE_Y - CHIN_Y); // card px per head unit (vertical)
   const kx = (ky * HEAD_SX) / HEAD_SY; // keeps the face's proportions once the head is scaled
   const ax = perUnit / kx, ay = perUnit / ky;
-  g.setTransform(ax, 0, 0, ay, S / 2 - crop.x * W * ax, S / 2 - EYE_Y * perUnit - crop.y * H * ay);
+  // Eye midpoint → the head's eye line, levelling a tilted head on the way.
+  g.translate(S / 2, S / 2 - EYE_Y * perUnit);
+  g.scale(ax, ay);
+  g.rotate(-THREE.MathUtils.degToRad(crop.tilt ?? 0));
+  g.translate(-crop.x * W, -crop.y * H);
   try {
     g.drawImage(img, 0, 0);
   } catch {
@@ -654,5 +730,5 @@ export function buildPlayer(name: string, look: Look, kitId: KitId): PlayerModel
     head.add(decal);
   };
 
-  return { root, body, joints, setKit, setGlow, applyFace, hipHeight };
+  return { root, head, body, joints, setKit, setGlow, applyFace, hipHeight };
 }

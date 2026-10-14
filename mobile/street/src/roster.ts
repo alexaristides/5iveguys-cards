@@ -1,10 +1,11 @@
 /**
- * The six players in 5IVE STREET: how each one looks (taken from their cards)
- * and how they play. Stats are a starting point — fan ratings from the app
- * are blended in (see `blendStats`).
+ * The squad in 5IVE STREET: how each player looks (taken from their Home Kit
+ * card) and how they play. Stats are seeded from the card's attribute and
+ * position; fan ratings from the app are blended in (see `blendStats`).
  */
 
-export type HairStyle = "curlyMop" | "curlyTop" | "shortCurly" | "messy" | "locs" | "quiff";
+export type HairStyle =
+  | "curlyMop" | "curlyTop" | "shortCurly" | "messy" | "locs" | "quiff" | "longCurly" | "afro" | "twists";
 export type Beard = "none" | "stubble" | "goatee" | "full";
 export type Celebration = "airplane" | "kneeSlide" | "flex" | "siuu" | "fistPump" | "pointUp";
 
@@ -15,6 +16,8 @@ export interface FaceCrop {
   chin: number;
   /** Narrow the face mask (0..1) for faces turned to the side, so the card background doesn't show. */
   w?: number;
+  /** Degrees the head is tilted clockwise in the photo (the slope of the eye line), to level it. */
+  tilt?: number;
 }
 
 export interface Look {
@@ -23,6 +26,8 @@ export interface Look {
   /** Lighter colour for the tips of the hair (curls), if any. */
   hairTip?: string;
   hairStyle: HairStyle;
+  /** Volume of curly styles (1 = as drawn for the first player with that style). */
+  hairSize?: number;
   beard: Beard;
   /** Standing height in metres. */
   height: number;
@@ -127,6 +132,137 @@ export const ROSTER: RosterPlayer[] = [
     },
     stats: { pace: 85, shooting: 84, passing: 78, dribbling: 76, defending: 72, physical: 84 },
     celebration: "siuu",
+  },
+  // ── The rest of the squad (in card order) ────────────────────────────────
+  {
+    key: "adrian",
+    name: "Adrian",
+    card: "/cards/home/Adrian_Home.jpg",
+    // LW · Power
+    look: {
+      skin: "#6b4430", hair: "#141010", hairStyle: "shortCurly", beard: "goatee",
+      height: 1.83, build: 1.02, boots: "#f5c518", smile: true, earrings: true,
+      face: { x: 0.488, y: 0.241, chin: 0.468, tilt: -3 },
+    },
+    stats: { pace: 86, shooting: 78, passing: 68, dribbling: 77, defending: 58, physical: 80 },
+    celebration: "kneeSlide",
+  },
+  {
+    key: "gravz",
+    name: "Gravz",
+    card: "/cards/home/Gravz_Home.jpg",
+    // CAM · Pace
+    look: {
+      skin: "#4a2e22", hair: "#121010", hairStyle: "shortCurly", beard: "none",
+      height: 1.78, build: 1.06, boots: "#22c55e", smile: true,
+      face: { x: 0.495, y: 0.277, chin: 0.505, tilt: -2 },
+    },
+    stats: { pace: 88, shooting: 74, passing: 79, dribbling: 80, defending: 52, physical: 62 },
+    celebration: "fistPump",
+  },
+  {
+    key: "jack",
+    name: "Jack",
+    card: "/cards/home/Jack_Home.jpg",
+    // ST · Skill
+    look: {
+      skin: "#e8bfa0", hair: "#6b3f22", hairTip: "#8a5530", hairStyle: "quiff", beard: "none",
+      height: 1.78, build: 0.95, boots: "#14b8a6", smile: false,
+      face: { x: 0.563, y: 0.304, chin: 0.52, w: 0.85, tilt: -9 },
+    },
+    stats: { pace: 76, shooting: 84, passing: 72, dribbling: 85, defending: 45, physical: 62 },
+    celebration: "siuu",
+  },
+  {
+    key: "joad",
+    name: "Joad",
+    card: "/cards/home/Joad_Home.jpg",
+    // DEF · Pace
+    look: {
+      skin: "#4a2c1c", hair: "#121010", hairStyle: "curlyTop", hairSize: 0.6, beard: "none",
+      height: 1.85, build: 0.95, boots: "#a78bfa", smile: true, earrings: true,
+      face: { x: 0.588, y: 0.293, chin: 0.54, w: 0.75, tilt: 2 },
+    },
+    stats: { pace: 88, shooting: 58, passing: 68, dribbling: 66, defending: 84, physical: 80 },
+    celebration: "airplane",
+  },
+  {
+    key: "lats",
+    name: "Lats",
+    card: "/cards/home/Lats_Home.jpg",
+    // DEF · Power
+    look: {
+      skin: "#4e2f20", hair: "#141010", hairStyle: "curlyTop", hairSize: 0.6, beard: "none",
+      height: 1.84, build: 1.04, boots: "#18181b", smile: true,
+      face: { x: 0.407, y: 0.268, chin: 0.493, w: 0.9 },
+    },
+    stats: { pace: 70, shooting: 60, passing: 72, dribbling: 58, defending: 90, physical: 92 },
+    celebration: "flex",
+  },
+  {
+    key: "milo",
+    name: "Milo",
+    card: "/cards/home/Milo_Home.jpg",
+    // LW · Pace
+    look: {
+      skin: "#d9a986", hair: "#2b1f17", hairTip: "#5a4433", hairStyle: "longCurly", beard: "goatee",
+      height: 1.78, build: 0.92, boots: "#fde047", smile: false, earrings: true,
+      face: { x: 0.441, y: 0.288, chin: 0.515, w: 0.85, tilt: -5 },
+    },
+    stats: { pace: 92, shooting: 74, passing: 74, dribbling: 86, defending: 50, physical: 58 },
+    celebration: "pointUp",
+  },
+  {
+    key: "ryan",
+    name: "Ryan",
+    card: "/cards/home/Ryan_Home.jpg",
+    // CM · Power
+    look: {
+      skin: "#9c6646", hair: "#161210", hairTip: "#2e241d", hairStyle: "afro", hairSize: 0.8, beard: "none",
+      height: 1.75, build: 1.0, boots: "#38bdf8", smile: true,
+      face: { x: 0.496, y: 0.312, chin: 0.545, tilt: -4 },
+    },
+    stats: { pace: 74, shooting: 76, passing: 82, dribbling: 74, defending: 72, physical: 84 },
+    celebration: "fistPump",
+  },
+  {
+    key: "stan",
+    name: "Stan",
+    card: "/cards/home/Stan_Home.jpg",
+    // ST · Skill
+    look: {
+      skin: "#4b2d1f", hair: "#121010", hairStyle: "shortCurly", beard: "stubble",
+      height: 1.83, build: 1.04, boots: "#dc2626", smile: false,
+      face: { x: 0.489, y: 0.278, chin: 0.493 },
+    },
+    stats: { pace: 75, shooting: 86, passing: 72, dribbling: 84, defending: 48, physical: 80 },
+    celebration: "flex",
+  },
+  {
+    key: "sweetchilli",
+    name: "SweetChilli",
+    card: "/cards/home/SweetChilli_Home.jpg",
+    // LW · Pace
+    look: {
+      skin: "#4c2c1e", hair: "#121010", hairTip: "#2e241d", hairStyle: "afro", hairSize: 1.3, beard: "stubble",
+      height: 1.85, build: 1.1, boots: "#ff4d00", smile: true,
+      face: { x: 0.486, y: 0.363, chin: 0.58 },
+    },
+    stats: { pace: 90, shooting: 80, passing: 76, dribbling: 82, defending: 50, physical: 72 },
+    celebration: "airplane",
+  },
+  {
+    key: "theo",
+    name: "Theo",
+    card: "/cards/home/Theo_Home.jpg",
+    // DEF · Skill
+    look: {
+      skin: "#b98260", hair: "#21150d", hairTip: "#8a5a32", hairStyle: "twists", beard: "goatee",
+      height: 1.78, build: 0.96, boots: "#e5e7eb", smile: false, earrings: true,
+      face: { x: 0.507, y: 0.308, chin: 0.528, tilt: 2 },
+    },
+    stats: { pace: 76, shooting: 66, passing: 84, dribbling: 82, defending: 84, physical: 72 },
+    celebration: "kneeSlide",
   },
 ];
 
