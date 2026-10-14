@@ -3,6 +3,7 @@
  *   __sim(20)     headless CPU-vs-CPU matches → goals, shots, tackles… (balance)
  *   __glitch(10)  the same, checking every frame for glitches and the camera
  *                 losing the ball
+ *   __duel(200, { pace: 90 })  what one stat is worth (see below)
  * Each match draws two random teams of three from the squad; pass player keys
  * as the third argument to draw from just those (`__sim(20, 1, ["neymar", …])`).
  *
@@ -13,10 +14,10 @@ import { dist, wrapAngle } from "./math";
 import { DIFFICULTIES, Match, type Pad } from "./game/match";
 import { BALL_R, GOAL_DEPTH, HALF_L, HALF_W } from "./game/field";
 import { buildPlayer, type PlayerModel } from "./rig/model";
-import type { RosterPlayer } from "./roster";
+import type { RosterPlayer, Stats } from "./roster";
 import { CameraRig, SAFE } from "./world/camera";
 
-const PAD: Pad = { move: { x: 0, z: 0 }, pass: false, shootDown: false, shootHeld: false, shootUp: false, skill: false };
+const PAD: Pad = { move: { x: 0, z: 0 }, pass: false, shootDown: false, shootHeld: false, shootUp: false, skill: false, sprint: false };
 
 function newSim(roster: RosterPlayer[], d: number, keys?: string[]) {
   const pool = roster.filter((p) => !keys || keys.includes(p.key));
@@ -36,7 +37,7 @@ export function installDevTools(roster: RosterPlayer[]) {
     const out: string[] = [];
     const goalDist: number[] = [];
     const goalsBy: Record<string, number> = {};
-    const total = { goals: [0, 0], shots: [0, 0], blocks: [0, 0], tackles: [0, 0], pokes: [0, 0], tricks: [0, 0], passes: [0, 0], possession: [0, 0] };
+    const total = { goals: [0, 0], shots: [0, 0], blocks: [0, 0], tackles: [0, 0], pokes: [0, 0], tricks: [0, 0], passes: [0, 0], possession: [0, 0], sprint: [0, 0] };
     for (let i = 0; i < n; i++) {
       const sim = newSim(roster, d, keys);
       let guard = 0;
@@ -45,7 +46,7 @@ export function installDevTools(roster: RosterPlayer[]) {
       goalDist.push(...sim.log.goalDist);
       for (const g of sim.scorers) if (!g.og) goalsBy[g.name] = (goalsBy[g.name] ?? 0) + 1;
       total.goals[0] += sim.score[0]; total.goals[1] += sim.score[1];
-      for (const k of ["shots", "blocks", "tackles", "pokes", "tricks", "passes", "possession"] as const) {
+      for (const k of ["shots", "blocks", "tackles", "pokes", "tricks", "passes", "possession", "sprint"] as const) {
         total[k][0] += sim.log[k][0]; total[k][1] += sim.log[k][1];
       }
     }
@@ -53,6 +54,36 @@ export function installDevTools(roster: RosterPlayer[]) {
     const hist: Record<string, number> = {};
     for (const g of goalDist) { const k = `${Math.floor(g / 3) * 3}m`; hist[k] = (hist[k] ?? 0) + 1; }
     return { scores: out.join(" "), avg, goalsFrom: hist, goalsBy };
+  };
+
+  // `__duel(200, { pace: 90 })`: identical teams of three (every stat 75), except
+  // side A gets the stats you pass. How much more A wins shows what that stat is
+  // worth. Sides swap each match so the CPU difficulty tweaks even out.
+  w.__duel = (n: number, a: Partial<Stats> = {}, b: Partial<Stats> = {}, d = 1) => {
+    const base: Stats = { pace: 75, shooting: 75, passing: 75, dribbling: 75, defending: 75, physical: 75 };
+    const team = (s: Partial<Stats>) => roster.slice(0, 3).map((p) => ({ ...p, stats: { ...base, ...s } }));
+    const r = { aWins: 0, draws: 0, bWins: 0, aGoals: 0, bGoals: 0 };
+    const log = { shots: [0, 0], blocks: [0, 0], tackles: [0, 0], pokes: [0, 0], passes: [0, 0], possession: [0, 0], sprint: [0, 0] };
+    for (let i = 0; i < n; i++) {
+      const swap = i % 2 === 1;
+      const sim = new Match(new THREE.Group(), team(swap ? b : a), team(swap ? a : b), DIFFICULTIES[d], (p) => buildPlayer(p.name, p.look, "home"));
+      sim.autopilot = true;
+      let guard = 0;
+      while (sim.state !== "over" && guard++ < 60 * 400) { sim.step(1 / 60, PAD); sim.events.length = 0; }
+      const [ga, gb] = swap ? [sim.score[1], sim.score[0]] : sim.score;
+      r.aGoals += ga; r.bGoals += gb;
+      if (ga > gb) r.aWins++; else if (gb > ga) r.bWins++; else r.draws++;
+      for (const k of Object.keys(log) as (keyof typeof log)[]) {
+        log[k][0] += sim.log[k][swap ? 1 : 0];
+        log[k][1] += sim.log[k][swap ? 0 : 1];
+      }
+    }
+    const per = (x: number) => +(x / n).toFixed(2);
+    return {
+      aWinPct: Math.round((100 * r.aWins) / n), drawPct: Math.round((100 * r.draws) / n), bWinPct: Math.round((100 * r.bWins) / n),
+      goals: [per(r.aGoals), per(r.bGoals)],
+      ...Object.fromEntries(Object.entries(log).map(([k, v]) => [k, v.map(per)])),
+    };
   };
 
   w.__glitch = (n: number, d = 1, aspect = 844 / 390, keys?: string[]) => {

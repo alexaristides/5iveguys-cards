@@ -1,7 +1,7 @@
 /**
  * Touch controls (floating stick on the left half, buttons bottom-right) and
- * keyboard for desktop testing: WASD/arrows, J pass/switch, K or Space
- * shoot/tackle (hold to power up), L skill.
+ * keyboard for desktop: WASD/arrows, Shift sprint (hold), J pass/switch, K or
+ * Space shoot/tackle (hold to power up), L skill.
  */
 import type { Pad } from "../game/match";
 
@@ -12,6 +12,7 @@ export class Input {
   private keys = new Set<string>();
   private edges = { pass: false, shootDown: false, shootUp: false, skill: false };
   private shootHeld = false;
+  private sprintHeld = false;
   private enabled = false;
 
   readonly root: HTMLElement;
@@ -22,7 +23,9 @@ export class Input {
   private bShoot: HTMLElement;
   private bPass: HTMLElement;
   private bSkill: HTMLElement;
+  private bSprint: HTMLElement;
   private ring: HTMLElement;
+  private tank: SVGCircleElement;
 
   constructor(parent: HTMLElement, private onPress: () => void) {
     this.root = document.createElement("div");
@@ -30,6 +33,7 @@ export class Input {
     this.root.innerHTML = `
       <div id="stickzone"><div class="stick idle"><i></i></div></div>
       <div id="buttons">
+        <button class="pad display" id="b-sprint"><span>Sprint</span><svg class="ring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="none" stroke="#4ade80" stroke-width="6" stroke-dasharray="296 296" stroke-linecap="round" transform="rotate(-90 50 50)"/></svg></button>
         <button class="pad display" id="b-skill">Skill</button>
         <button class="pad display" id="b-pass">Pass</button>
         <button class="pad display" id="b-shoot"><span>Shoot</span><svg class="ring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="none" stroke="#fde68a" stroke-width="6" stroke-dasharray="0 296" stroke-linecap="round" transform="rotate(-90 50 50)"/></svg></button>
@@ -43,7 +47,9 @@ export class Input {
     this.bShoot = q("#b-shoot");
     this.bPass = q("#b-pass");
     this.bSkill = q("#b-skill");
+    this.bSprint = q("#b-sprint");
     this.ring = q("#b-shoot .ring");
+    this.tank = this.root.querySelector("#b-sprint circle") as SVGCircleElement;
     this.resetStick();
 
     this.zone.addEventListener("pointerdown", (e) => {
@@ -84,6 +90,7 @@ export class Input {
     };
     bind(this.bPass, () => { this.edges.pass = true; });
     bind(this.bSkill, () => { this.edges.skill = true; });
+    bind(this.bSprint, () => { this.sprintHeld = true; }, () => { this.sprintHeld = false; });
     bind(this.bShoot, () => { this.edges.shootDown = true; this.shootHeld = true; }, () => {
       if (this.shootHeld) this.edges.shootUp = true;
       this.shootHeld = false;
@@ -103,7 +110,7 @@ export class Input {
       this.keys.delete(k);
       if ((k === "k" || k === " ") && this.shootHeld) { this.edges.shootUp = true; this.shootHeld = false; }
     });
-    addEventListener("blur", () => { this.keys.clear(); this.shootHeld = false; });
+    addEventListener("blur", () => { this.keys.clear(); this.shootHeld = false; this.sprintHeld = false; });
   }
 
   private resetStick() {
@@ -132,7 +139,7 @@ export class Input {
   setEnabled(on: boolean) {
     this.enabled = on;
     this.root.classList.toggle("hidden", !on);
-    if (!on) { this.stick = { x: 0, y: 0 }; this.stickId = null; this.shootHeld = false; this.resetStick(); }
+    if (!on) { this.stick = { x: 0, y: 0 }; this.stickId = null; this.shootHeld = false; this.sprintHeld = false; this.resetStick(); }
   }
 
   /** Attack (has ball) vs defend button labels. */
@@ -140,6 +147,13 @@ export class Input {
     this.buttons.classList.toggle("def", !attacking);
     this.bPass.textContent = attacking ? "Pass" : "Switch";
     (this.bShoot.firstChild as HTMLElement).textContent = attacking ? "Shoot" : "Tackle";
+  }
+
+  /** Stamina of the player you control, round the Sprint button (amber when winded). */
+  setStamina(f: number, winded: boolean) {
+    this.tank.setAttribute("stroke-dasharray", `${(f * 296).toFixed(0)} 296`);
+    this.tank.setAttribute("stroke", winded ? "#f59e0b" : "#4ade80");
+    this.bSprint.classList.toggle("winded", winded);
   }
 
   setCharge(f: number) {
@@ -160,6 +174,7 @@ export class Input {
       shootHeld: this.shootHeld,
       shootUp: this.edges.shootUp,
       skill: this.edges.skill,
+      sprint: this.sprintHeld || k.has("shift"),
     };
     this.edges = { pass: false, shootDown: false, shootUp: false, skill: false };
     return pad;

@@ -255,10 +255,11 @@ renderer.setAnimationLoop(() => {
     input.setMode(attacking);
     input.setVisible(m.state === "play" || m.state === "kickoff");
     input.setCharge(m.chargeStart !== null ? Math.min(1, (m.t - m.chargeStart) / 0.85) : 0);
+    input.setStamina(u.stamina, u.winded);
     hud?.update(m);
     if (marker.visible) {
       const head = new THREE.Vector3(u.pos.x, 2.25 * (u.info.look.height / 1.8), u.pos.z).project(rig.cam);
-      hud?.meTag(u.name, ((head.x + 1) / 2) * innerWidth, ((1 - head.y) / 2) * innerHeight);
+      hud?.meTag(u.name, ((head.x + 1) / 2) * innerWidth, ((1 - head.y) / 2) * innerHeight, u.stamina, u.winded);
     } else hud?.meTag(null);
     const kick = m.ball.kick;
     const shot = kick?.kind === "shot" && m.ball.speed > 12;
