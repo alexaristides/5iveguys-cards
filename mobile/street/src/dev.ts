@@ -61,6 +61,7 @@ export function installDevTools(roster: RosterPlayer[]) {
       const prevVel = new Map(sim.players.map((p) => [p, { ...p.vel }]));
       const prevBall = sim.ball.pos.clone();
       let deadFor = 0;
+      let stuckFor = 0;
       const possessionChanges: number[] = [];
       let lastTeam: 0 | 1 | null = null;
       let guard = 0;
@@ -86,6 +87,14 @@ export function installDevTools(roster: RosterPlayer[]) {
         prevBall.copy(b.pos);
         if (play && !b.owner && b.speed < 0.3) { deadFor += dt; if (deadFor > 3) { flag("deadBall", sim, `${b.pos.x.toFixed(1)},${b.pos.z.toFixed(1)}`); deadFor = -999; } }
         else if (b.owner || b.speed >= 0.3) deadFor = 0;
+
+        // A carrier pinned in a corner / against a wall, or stood still on the ball.
+        const o = b.owner;
+        const cornered = o && Math.abs(o.pos.x) > HALF_L - 1.6 && Math.abs(o.pos.z) > 2.2;
+        if (play && o && (cornered || o.speed < 0.6)) {
+          stuckFor += dt;
+          if (stuckFor > 2.5) { flag(cornered ? "carrierCornered" : "carrierStandingStill", sim, `${o.name} ${o.pos.x.toFixed(1)},${o.pos.z.toFixed(1)}`); stuckFor = -999; }
+        } else if (!o || !(cornered || o.speed < 0.6)) stuckFor = 0;
 
         // Possession ping-pong.
         const team = b.owner?.team ?? null;

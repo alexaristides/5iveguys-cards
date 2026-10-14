@@ -5,12 +5,14 @@
  * carrier also decides when to dribble, pass, shoot or try a skill.
  */
 import { angleOf, clamp, dist, len, segDist, wrapAngle, type V2 } from "../math";
-import { attackDir, attackX, HALF_L, HALF_W } from "./field";
+import { attackDir, attackX, GOAL_HALF, HALF_L, HALF_W } from "./field";
 import type { Match } from "./match";
 import type { Player } from "./player";
 
 export class TeamAI {
   private nextThink = new Map<Player, number>();
+  /** How long each carrier has been hemmed in (s). */
+  private stuck = new Map<Player, number>();
   private presser: Player | null = null;
 
   constructor(private m: Match, readonly team: 0 | 1) {}
@@ -21,7 +23,6 @@ export class TeamAI {
   private get oppGoal(): V2 { return { x: attackX(this.team), z: 0 }; }
 
   update(dt: number) {
-    void dt;
     const m = this.m;
     const b = m.ball;
     const mine = m.teams[this.team];
@@ -31,7 +32,7 @@ export class TeamAI {
 
     for (const p of ai) { p.jockeying = false; p.look = angleOf(b.pos.x - p.pos.x, b.pos.z - p.pos.z); }
 
-    if (owner && owner.team === this.team) this.attack(ai, owner);
+    if (owner && owner.team === this.team) this.attack(ai, owner, dt);
     else if (owner) this.defend(ai, owner);
     else this.looseBall(ai);
   }
@@ -95,10 +96,10 @@ export class TeamAI {
     else this.defenceShape(others, null);
   }
 
-  private attack(ai: Player[], owner: Player) {
+  private attack(ai: Player[], owner: Player, dt: number) {
     const supporters = ai.filter((p) => p !== owner);
     this.supportShape(supporters, owner.pos);
-    if (ai.includes(owner)) this.carry(owner);
+    if (ai.includes(owner)) this.carry(owner, dt);
   }
 
   private defend(ai: Player[], carrier: Player) {
@@ -203,14 +204,19 @@ export class TeamAI {
 
   // ── On the ball ───────────────────────────────────────────────────────────
 
-  private carry(p: Player) {
+  private carry(p: Player, dt: number) {
     const m = this.m;
     const b = m.ball;
     const goal = this.oppGoal;
     const opp = m.opponents(this.team);
 
-    // Dribble: head for goal, steer round defenders and away from walls.
-    let gx = goal.x - p.pos.x, gz = goal.z - p.pos.z;
+    // Dribble: head for goal, steer round defenders and away from walls. Down by
+    // the byline and wide of the posts there's no angle, so cut back inside.
+    const dir = this.dir;
+    const toLine = (goal.x - p.pos.x) * dir;
+    const wide = Math.abs(p.pos.z) > GOAL_HALF + 0.4;
+    const aim = toLine < 5.5 && wide ? { x: goal.x - dir * 6, z: p.pos.z * 0.25 } : goal;
+    let gx = aim.x - p.pos.x, gz = aim.z - p.pos.z;
     const gl = Math.max(0.01, len(gx, gz));
     gx /= gl; gz /= gl;
     let pressure = Infinity;
@@ -221,10 +227,17 @@ export class TeamAI {
       const ahead = Math.abs(wrapAngle(angleOf(-dx, -dz) - p.facing)) < 1.0;
       if (ahead) pressure = Math.min(pressure, d);
     }
-    if (Math.abs(p.pos.z) > HALF_W - 2) gz -= Math.sign(p.pos.z) * 0.8;
+    // Keep off the walls: sides, and the end wall either side of the goal.
+    if (Math.abs(p.pos.z) > HALF_W - 2.5) gz -= Math.sign(p.pos.z) * (1.6 - (HALF_W - Math.abs(p.pos.z)) * 0.4);
+    if (toLine < 2 && wide) gx -= dir * 1.5;
     const l = Math.max(0.01, len(gx, gz));
     const sp = p.topSpeed;
     p.want = { x: (gx / l) * sp, z: (gz / l) * sp };
+
+    // Hemmed in (slow, or pinned near the byline/wall): get rid of it sooner.
+    const pinned = p.speed < 1.5 || (toLine < 2.5 && wide) || Math.abs(p.pos.z) > HALF_W - 1;
+    const stuck = pinned ? (this.stuck.get(p) ?? 0) + dt : 0;
+    this.stuck.set(p, stuck);
 
     if (p.busy || p.action?.kind === "kick") return;
     const react = this.cpu ? m.difficulty.react : 0.3;
@@ -258,7 +271,8 @@ export class TeamAI {
       if (v > bestV) { bestV = v; best = mate; }
     }
     const squeezed = pressure < 1.6;
-    if (best && (bestV > 0.85 || (squeezed && bestV > 0.25 && Math.random() < 0.6))) {
+    const trapped = (this.stuck.get(p) ?? 0) > 0.7;
+    if (best && (bestV > 0.85 || (squeezed && bestV > 0.25 && Math.random() < 0.6) || (trapped && bestV > -1))) {
       m.pass(p, best, null);
       return;
     }
