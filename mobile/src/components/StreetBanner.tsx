@@ -12,10 +12,13 @@ const play = () => router.push("/play/street");
  * full-width Play button (Game tab); the compact one sits above the squad.
  */
 export function StreetBanner({ hero = false }: { hero?: boolean }) {
-  const [record, setRecord] = useState<Record3 | null>(null);
-  useFocusEffect(useCallback(() => { readStreetRecord().then(setRecord); }, []));
-  const played = record ? record.wins + record.draws + record.losses : 0;
-  const recordLine = played > 0 && record ? `${record.wins}W · ${record.draws}D · ${record.losses}L` : null;
+  const [records, setRecords] = useState<{ cpu: Record3; online: Record3 } | null>(null);
+  useFocusEffect(useCallback(() => {
+    Promise.all([readStreetRecord(), readStreetRecord(true)]).then(([cpu, online]) => setRecords({ cpu, online }));
+  }, []));
+  const line = (r?: Record3) => (r && r.wins + r.draws + r.losses > 0 ? `${r.wins}W · ${r.draws}D · ${r.losses}L` : null);
+  const cpuLine = line(records?.cpu), onlineLine = line(records?.online);
+  const recordLine = cpuLine && onlineLine ? `vs CPU ${cpuLine}   Online ${onlineLine}` : onlineLine ? `Online ${onlineLine}` : cpuLine;
 
   if (hero) {
     return (
@@ -23,7 +26,7 @@ export function StreetBanner({ hero = false }: { hero?: boolean }) {
         <Text style={styles.kicker}>NEW · 3D · 3V3</Text>
         <Text style={styles.heroTitle}>5IVE STREET</Text>
         <Text style={styles.sub}>
-          Street football in a cage with the squad in 3D. Pick your three, play it off the walls and nutmeg the CPU.
+          Street football in a cage with the squad in 3D. Pick your three, play it off the walls and nutmeg the CPU, or take on a friend online.
         </Text>
         {recordLine && <Text style={styles.record}>Your record: {recordLine}</Text>}
         <Pressable
@@ -44,7 +47,7 @@ export function StreetBanner({ hero = false }: { hero?: boolean }) {
         <View style={{ flex: 1, gap: 3 }}>
           <Text style={styles.kicker}>NEW · 3D</Text>
           <Text style={styles.title}>5IVE STREET</Text>
-          <Text style={styles.sub}>3v3 street football with the squad. Pick your three and take on the CPU.</Text>
+          <Text style={styles.sub}>3v3 street football with the squad. Take on the CPU or a friend online.</Text>
           {recordLine && <Text style={styles.record}>{recordLine}</Text>}
         </View>
         <View style={styles.pill}><Text style={styles.pillText}>Play</Text></View>
