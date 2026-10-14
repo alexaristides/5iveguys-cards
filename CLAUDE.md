@@ -51,7 +51,7 @@ New users receive 100 free starting points (via the `createUser` NextAuth event 
 ### iOS app architecture
 
 - Tabs over the **same API and database** as the website. Channels covered: `CHANNELS` in `mobile/src/lib/config.ts`.
-  - First App Store release ships **YouTube · Players** only. Cards (packs/collection), Fantasy and Game are held back by `FEATURES` in `mobile/src/lib/config.ts`: each flag hides its tab and guards its stack screens in `src/app/_layout.tsx`, so flipping it to `true` brings the feature back.
+  - Tabs shown: **YouTube · Players · Game** (Game re-added 2026-10-14 with 5IVE STREET). Cards (packs/collection) and Fantasy are held back by `FEATURES` in `mobile/src/lib/config.ts`: each flag hides its tab and guards its stack screens in `src/app/_layout.tsx`, so flipping it to `true` brings the feature back.
   - Players lists one tile per player (`buildSquad` from `lib/motm.ts`, Home Kit card preferred) and opens the card sheet to rate them.
 - **Auth:** the app holds the token of a real NextAuth database `Session` row and sends `Authorization: Bearer <token>`. `middleware.ts` rewrites that into the NextAuth session cookie, so every route's `getServerSession()` works unchanged.
   - Google: the app opens `/api/mobile/auth/web-start` in the iOS auth sheet → `/mobile-auth` runs the normal NextAuth Google flow → `/api/mobile/auth/web-finish` redirects to `fiveguys://auth?token=…`. A `link-ticket` lets an Apple user link Google (Connect YouTube).
@@ -61,7 +61,7 @@ New users receive 100 free starting points (via the `createUser` NextAuth event 
 
 ### 5IVE STREET (3D 3v3 game, `mobile/street/`)
 
-- A three.js game bundled into one HTML page and run in a WebView by `mobile/src/app/play/street.tsx` (landscape via `expo-screen-orientation`; portrait everywhere else through the plugin's `initialOrientation`). Entry: banner on the Players tab, behind `FEATURES.street` (dev builds only until switched on).
+- A three.js game bundled into one HTML page and run in a WebView by `mobile/src/app/play/street.tsx` (landscape via `expo-screen-orientation`; portrait everywhere else through the plugin's `initialOrientation`). Entry: banner on the Game and Players tabs, behind `FEATURES.street`.
 - Edit `mobile/street/src/**`, then `npm run build:street` (in `mobile/`) to regenerate `mobile/src/street/html.generated.ts` — the app imports that file, so commit it with the source. `npm run dev:street` (or the `street` entry in `.claude/launch.json`) serves the game at http://localhost:5180 with live rebuilds; card art comes from `public/cards` via a symlink.
 - Players are procedural models (`street/src/rig/model.ts`) with the real face cut from each Home Kit card (`look.face` in `street/src/roster.ts` = eye midpoint and chin as fractions of the card image). Add a player there: look, stats, face crop, celebration.
 - Stats in `roster.ts` are blended with the fans' votes on each player's Home Kit card (`useStreetRatings` → `window.__STREET__`).
