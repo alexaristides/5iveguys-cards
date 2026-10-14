@@ -193,6 +193,13 @@ function handleEvents(m: Match) {
         hud?.popup("5IVE MODE", e.team === m.userTeam ? "Your team is on fire" : "CPU on fire — hold tight", e.team !== 0);
         if (e.team === m.userTeam) haptic("success");
         break;
+      case "hit": {
+        // Freeze-frame, shake, dust.
+        hitStop = Math.max(hitStop, 0.04 + 0.04 * e.power);
+        rig.shake(0.18 * e.power);
+        fx.confetti(new THREE.Vector3(e.x, 0.1, e.z), ["#e7e5e4", "#a8a29e", "#78716c", "#fde047"], 28, 0.4);
+        break;
+      }
       case "goal": {
         const who = e.og ? "Own goal" : e.scorer?.name ?? "";
         hud?.popup("GOAL!", e.label ? `${who} · ${e.label}` : who, e.team !== 0);
@@ -222,6 +229,7 @@ function handleEvents(m: Match) {
 // ── Loop ───────────────────────────────────────────────────────────────────
 
 const offscreen = new THREE.Vector3(0, -10, 0);
+let hitStop = 0;
 let last = performance.now();
 let time = 0;
 // Dynamic resolution: drop the pixel ratio if frames run slow for a few seconds.
@@ -247,12 +255,15 @@ renderer.setAnimationLoop(() => {
 
   const m = match;
   if (m) {
-    const step = paused ? 0 : dt;
-    if (!paused) {
+    // Hit-stop: a big tackle freezes play for a few frames.
+    const frozen = hitStop > 0;
+    hitStop = Math.max(0, hitStop - raw);
+    const step = paused || frozen ? 0 : dt;
+    if (!paused && !frozen) {
       const pad = input.read();
       // Substeps keep fast balls and tackles stable on slow frames.
       const n = Math.max(1, Math.ceil(dt / (1 / 90)));
-      const quiet = { ...pad, pass: false, shootDown: false, shootUp: false, skill: false };
+      const quiet = { ...pad, passDown: false, passUp: false, shootDown: false, shootUp: false, skill: false };
       for (let i = 0; i < n; i++) m.step(dt / n, i === 0 ? pad : quiet);
       handleEvents(m);
     }
@@ -265,13 +276,15 @@ renderer.setAnimationLoop(() => {
     const attacking = m.ball.owner?.team === m.userTeam || (!m.ball.owner && m.ball.kick?.target === u);
     input.setMode(attacking);
     input.setVisible(m.state === "play" || m.state === "kickoff");
-    input.setCharge(m.chargeStart !== null ? Math.min(1, (m.t - m.chargeStart) / 0.85) : 0);
-    input.setStamina(u.stamina, u.winded);
+    input.setCharge(m.shotCharge, m.passCharge);
+    input.setStamina(u.stamina, u.winded, u.sprinting);
     hud?.update(m);
     if (marker.visible) {
       const head = new THREE.Vector3(u.pos.x, 2.25 * (u.info.look.height / 1.8), u.pos.z).project(rig.cam);
       hud?.meTag(u.name, ((head.x + 1) / 2) * innerWidth, ((1 - head.y) / 2) * innerHeight, u.stamina, u.winded);
     } else hud?.meTag(null);
+    fx.dazed(m.players.filter((p) => p.action?.kind === "floored" && p.action.t / p.action.dur > 0.3 && p.action.t / p.action.dur < 0.85)
+      .map((p) => p.model.head.getWorldPosition(new THREE.Vector3())), time);
     const kick = m.ball.kick;
     const shot = kick?.kind === "shot" && m.ball.speed > 12;
     fx.update(step, m.ball.pos, shot, kick && m.fiveMode[kick.by.team] > 0 ? "#e879f9" : "#fff7d6");
@@ -279,6 +292,7 @@ renderer.setAnimationLoop(() => {
   } else {
     select.update(dt);
     fx.update(dt, offscreen, false, "#fff");
+    fx.dazed([], time);
     rig.selectX = select.viewX;
     rig.update(dt, "select", null);
   }

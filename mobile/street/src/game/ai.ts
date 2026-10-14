@@ -27,7 +27,8 @@ export class TeamAI {
     const m = this.m;
     const b = m.ball;
     const mine = m.teams[this.team];
-    const ai = m.autopilot ? mine : mine.filter((p) => p !== m.user);
+    // Anyone knocked flat sits this out until they're up.
+    const ai = (m.autopilot ? mine : mine.filter((p) => p !== m.user)).filter((p) => p.action?.kind !== "floored");
     if (!ai.length) return;
     const owner = b.owner;
 
@@ -135,8 +136,9 @@ export class TeamAI {
     const spot = { x: b.pos.x + ((g.x - b.pos.x) / gd) * close, z: b.pos.z + ((g.z - b.pos.z) / gd) * close };
     this.goTo(p, spot, d > 3 ? 1 : 0.85, 2.5, 1);
     p.jockeying = d < 3;
-    if (d < 1.5 && this.think(p, this.cpu ? 0.5 : 0.7)) {
-      const rate = this.cpu ? 0.22 * this.m.difficulty.steal : 0.15;
+    // Go in: barge when tight, fly in with a slide or a kick from further out.
+    if (d < 2.4 && this.think(p, this.cpu ? 0.5 : 0.7)) {
+      const rate = (this.cpu ? 0.22 * this.m.difficulty.steal : 0.15) * (d < 1.5 ? 1 : 0.4);
       if (Math.random() < rate) m.tackle(p);
     }
   }

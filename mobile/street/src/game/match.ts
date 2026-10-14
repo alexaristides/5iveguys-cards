@@ -10,7 +10,7 @@ import type { RosterPlayer } from "../roster";
 import { TeamAI } from "./ai";
 import { Ball, type BallEvent, type KickKind } from "./ball";
 import { attackDir, attackX, BALL_R, GOAL_H, GRAVITY, HALF_L, HALF_W } from "./field";
-import { Player, PLAYER_R, rate } from "./player";
+import { JOG, Player, PLAYER_R, rate } from "./player";
 
 export const MATCH_SECONDS = 180;
 const GOLDEN_GOAL_SECONDS = 60;
@@ -38,19 +38,38 @@ export const DIFFICULTIES: Difficulty[] = [
   { id: "legend", label: "Legend", react: 0.16, speed: 1.03, steal: 1.2, aim: 0.85, flair: 1.2 },
 ];
 
+/** Seconds to fill the shot / pass power rings; a quick tap of Pass (under PASS_TAP) is a normal pass. */
+const SHOT_CHARGE = 0.85;
+const PASS_TAP = 0.15;
+const PASS_CHARGE = 0.6;
+
 export interface Pad {
   /** World-space stick, length 0..1 (+x = right of screen, +z = toward the camera). */
   move: V2;
-  pass: boolean;
+  passDown: boolean;
+  passHeld: boolean;
+  passUp: boolean;
   shootDown: boolean;
   shootHeld: boolean;
   shootUp: boolean;
   skill: boolean;
-  /** Sprint held. */
+  /** Sprint: the stick pushed right out (or Shift). */
   sprint: boolean;
 }
 
-export type Sound = "kick" | "bigkick" | "wall" | "post" | "net" | "bounce" | "tackle" | "trick" | "whistle" | "whistleEnd" | "cheer" | "ooh" | "meter";
+export type Sound = "kick" | "bigkick" | "wall" | "post" | "net" | "bounce" | "tackle" | "smash" | "trick" | "whistle" | "whistleEnd" | "cheer" | "ooh" | "meter";
+
+type TackleKind = "barge" | "slide" | "kungfu";
+/**
+ * Each tackle: how long it lasts (s), when in it (0..1) it can hit, where (metres
+ * in front, and radius), how likely it is to win the ball off a carrier before
+ * stats, how far it sends people, and what it's called.
+ */
+const TACKLES: Record<TackleKind, { dur: number; from: number; to: number; reach: number; radius: number; base: number; launch: number; text: string }> = {
+  barge: { dur: 0.45, from: 0.1, to: 0.6, reach: 0.5, radius: 0.5, base: 0.65, launch: 0.75, text: "BODY CHECK!" },
+  slide: { dur: 0.85, from: 0.06, to: 0.62, reach: 0.8, radius: 0.6, base: 0.6, launch: 0.9, text: "SLIDE TACKLE!" },
+  kungfu: { dur: 1.05, from: 0.08, to: 0.42, reach: 0.75, radius: 0.65, base: 0.55, launch: 1.25, text: "KUNG FU!" },
+};
 
 export type MatchEvent =
   | { type: "sound"; name: Sound; v: number }
@@ -58,6 +77,7 @@ export type MatchEvent =
   | { type: "style"; team: 0 | 1; text: string }
   | { type: "goal"; team: 0 | 1; scorer: Player | null; og: boolean; label?: string }
   | { type: "fiveMode"; team: 0 | 1 }
+  | { type: "hit"; x: number; z: number; power: number; user: boolean }
   | { type: "kickoff" }
   | { type: "end" };
 
@@ -90,10 +110,12 @@ export class Match {
   /** Defending, hand the user the teammate nearest the ball when theirs is out of the play. */
   autoSwitch = true;
   /** Stats for balancing. */
-  log = { goalDist: [] as number[], shots: [0, 0], blocks: [0, 0], tackles: [0, 0], pokes: [0, 0], tricks: [0, 0], passes: [0, 0], possession: [0, 0], sprint: [0, 0] };
+  log = { goalDist: [] as number[], shots: [0, 0], blocks: [0, 0], tackles: [0, 0], pokes: [0, 0], tricks: [0, 0], passes: [0, 0], possession: [0, 0], sprint: [0, 0], takedowns: [0, 0] };
 
   /** When the shoot button went down (charging), or null. */
   chargeStart: number | null = null;
+  /** When the pass button went down (charging), or null. */
+  passStart: number | null = null;
   /** First-time pass/shot queued before the ball arrived. */
   private buffered: { kind: "pass" | "shot"; power: number; until: number } | null = null;
   private kickoffTeam: 0 | 1 = 0;
@@ -148,6 +170,7 @@ export class Match {
     this.ball.reset(0, 0);
     this.buffered = null;
     this.chargeStart = null;
+    this.passStart = null;
     for (const t of [0, 1] as const) {
       const own = -attackDir(t);
       const spots: V2[] = t === team
@@ -370,7 +393,7 @@ export class Match {
       this.buffered = null;
       if (q && this.t <= q.until) {
         if (q.kind === "shot") this.shoot(p, q.power, null, true);
-        else this.pass(p, this.pickPassTarget(p, null), null);
+        else this.pass(p, this.pickPassTarget(p, null), null, q.power);
       }
     } else if (prevTeam === this.userTeam && this.ball.owner && this.autoSwitch) {
       // Lost it: give the user the defender nearest the ball.
@@ -394,6 +417,7 @@ export class Match {
     if (a?.kind === "roulette") reach = 0.22;
     if (a?.kind === "stepover") reach = 0.36;
     if (a?.kind === "kick") reach = 0.4;
+    if (a?.kind === "barge") reach = 0.45;
     const tx = o.pos.x + dirX(o.facing) * reach;
     const tz = o.pos.z + dirZ(o.facing) * reach;
     const k = 1 - Math.exp(-28 * dt);
@@ -440,6 +464,7 @@ export class Match {
     this.stateT = 0;
     this.buffered = null;
     this.chargeStart = null;
+    this.passStart = null;
 
     let label: string | undefined;
     if (scorer && !og) {
@@ -537,7 +562,7 @@ export class Match {
     }
     for (const d of this.opponents(o.team)) {
       // Within a leg's stretch of the ball.
-      const near = len(b.pos.x - d.pos.x, b.pos.z - d.pos.z) < 1.05 && d.action?.kind !== "stumble";
+      const near = len(b.pos.x - d.pos.x, b.pos.z - d.pos.z) < 1.05 && !d.busy;
       if (!near) { d.pressure = Math.max(0, d.pressure - dt); continue; }
       d.pressure += dt;
       if (d.pressure < 0.18) continue;
@@ -568,50 +593,90 @@ export class Match {
     }
   }
 
-  /** Resolve lunging tackles. */
+  /**
+   * Resolve tackles. There are no fouls: anyone in the way gets taken out, ball or
+   * no ball. A ball carrier can still ride it (defending vs dribbling, physical vs
+   * physical); everyone else goes flying.
+   */
   private tackles() {
     const b = this.ball;
     for (const p of this.players) {
       const a = p.action;
-      if (a?.kind !== "tackle" || a.t < 0.06 || a.t > 0.32 || a.resolved) continue;
-      const fx = p.pos.x + dirX(p.facing) * 0.62, fz = p.pos.z + dirZ(p.facing) * 0.62;
-      const reach = len(b.pos.x - fx, b.pos.z - fz);
-      if (reach > 0.6 || b.pos.y > 0.8) continue;
-      a.resolved = true;
-      const o = b.owner;
-      if (!o) {
-        if (p.canControl(this.t)) this.giveBall(p);
-        continue;
+      const spec = a && TACKLES[a.kind as TackleKind];
+      if (!a || !spec) continue;
+      const k = a.t / a.dur;
+      if (k < spec.from || k > spec.to) continue;
+      const fx = p.pos.x + dirX(p.facing) * spec.reach, fz = p.pos.z + dirZ(p.facing) * spec.reach;
+
+      // A loose ball in reach: a barge takes it, a slide or a kick knocks it on.
+      if (!b.owner && b.pos.y < 0.8 && len(b.pos.x - fx, b.pos.z - fz) < spec.radius && b.kick?.by !== p) {
+        if (a.kind === "barge" && p.canControl(this.t)) this.giveBall(p);
+        else this.knockLoose(p, 5);
       }
-      if (o.team === p.team) continue;
-      if (this.t < o.invulnUntil) {
-        p.start("stumble", 0.6);
-        this.addStyle(o, "SKILLED HIM!", 0.1, 150);
-        continue;
-      }
-      const toP = angleOf(p.pos.x - o.pos.x, p.pos.z - o.pos.z);
-      const fromBehind = Math.abs(wrapAngle(toP - o.facing)) > 2.2;
-      const cpuMul = p.team !== this.userTeam ? this.difficulty.steal : 1;
-      const edge = (rate(p.stats.defending) - rate(o.stats.dribbling)) * 0.35 + (rate(p.stats.physical) - rate(o.stats.physical)) * 0.25;
-      const chance = clamp(0.6 + edge - (fromBehind ? 0.25 : 0), 0.15, 0.95) * Math.min(1.15, cpuMul);
-      if (Math.random() < chance) {
-        o.start("stumble", 0.45);
-        o.noControlUntil = this.t + 0.5;
-        if (Math.random() < 0.5) this.giveBall(p);
-        else {
-          b.owner = null;
-          b.vel.set(dirX(p.facing) * 4 + gauss(), 0.4, dirZ(p.facing) * 4 + gauss());
-          b.lastTouch = p;
-          b.kick = { by: p, kind: "loose", t: this.t, walled: false, fromX: b.pos.x, fromZ: b.pos.z };
+
+      let flattened = 0;
+      for (const o of this.opponents(p.team)) {
+        if (a.hit?.includes(o) || o.action?.kind === "floored") continue;
+        if (len(o.pos.x - fx, o.pos.z - fz) > spec.radius + PLAYER_R) continue;
+        (a.hit ??= []).push(o);
+        const hadBall = b.owner === o;
+        if (hadBall) {
+          if (this.t < o.invulnUntil) { this.addStyle(o, "SKILLED HIM!", 0.1, 150); continue; }
+          const toP = angleOf(p.pos.x - o.pos.x, p.pos.z - o.pos.z);
+          const fromBehind = Math.abs(wrapAngle(toP - o.facing)) > 2.2;
+          const cpuMul = p.team !== this.userTeam ? this.difficulty.steal : 1;
+          const edge = (rate(p.stats.defending) - rate(o.stats.dribbling)) * 0.35 + (rate(p.stats.physical) - rate(o.stats.physical)) * 0.25;
+          const chance = clamp(spec.base + edge - (fromBehind ? 0.2 : 0), 0.15, 0.95) * Math.min(1.15, cpuMul);
+          if (Math.random() > chance) {
+            // Rides it: a hop over the challenge.
+            o.invulnUntil = this.t + 0.35;
+            this.addStyle(o, "HURDLED!", 0.08, 120);
+            this.sound("trick", 0.6);
+            continue;
+          }
         }
-        this.log.tackles[p.team]++;
-        this.addStyle(p, "TACKLE", 0.04, 60);
-        this.sound("tackle", 1);
-        if (p.team === this.userTeam || o.team === this.userTeam) this.emit({ type: "haptic", style: "medium" });
-      } else {
-        p.start("stumble", 0.5);
+        this.flatten(o, p, spec.launch);
+        flattened++;
+        if (hadBall) {
+          this.log.tackles[p.team]++;
+          if (a.kind === "barge" && Math.random() < 0.6) this.giveBall(p);
+          else this.knockLoose(p, 4.5);
+        }
+        this.addStyle(p, hadBall ? spec.text : "TAKEN OUT!", 0.1, hadBall ? 120 : 80);
       }
+      if (flattened > 1) this.addStyle(p, "DOUBLE TAKEDOWN!", 0.15, 200);
     }
+  }
+
+  /** Knock the ball on from a tackle (nobody has it any more). */
+  private knockLoose(by: Player, speed: number) {
+    const b = this.ball;
+    b.owner = null;
+    b.vel.set(dirX(by.facing) * speed + gauss(), 0.8 + Math.random(), dirZ(by.facing) * speed + gauss());
+    b.lastTouch = by;
+    b.kick = { by, kind: "loose", t: this.t, walled: false, fromX: b.pos.x, fromZ: b.pos.z };
+  }
+
+  /** Send `o` flying from `by`'s tackle: further the harder it was and the stronger `by` is than them. */
+  private flatten(o: Player, by: Player, launch: number) {
+    const s = launch * clamp(1 + (rate(by.stats.physical) - rate(o.stats.physical)) * 0.6, 0.6, 1.4);
+    const kx = dirX(by.facing), kz = dirZ(by.facing);
+    this.log.takedowns[by.team]++;
+    o.start("floored", 0.9 + Math.random() * 0.2, { flip: Math.random() < 0.7 ? 1 : -1 });
+    // Face the tackler so falling on their back carries them the way they were hit.
+    o.facing = angleOf(-kx, -kz);
+    o.vel = { x: kx * 5.5 * s + by.vel.x * 0.25, z: kz * 5.5 * s + by.vel.z * 0.25 };
+    o.vy = 2.5 + 3 * s;
+    o.air = Math.max(o.air, 0.01);
+    o.noControlUntil = this.t + o.action!.dur;
+    o.pressure = 0;
+    o.jockeying = false;
+    if (this.ball.owner === o) this.ball.owner = null;
+    const user = o.team === this.userTeam || by.team === this.userTeam;
+    this.emit({ type: "hit", x: o.pos.x, z: o.pos.z, power: s, user });
+    this.sound("smash", Math.min(1, 0.6 + 0.4 * s));
+    this.sound("ooh", 0.7);
+    if (user) this.emit({ type: "haptic", style: "heavy" });
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -643,27 +708,34 @@ export class Match {
     return best;
   }
 
-  pass(p: Player, target: Player | null, dir: V2 | null) {
+  /**
+   * Pass to `target`, or into space along `dir` if there's no one that way.
+   * `power` (Pass held, 0..1) drives it: harder, and further ahead into the
+   * runner's path, but a little less accurate and harder to take.
+   */
+  pass(p: Player, target: Player | null, dir: V2 | null, power = 0) {
     if (this.ball.owner !== p) return;
     const b = this.ball;
     this.log.passes[p.team]++;
-    p.start("kick", 0.26, { power: 0.3 });
+    p.start("kick", 0.26, { power: 0.3 + 0.5 * power });
     // Passing: how far off line it goes (1σ, radians), and how crisply it's played.
     const skill = rate(p.stats.passing);
-    const err = gauss() * (0.01 + (1 - skill) * 0.11);
-    const pace = 0.86 + skill * 0.28;
+    const err = gauss() * (0.01 + (1 - skill) * 0.11) * (1 + 0.8 * power);
+    const pace = (0.86 + skill * 0.28) * (1 + 0.45 * power);
 
     if (!target) {
       // Pass into space along the stick — off the wall if you like.
       const a = (dir && len(dir.x, dir.z) > 0.3 ? angleOf(dir.x, dir.z) : p.facing) + err;
-      this.kickBall(p, "space", dirX(a) * 13 * pace, 0, dirZ(a) * 13 * pace);
-      this.sound("kick", 0.45);
+      const v = 13 * pace * (1 + 0.25 * power);
+      this.kickBall(p, "space", dirX(a) * v, 0, dirZ(a) * v);
+      this.sound("kick", 0.45 + 0.4 * power);
       return;
     }
     const d0 = dist(b.pos, target.pos);
-    const speed = clamp(8 + d0 * 0.75, 9.5, 19) * pace;
+    const speed = Math.min(24, clamp(8 + d0 * 0.75, 9.5, 19) * pace);
     // Good passers play it into the runner's stride; poor ones leave it behind them.
-    const lead = (d0 / speed) * (0.4 + skill * 0.45);
+    // Driven, it goes well ahead of them: a through ball.
+    const lead = (d0 / speed) * (0.4 + skill * 0.45) * (1 + 1.6 * power);
     const tx = clamp(target.pos.x + target.vel.x * lead, -HALF_L + 0.6, HALF_L - 0.6);
     const tz = clamp(target.pos.z + target.vel.z * lead, -HALF_W + 0.6, HALF_W - 0.6);
     const d = len(tx - b.pos.x, tz - b.pos.z);
@@ -681,7 +753,7 @@ export class Match {
     } else {
       this.kickBall(p, "pass", dirX(a) * speed, 0, dirZ(a) * speed, target);
     }
-    this.sound("kick", 0.45);
+    this.sound("kick", 0.45 + 0.4 * power);
     if (p.team === this.userTeam) this.user = target;
   }
 
@@ -791,16 +863,23 @@ export class Match {
     }
   }
 
+  /**
+   * Tackle! Picked by how far away the ball is: a shoulder barge up close, a
+   * flying kung-fu kick or a slide from a couple of metres, a long slide from
+   * further. Slides and kicks leave you on the floor for a moment if you miss.
+   */
   tackle(p: Player) {
-    if (this.t < p.tackleReadyAt || p.busy) return;
-    p.tackleReadyAt = this.t + 0.85;
-    // Aim the lunge at the ball if it's close (turned into over the first frames, not snapped).
+    if (this.t < p.tackleReadyAt || p.busy || p.air > 0) return;
     const b = this.ball;
-    const aim = len(b.pos.x - p.pos.x, b.pos.z - p.pos.z) < 3.2
-      ? p.facing + clamp(wrapAngle(angleOf(b.pos.x - p.pos.x, b.pos.z - p.pos.z) - p.facing), -0.9, 0.9)
-      : undefined;
-    p.start("tackle", 0.42, { aim });
-    this.sound("kick", 0.15);
+    const d = len(b.pos.x - p.pos.x, b.pos.z - p.pos.z);
+    // Aim at the ball if it's in range (turned into over the first frames, not snapped).
+    const aim = d < 5 ? p.facing + clamp(wrapAngle(angleOf(b.pos.x - p.pos.x, b.pos.z - p.pos.z) - p.facing), -1.1, 1.1) : undefined;
+    const kind: TackleKind = d < 1.4 ? "barge" : d < 2.8 && Math.random() < 0.5 ? "kungfu" : "slide";
+    const spec = TACKLES[kind];
+    p.start(kind, spec.dur, { aim });
+    if (kind === "kungfu") { p.vy = 4.4; p.air = 0.01; }
+    p.tackleReadyAt = this.t + spec.dur + 0.15;
+    this.sound("kick", 0.3);
   }
 
   addStyle(p: Player, text: string, meter: number, points: number) {
@@ -821,18 +900,18 @@ export class Match {
   private userControl(pad: Pad) {
     const u = this.user;
     const b = this.ball;
-    const stick = len(pad.move.x, pad.move.z) > 0.2 ? pad.move : null;
+    const tilt = len(pad.move.x, pad.move.z);
+    const stick = tilt > 0.2 ? pad.move : null;
     const hasBall = b.owner === u;
 
-    // Movement. With no input, a receiver drifts onto a pass, and after a panna or
-    // rainbow flick you chase your own ball.
+    // Movement. The stick is analogue: a half push walks, further runs, and right out
+    // to the rim sprints. With no input, a receiver drifts onto a pass, and after a
+    // panna or rainbow flick you chase your own ball.
     const chasing = !b.owner && b.kick?.by === u && (b.kick.kind === "panna" || b.kick.kind === "rainbow");
-    u.sprint = pad.sprint;
+    u.sprint = pad.sprint && !!stick;
     if (stick) {
-      // How far the stick is pushed sets the pace (capped at a run in Player.move);
-      // Sprint is flat out whatever the push, so a short thumb drag still sprints.
-      const sp = pad.sprint ? u.topSpeed / len(pad.move.x, pad.move.z) : u.topSpeed;
-      u.want = { x: pad.move.x * sp, z: pad.move.z * sp };
+      const sp = u.sprint ? u.topSpeed : u.topSpeed * JOG * clamp((tilt - 0.1) / 0.8, 0.15, 1);
+      u.want = { x: (pad.move.x / tilt) * sp, z: (pad.move.z / tilt) * sp };
     }
     else if (!b.owner && (b.kick?.target === u || chasing)) {
       const d = len(b.pos.x - u.pos.x, b.pos.z - u.pos.z);
@@ -843,30 +922,42 @@ export class Match {
     u.jockeying = !!b.owner && b.owner.team !== u.team && dist(u.pos, b.owner.pos) < 3;
 
     const aimZ = stick ? pad.move.z : null;
+    const ourBall = b.owner?.team === u.team;
+    const comingToUs = !b.owner && (b.kick?.target === u || len(b.pos.x - u.pos.x, b.pos.z - u.pos.z) < 3.5);
+    // Shoot and Pass charge while held and go on release, but only when pressed with
+    // the ball (or it on its way): pressed to tackle or switch, the release does nothing.
+    const onTheBall = hasBall || comingToUs;
 
-    if (pad.shootDown) this.chargeStart = this.t;
+    if (pad.shootDown) this.chargeStart = onTheBall ? this.t : null;
     const released = pad.shootUp && this.chargeStart !== null;
-    const power = released ? clamp((this.t - this.chargeStart!) / 0.85, 0.12, 1) : 0;
+    const power = released ? clamp((this.t - this.chargeStart!) / SHOT_CHARGE, 0.12, 1) : 0;
     if (pad.shootUp) this.chargeStart = null;
+
+    if (pad.passDown) this.passStart = onTheBall ? this.t : null;
+    const passed = pad.passUp && this.passStart !== null;
+    const passPower = passed ? clamp((this.t - this.passStart! - PASS_TAP) / PASS_CHARGE, 0, 1) : 0;
+    if (pad.passUp) this.passStart = null;
 
     if (hasBall) {
       if (u.action?.kind === "kick") return;
-      if (pad.pass) this.pass(u, this.pickPassTarget(u, stick), stick);
+      if (passed) this.pass(u, this.pickPassTarget(u, stick), stick, passPower);
       else if (released) this.shoot(u, power, aimZ);
       else if (pad.skill) this.trick(u);
       return;
     }
 
-    const ourBall = b.owner?.team === u.team;
-    const comingToUs = !b.owner && (b.kick?.target === u || len(b.pos.x - u.pos.x, b.pos.z - u.pos.z) < 3.5);
-    if (comingToUs && (pad.pass || released)) {
+    if (comingToUs && (passed || released)) {
       // Queue a first-time pass/shot for when it arrives.
-      this.buffered = { kind: pad.pass ? "pass" : "shot", power: released ? power : 0.6, until: this.t + 0.6 };
+      this.buffered = { kind: passed ? "pass" : "shot", power: passed ? passPower : power, until: this.t + 0.6 };
       return;
     }
-    if (pad.pass && !ourBall) this.switchPlayer();
-    if (pad.shootDown && !ourBall && !comingToUs) this.tackle(u);
+    if (pad.passDown && !ourBall && !onTheBall) this.switchPlayer();
+    if (pad.shootDown && !ourBall && !onTheBall) this.tackle(u);
   }
+
+  /** How full the shot and pass power rings are (0..1), for the HUD. */
+  get shotCharge() { return this.chargeStart === null ? 0 : Math.min(1, (this.t - this.chargeStart) / SHOT_CHARGE); }
+  get passCharge() { return this.passStart === null ? 0 : clamp((this.t - this.passStart - PASS_TAP) / PASS_CHARGE, 0, 1); }
 
   /**
    * Defending, switch the user to the teammate nearest the ball, but only when the
@@ -878,7 +969,7 @@ export class Match {
     const b = this.ball;
     const u = this.user;
     const carrier = b.owner;
-    if (!this.autoSwitch || !carrier || carrier.team === this.userTeam || u.busy
+    if (!this.autoSwitch || !carrier || carrier.team === this.userTeam || (u.busy && u.action?.kind !== "floored")
       || this.t - this.lastSwitch < 3 || this.t - this.lastAutoSwitch < 1.5) {
       this.switchFor = 0;
       return;
@@ -888,7 +979,7 @@ export class Match {
     const score = (p: Player) => dist(p.pos, b.pos) - (Math.abs(p.pos.x - own) < Math.abs(b.pos.x - own) ? 1 : 0);
     let best: Player | null = null;
     for (const m of this.teams[this.userTeam]) {
-      if (m !== u && m.action?.kind !== "stumble" && (!best || score(m) < score(best))) best = m;
+      if (m !== u && !m.busy && (!best || score(m) < score(best))) best = m;
     }
     const dU = dist(u.pos, b.pos);
     const dB = best ? dist(best.pos, b.pos) : Infinity;
@@ -912,8 +1003,9 @@ export class Match {
   switchPlayer() {
     const b = this.ball;
     const mates = this.teams[this.userTeam];
-    // Nearest to the ball, or the next one if pressed again quickly.
-    const sorted = [...mates].sort((a, c) => dist(a.pos, b.pos) - dist(c.pos, b.pos));
+    // Nearest to the ball (anyone flat out on the floor last), or the next one if pressed again quickly.
+    const score = (p: Player) => dist(p.pos, b.pos) + (p.action?.kind === "floored" ? 100 : 0);
+    const sorted = [...mates].sort((a, c) => score(a) - score(c));
     let next = sorted[0] === this.user ? sorted[1] : sorted[0];
     if (this.t - this.lastSwitch < 0.6) next = sorted[(sorted.indexOf(this.user) + 1) % sorted.length];
     this.lastSwitch = this.t;

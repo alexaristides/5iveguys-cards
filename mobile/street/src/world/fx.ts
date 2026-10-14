@@ -1,4 +1,4 @@
-/** Confetti for goals and a glowing trail behind hard shots. */
+/** Confetti for goals, dust from big tackles, stars over anyone knocked flat, and a glowing trail behind hard shots. */
 import * as THREE from "three";
 import { glowTexture } from "./arena";
 
@@ -14,6 +14,7 @@ export class Fx {
 
   private trail: THREE.Sprite[] = [];
   private trailAt = 0;
+  private stars: THREE.Sprite[] = [];
 
   constructor(scene: THREE.Object3D) {
     const geo = new THREE.BufferGeometry();
@@ -31,19 +32,38 @@ export class Fx {
       scene.add(s);
       this.trail.push(s);
     }
+    for (let i = 0; i < 4 * 6; i++) {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: "#ffe14d", transparent: true, depthWrite: false }));
+      s.scale.setScalar(0.2);
+      s.visible = false;
+      scene.add(s);
+      this.stars.push(s);
+    }
   }
 
-  confetti(at: THREE.Vector3, colors: string[], count = 160) {
+  /** Stars circling over the heads of anyone seeing stars (call every frame; [] hides them). */
+  dazed(heads: THREE.Vector3[], t: number) {
+    this.stars.forEach((s, i) => {
+      const h = heads[Math.floor(i / 4)];
+      s.visible = !!h;
+      if (!h) return;
+      const a = t * 5 + (i % 4) * (Math.PI / 2);
+      s.position.set(h.x + Math.cos(a) * 0.28, h.y + 0.3 + Math.sin(a * 2) * 0.04, h.z + Math.sin(a) * 0.28);
+    });
+  }
+
+  /** Burst of particles; `power` < 1 for a small puff (tackle dust). */
+  confetti(at: THREE.Vector3, colors: string[], count = 160, power = 1) {
     const c = new THREE.Color();
     for (let n = 0; n < count; n++) {
       const i = this.next;
       this.next = (this.next + 1) % MAX;
       this.pos.set([at.x, at.y + 0.5, at.z], i * 3);
-      const a = Math.random() * Math.PI * 2, up = 4 + Math.random() * 6, out = 1 + Math.random() * 4;
+      const a = Math.random() * Math.PI * 2, up = (4 + Math.random() * 6) * power, out = (1 + Math.random() * 4) * Math.sqrt(power);
       this.vel.set([Math.cos(a) * out, up, Math.sin(a) * out], i * 3);
       c.set(colors[n % colors.length]);
       this.col.set([c.r, c.g, c.b], i * 3);
-      this.life[i] = 2 + Math.random() * 1.2;
+      this.life[i] = (2 + Math.random() * 1.2) * Math.sqrt(power);
     }
   }
 
