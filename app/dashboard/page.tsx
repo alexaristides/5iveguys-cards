@@ -10,7 +10,6 @@ import CardDisplay from "@/components/CardDisplay";
 import CardRatingsLeaderboard from "@/components/CardRatingsLeaderboard";
 import FootballGame from "@/components/football/FootballGame";
 import GameLeaderboard from "@/components/football/GameLeaderboard";
-import DraftLeaderboard from "@/components/draft/Leaderboard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -602,31 +601,19 @@ export default function DashboardPage() {
 
             {gameMode === "sp" && (
               <div className="w-full">
-                <div className="max-w-sm mx-auto mb-3">
-                  <Link
-                    href="/draft"
-                    className="group flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#0e8a3e] to-[#0a6e31] hover:from-[#11a049] hover:to-[#0c7e38] p-4 shadow-lg shadow-emerald-900/30 transition-all active:scale-[0.99] ring-1 ring-[#FFC233]/30"
-                  >
-                    <span className="text-3xl shrink-0">⚽</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-white font-bold leading-tight">2026 World Cup Dream Team Draft</div>
-                      <div className="text-emerald-100/80 text-xs mt-0.5">Spin, draft real players from 48 nations & simulate</div>
-                    </div>
-                    <span className="text-[#FFC233] text-xl shrink-0 group-hover:translate-x-0.5 transition-transform">›</span>
-                  </Link>
-                </div>
                 <div className="max-w-sm mx-auto mb-5">
-                  <Link
-                    href="/game/worldcup"
-                    className="group flex items-center gap-3 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 p-4 shadow-lg shadow-amber-900/30 transition-all active:scale-[0.99]"
+                  {/* 5IVE STREET is a static page (public/street), so a plain link rather than <Link>. */}
+                  <a
+                    href="/street"
+                    className="group flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#a326d6] to-purple-900 hover:from-[#b43ae6] hover:to-purple-800 p-4 shadow-lg shadow-purple-900/40 transition-all active:scale-[0.99]"
                   >
-                    <span className="text-3xl shrink-0">🏆</span>
+                    <span className="text-3xl shrink-0">🏙️</span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-white font-bold leading-tight">World Cup — Road to Glory</div>
-                      <div className="text-amber-100/80 text-xs mt-0.5">Take 5ive Guys FC through the 48-team World Cup</div>
+                      <div className="text-white font-bold leading-tight">5IVE STREET · 3v3</div>
+                      <div className="text-purple-100/80 text-xs mt-0.5">Street football in 3D with the squad</div>
                     </div>
                     <span className="text-white/80 text-xl shrink-0 group-hover:translate-x-0.5 transition-transform">›</span>
-                  </Link>
+                  </a>
                 </div>
                 <FootballGame />
               </div>
@@ -656,13 +643,6 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <GameLeaderboard />
-                </div>
-                <div>
-                  <div className="mb-4">
-                    <h3 className="text-white font-bold text-lg">⚽ World Cup Dream Team Draft</h3>
-                    <p className="text-zinc-500 text-xs mt-0.5">Global free-to-play draft results</p>
-                  </div>
-                  <DraftLeaderboard />
                 </div>
               </div>
             )}

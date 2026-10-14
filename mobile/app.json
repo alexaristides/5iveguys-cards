@@ -4,7 +4,7 @@
     "slug": "fiveguys-cards",
     "scheme": "fiveguys",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0a0a0a",
@@ -33,6 +33,12 @@
           "imageWidth": 160,
           "resizeMode": "contain",
           "backgroundColor": "#0a0a0a"
+        }
+      ],
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "PORTRAIT_UP"
         }
       ]
     ]

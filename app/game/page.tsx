@@ -21,6 +21,14 @@ interface GameMode {
 
 const GAME_MODES: GameMode[] = [
   {
+    href: "/street",
+    emoji: "🏙️",
+    title: "5IVE STREET · 3v3",
+    subtitle: "Street football in 3D with the squad — play it off the walls and nutmeg the CPU",
+    gradient: "from-[#a326d6] to-purple-900 hover:from-[#b43ae6] hover:to-purple-800",
+    shadow: "shadow-purple-900/40",
+  },
+  {
     href: "/game/exhibition",
     emoji: "🎮",
     title: "Exhibition Match",
@@ -36,41 +44,28 @@ const GAME_MODES: GameMode[] = [
     gradient: "from-blue-700 to-sky-700 hover:from-blue-600 hover:to-sky-600",
     shadow: "shadow-blue-900/30",
   },
-  {
-    href: "/game/worldcup",
-    emoji: "🏆",
-    title: "World Cup — Road to Glory",
-    subtitle: "Take 5ive Guys FC through the 48-team World Cup",
-    gradient: "from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600",
-    shadow: "shadow-amber-900/30",
-  },
-  {
-    href: "/draft",
-    emoji: "🌍",
-    title: "World Cup Dream Team Draft",
-    subtitle: "Draft real players from 48 nations and simulate the tournament",
-    gradient: "from-purple-700 to-fuchsia-700 hover:from-purple-600 hover:to-fuchsia-600",
-    shadow: "shadow-purple-900/30",
-  },
 ];
 
 function GameModeMenu() {
   return (
     <div className="space-y-3">
-      {GAME_MODES.map((mode) => (
-        <Link
-          key={mode.href}
-          href={mode.href}
-          className={`group flex items-center gap-3 rounded-2xl bg-gradient-to-r ${mode.gradient} p-4 shadow-lg ${mode.shadow} transition-all active:scale-[0.99]`}
-        >
-          <span className="text-3xl shrink-0">{mode.emoji}</span>
-          <div className="flex-1 min-w-0">
-            <div className="text-white font-bold leading-tight">{mode.title}</div>
-            <div className="text-white/70 text-xs mt-0.5">{mode.subtitle}</div>
-          </div>
-          <span className="text-white/80 text-xl shrink-0 group-hover:translate-x-0.5 transition-transform">›</span>
-        </Link>
-      ))}
+      {GAME_MODES.map((mode) => {
+        const className = `group flex items-center gap-3 rounded-2xl bg-gradient-to-r ${mode.gradient} p-4 shadow-lg ${mode.shadow} transition-all active:scale-[0.99]`;
+        const body = (
+          <>
+            <span className="text-3xl shrink-0">{mode.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-white font-bold leading-tight">{mode.title}</div>
+              <div className="text-white/70 text-xs mt-0.5">{mode.subtitle}</div>
+            </div>
+            <span className="text-white/80 text-xl shrink-0 group-hover:translate-x-0.5 transition-transform">›</span>
+          </>
+        );
+        // 5IVE STREET is a static page (public/street), so it needs a full page load.
+        return mode.href === "/street"
+          ? <a key={mode.href} href={mode.href} className={className}>{body}</a>
+          : <Link key={mode.href} href={mode.href} className={className}>{body}</Link>;
+      })}
     </div>
   );
 }

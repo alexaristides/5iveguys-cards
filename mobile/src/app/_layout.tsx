@@ -74,6 +74,12 @@ function RootStack() {
         <Stack.Screen name="play/pvp" />
         <Stack.Screen name="play/lobby/[id]" options={{ gestureEnabled: false }} />
       </Stack.Protected>
+      <Stack.Protected guard={signedIn && FEATURES.street}>
+        <Stack.Screen
+          name="play/street"
+          options={{ gestureEnabled: false, animation: "fade", autoHideHomeIndicator: true }}
+        />
+      </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="sign-in" />
       </Stack.Protected>

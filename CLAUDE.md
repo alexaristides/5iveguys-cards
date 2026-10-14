@@ -51,13 +51,23 @@ New users receive 100 free starting points (via the `createUser` NextAuth event 
 ### iOS app architecture
 
 - Tabs over the **same API and database** as the website. Channels covered: `CHANNELS` in `mobile/src/lib/config.ts`.
-  - First App Store release ships **YouTube · Players** only. Cards (packs/collection), Fantasy and Game are held back by `FEATURES` in `mobile/src/lib/config.ts`: each flag hides its tab and guards its stack screens in `src/app/_layout.tsx`, so flipping it to `true` brings the feature back.
+  - Tabs shown: **YouTube · Players · Game** (Game re-added 2026-10-14 with 5IVE STREET). Cards (packs/collection) and Fantasy are held back by `FEATURES` in `mobile/src/lib/config.ts`: each flag hides its tab and guards its stack screens in `src/app/_layout.tsx`, so flipping it to `true` brings the feature back.
   - Players lists one tile per player (`buildSquad` from `lib/motm.ts`, Home Kit card preferred) and opens the card sheet to rate them.
 - **Auth:** the app holds the token of a real NextAuth database `Session` row and sends `Authorization: Bearer <token>`. `middleware.ts` rewrites that into the NextAuth session cookie, so every route's `getServerSession()` works unchanged.
   - Google: the app opens `/api/mobile/auth/web-start` in the iOS auth sheet → `/mobile-auth` runs the normal NextAuth Google flow → `/api/mobile/auth/web-finish` redirects to `fiveguys://auth?token=…`. A `link-ticket` lets an Apple user link Google (Connect YouTube).
   - Apple: `/api/mobile/auth/apple` verifies the identity token (needs `APPLE_*` env vars).
   - `DELETE /api/account` deletes the user (App Store requirement).
 - Game logic is shared, not copied: the app imports `lib/match-engine.ts`, `lib/football.ts`, `lib/exhibition.ts` etc. via the `@shared/*` alias (see `mobile/metro.config.js`). Keep those files free of Next/Prisma imports.
+
+### 5IVE STREET (3D 3v3 game, `mobile/street/`)
+
+- A three.js game bundled into one HTML page and run in a WebView by `mobile/src/app/play/street.tsx` (landscape via `expo-screen-orientation`; portrait everywhere else through the plugin's `initialOrientation`). Entry: banner on the Game and Players tabs, behind `FEATURES.street`.
+- Edit `mobile/street/src/**`, then `npm run build:street` (in `mobile/`) to regenerate `mobile/src/street/html.generated.ts` (the app imports it) and `public/street/index.html` (the website serves it at `/street` via a rewrite in `next.config.ts`; link to it with a plain `<a>`, not `<Link>`). Commit both with the source. On the website the game fetches fan ratings from the site's own API. `npm run dev:street` (or the `street` entry in `.claude/launch.json`) serves the game at http://localhost:5180 with live rebuilds; card art comes from `public/cards` via a symlink.
+- Players are procedural models (`street/src/rig/model.ts`) with the real face cut from each Home Kit card (`look.face` in `street/src/roster.ts` = eye midpoint and chin as fractions of the card image; `tilt` levels a tilted head, `w` < 1 narrows the mask for a face turned aside). All 16 Home Kit players are in `ROSTER`; add a player there: look, stats (seeded from the card's attribute and position), face crop, celebration. Check crops with `?faces` (e.g. `?faces&p=milo,theo`), which draws each head close up instead of the game.
+- Team select is a scrollable line-up of the whole squad: you pick 3 for your side and 3 for the CPU (the rest sit out and are hidden during the match).
+- Stats in `roster.ts` are blended with the fans' votes on each player's Home Kit card (`useStreetRatings` → `window.__STREET__`).
+- Balance and glitches (`street/src/dev.ts`, browser console only): `__sim(20)` plays 20 headless CPU-vs-CPU matches between random 3v3s from the squad (`__sim(20, 1, ["neymar", …])` narrows the pool) and reports goals, shots, tackles, goals per player… (aim for ~5–7 goals per 3-minute match); `__glitch(10)` checks every frame for NaNs, teleports, overlaps, spins, ping-pong possession and the camera losing the ball — it should come back empty. `?autopilot` lets the CPU play both sides on screen.
+- The match camera must keep the ball inside `SAFE` (`world/camera.ts`), clear of the scoreboard and touch controls.
 
 ### Key files
 
