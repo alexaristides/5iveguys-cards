@@ -23,6 +23,8 @@ export class Hud {
   private ma: HTMLElement;
   private onball: HTMLElement;
   private me: HTMLElement;
+  private meLabel: HTMLElement;
+  private meTank: HTMLElement;
   private meName = "";
   private last = "";
 
@@ -37,7 +39,7 @@ export class Hud {
         </div>
         <div class="meters"><div class="meter" data-mh><i></i></div><div class="meter away" data-ma><i></i></div></div>
         <div class="onball display hidden"></div>
-        <div class="me display hidden"></div>
+        <div class="me display hidden"><span></span><i class="tank"><b></b></i></div>
       </div>`);
     parent.appendChild(this.root);
     this.hg = this.root.querySelector("[data-h]")!;
@@ -47,6 +49,8 @@ export class Hud {
     this.ma = this.root.querySelector("[data-ma]")!;
     this.onball = this.root.querySelector(".onball")!;
     this.me = this.root.querySelector(".me")!;
+    this.meLabel = this.me.querySelector("span")!;
+    this.meTank = this.me.querySelector(".tank")!;
     this.root.querySelector(".pause")!.addEventListener("click", onPause);
   }
 
@@ -73,11 +77,14 @@ export class Hud {
     } else this.onball.classList.add("hidden");
   }
 
-  /** Name tag over the player you control (screen position in CSS px), or null to hide. */
-  meTag(name: string | null, x = 0, y = 0) {
+  /** Name tag over the player you control (screen position in CSS px), or null to hide. Shows their stamina when it isn't full. */
+  meTag(name: string | null, x = 0, y = 0, stamina = 1, winded = false) {
     if (!name) { this.me.classList.add("hidden"); return; }
-    if (name !== this.meName) { this.me.textContent = name; this.meName = name; }
+    if (name !== this.meName) { this.meLabel.textContent = name; this.meName = name; }
     this.me.classList.remove("hidden");
+    this.meTank.classList.toggle("hidden", stamina > 0.995);
+    this.meTank.classList.toggle("winded", winded);
+    (this.meTank.firstElementChild as HTMLElement).style.width = `${(stamina * 100).toFixed(0)}%`;
     this.me.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
   }
 
@@ -107,15 +114,15 @@ export class Hud {
 
   /** One-time controls tip on a player's first match. */
   firstMatchTip() {
-    const KEY = "street.tipSeen";
+    const KEY = "street.tipSeen.sprint";
     try {
       if (localStorage.getItem(KEY)) return;
       localStorage.setItem(KEY, "1");
     } catch { /* storage unavailable: show it anyway */ }
     const keyboard = matchMedia("(hover: hover) and (pointer: fine)").matches;
     const tip = el(keyboard
-      ? `<div class="tip"><b>WASD</b>/arrows move · <b>J</b> pass/switch · hold <b>K</b> or <b>Space</b> to shoot/tackle · <b>L</b> skill · <b>P</b> pause</div>`
-      : `<div class="tip">Drag on the left to move · <b>Pass</b> · hold <b>Shoot</b> for power · <b>Skill</b> beats your man · play it off the walls</div>`);
+      ? `<div class="tip"><b>WASD</b>/arrows move · hold <b>Shift</b> to sprint · <b>J</b> pass/switch · hold <b>K</b> or <b>Space</b> to shoot/tackle · <b>L</b> skill · <b>P</b> pause</div>`
+      : `<div class="tip">Drag on the left to move · hold <b>Sprint</b> to burst · <b>Pass</b> · hold <b>Shoot</b> for power · <b>Skill</b> beats your man</div>`);
     this.root.appendChild(tip);
     setTimeout(() => tip.classList.add("out"), 7000);
     setTimeout(() => tip.remove(), 7600);
@@ -135,7 +142,7 @@ export function pauseSheet(parent: HTMLElement, muted: boolean, actions: { resum
         <button class="btn ghost" data-q>Change teams</button>
         <button class="btn ghost" data-m>${muted ? "Sound off" : "Sound on"}</button>
       </div>
-      <p style="color:#a1a1aa;font-size:12px;margin:14px 0 0">Stick: move · Pass/Switch · Shoot (hold for power)/Tackle · Skill: auto trick (panna, rainbow, roulette)</p>
+      <p style="color:#a1a1aa;font-size:12px;margin:14px 0 0">Stick: move · Sprint (hold; the ring is your stamina) · Pass/Switch · Shoot (hold for power)/Tackle · Skill: auto trick (panna, rainbow, roulette)</p>
     </div></div></div>`);
   parent.appendChild(s);
   const close = (fn: () => void) => () => { s.remove(); fn(); };

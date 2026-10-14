@@ -14,6 +14,10 @@ export interface KickInfo {
   /** Match time of the kick. */
   t: number;
   target?: Player | null;
+  /** Defenders this shot already got past (too quick for them to react). */
+  beat?: Player[];
+  /** Came back off a post or the crossbar. */
+  rebound?: boolean;
   /** Bounced off a wall since the kick (for wall passes). */
   walled: boolean;
   /** Where the kick was taken from (for long-range goals). */

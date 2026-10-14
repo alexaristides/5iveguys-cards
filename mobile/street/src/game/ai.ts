@@ -1,13 +1,14 @@
 /**
  * Team AI. Drives every player the user isn't controlling: the CPU side and
  * the user's two teammates. Each step it hands out roles (press, mark, last
- * man, support, chase) and steers players to their spots; the CPU ball
- * carrier also decides when to dribble, pass, shoot or try a skill.
+ * man, support, chase) and steers players to their spots, sprinting when it's
+ * worth the stamina; the CPU ball carrier also decides when to dribble, pass,
+ * shoot or try a skill.
  */
-import { angleOf, clamp, dist, len, segDist, wrapAngle, type V2 } from "../math";
+import { angleOf, clamp, dist, len, normal, segDist, wrapAngle, type V2 } from "../math";
 import { attackDir, attackX, GOAL_HALF, HALF_L, HALF_W } from "./field";
 import type { Match } from "./match";
-import type { Player } from "./player";
+import { rate, type Player } from "./player";
 
 export class TeamAI {
   private nextThink = new Map<Player, number>();
@@ -30,7 +31,7 @@ export class TeamAI {
     if (!ai.length) return;
     const owner = b.owner;
 
-    for (const p of ai) { p.jockeying = false; p.look = angleOf(b.pos.x - p.pos.x, b.pos.z - p.pos.z); }
+    for (const p of ai) { p.jockeying = false; p.sprint = false; p.look = angleOf(b.pos.x - p.pos.x, b.pos.z - p.pos.z); }
 
     if (owner && owner.team === this.team) this.attack(ai, owner, dt);
     else if (owner) this.defend(ai, owner);
@@ -39,12 +40,14 @@ export class TeamAI {
 
   // ── Steering ──────────────────────────────────────────────────────────────
 
-  private goTo(p: Player, t: V2, urgency = 1) {
+  /** Head for `t`, sprinting if it's more than `sprintBeyond` metres away and easing off inside `arrive` metres. */
+  private goTo(p: Player, t: V2, urgency = 1, sprintBeyond = Infinity, arrive = 2.2) {
     const tx = clamp(t.x, -HALF_L + 0.5, HALF_L - 0.5), tz = clamp(t.z, -HALF_W + 0.5, HALF_W - 0.5);
     const dx = tx - p.pos.x, dz = tz - p.pos.z;
     const d = len(dx, dz);
+    p.sprint = d > sprintBeyond;
     if (d < 0.35) { p.want = { x: 0, z: 0 }; return; }
-    const speed = p.topSpeed * urgency * clamp(d / 2.2, 0.25, 1);
+    const speed = p.topSpeed * urgency * clamp(d / arrive, 0.25, 1);
     p.want = { x: (dx / d) * speed, z: (dz / d) * speed };
   }
 
@@ -91,7 +94,7 @@ export class TeamAI {
     for (const o of m.opponents(this.team)) theirs = Math.min(theirs, dist(o.pos, b.pos) / o.topSpeed);
     const ours = chaser ? dist(chaser.pos, b.pos) / chaser.topSpeed : Infinity;
     const others = ai.filter((p) => p !== chaser);
-    if (chaser) this.goTo(chaser, this.intercept(chaser), 1);
+    if (chaser) this.goTo(chaser, this.intercept(chaser), 1, 1.2);
     if (ours < theirs) this.supportShape(others, { x: b.pos.x, z: b.pos.z });
     else this.defenceShape(others, null);
   }
@@ -126,10 +129,11 @@ export class TeamAI {
     const b = m.ball;
     const g = this.ownGoal;
     const gd = Math.max(0.01, dist(b.pos, g));
-    const close = 0.5 + (this.cpu ? 0 : 0.1);
-    const spot = { x: b.pos.x + ((g.x - b.pos.x) / gd) * close, z: b.pos.z + ((g.z - b.pos.z) / gd) * close };
     const d = dist(p.pos, carrier.pos);
-    this.goTo(p, spot, d > 3 ? 1 : 0.85);
+    // Goal side of the ball, then once tight, step in at it to nick it.
+    const close = d < 2 ? 0.15 : 0.5 + (this.cpu ? 0 : 0.1);
+    const spot = { x: b.pos.x + ((g.x - b.pos.x) / gd) * close, z: b.pos.z + ((g.z - b.pos.z) / gd) * close };
+    this.goTo(p, spot, d > 3 ? 1 : 0.85, 2.5, 1);
     p.jockeying = d < 3;
     if (d < 1.5 && this.think(p, this.cpu ? 0.5 : 0.7)) {
       const rate = this.cpu ? 0.22 * this.m.difficulty.steal : 0.15;
@@ -163,10 +167,10 @@ export class TeamAI {
     if (players.length === 1) {
       // One spare man: if the ball's near our goal, guard it; else mark.
       const near = dist(b.pos, g) < 11;
-      this.goTo(players[0], near || !spots[1] ? lastSpot : spots[0], 1);
+      this.goTo(players[0], near || !spots[1] ? lastSpot : spots[0], 1, 3.5);
       return;
     }
-    this.assign(players, spots.length >= 2 ? spots : [lastSpot, lastSpot], 1);
+    this.assign(players, spots.length >= 2 ? spots : [lastSpot, lastSpot], 1, 3.5);
   }
 
   /** Spread out to give the carrier options: one wide and ahead, one trailing. */
@@ -181,17 +185,18 @@ export class TeamAI {
       ? { x: attackX(this.team) - dir * 3.2, z: flank * (1.8 + wobble * 0.4) }
       : { x: clamp(ball.x + dir * 6, -HALF_L + 2, HALF_L - 2.5), z: flank * (4.5 + wobble) };
     const trail: V2 = { x: ball.x - dir * 4.2, z: clamp(ball.z * 0.2 - flank * 2 + wobble * 0.5, -HALF_W + 1.5, HALF_W - 1.5) };
-    this.assign(players, [ahead, trail], 0.85);
+    this.assign(players, [ahead, trail], 0.85, 5, 0.45);
   }
 
-  /** Give each player the closest spot (2 players, 2 spots). */
-  private assign(players: Player[], spots: V2[], urgency: number) {
-    if (players.length === 1) { this.goTo(players[0], spots[0], urgency); return; }
+  /** Give each player the closest spot (2 players, 2 spots). Sprint if far off it and the tank is above `reserve`. */
+  private assign(players: Player[], spots: V2[], urgency: number, sprintBeyond = Infinity, reserve = 0) {
+    const go = (p: Player, t: V2) => this.goTo(p, t, urgency, p.stamina > reserve ? sprintBeyond : Infinity);
+    if (players.length === 1) { go(players[0], spots[0]); return; }
     const [a, c] = players;
     const straight = dist(a.pos, spots[0]) + dist(c.pos, spots[1]);
     const swapped = dist(a.pos, spots[1]) + dist(c.pos, spots[0]);
-    if (straight <= swapped) { this.goTo(a, spots[0], urgency); this.goTo(c, spots[1], urgency); }
-    else { this.goTo(a, spots[1], urgency); this.goTo(c, spots[0], urgency); }
+    if (straight <= swapped) { go(a, spots[0]); go(c, spots[1]); }
+    else { go(a, spots[1]); go(c, spots[0]); }
   }
 
   /** Rate-limit decisions (reaction time). */
@@ -233,6 +238,8 @@ export class TeamAI {
     const l = Math.max(0.01, len(gx, gz));
     const sp = p.topSpeed;
     p.want = { x: (gx / l) * sp, z: (gz / l) * sp };
+    // Open grass ahead: knock it on and go (a bigger touch, so not with a man close).
+    p.sprint = pressure > 3.2 && p.stamina > 0.3 && dist(p.pos, goal) > 4;
 
     // Hemmed in (slow, or pinned near the byline/wall): get rid of it sooner.
     const pinned = p.speed < 1.5 || (toLine < 2.5 && wide) || Math.abs(p.pos.z) > HALF_W - 1;
@@ -259,7 +266,8 @@ export class TeamAI {
       }
     }
 
-    // Pass?
+    // Pass? Poor passers misjudge who's free.
+    const vision = 1 - rate(p.stats.passing);
     let best: Player | null = null, bestV = -Infinity;
     for (const mate of m.teams[this.team]) {
       if (mate === p) continue;
@@ -267,7 +275,7 @@ export class TeamAI {
       let open = 4;
       for (const o of opp) open = Math.min(open, dist(o.pos, mate.pos));
       const lane = opp.some((o) => { const s = segDist(o.pos, p.pos, mate.pos); return s.d < 0.8 && s.t > 0.1 && s.t < 0.9; });
-      const v = progress + open / 4 - (lane ? 0.5 : 0) - dist(p.pos, mate.pos) / 30;
+      const v = progress + open / 4 - (lane ? 0.5 : 0) - dist(p.pos, mate.pos) / 30 + normal() * vision * 0.5;
       if (v > bestV) { bestV = v; best = mate; }
     }
     const squeezed = pressure < 1.6;

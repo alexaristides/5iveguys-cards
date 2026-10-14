@@ -10,7 +10,7 @@ import type { RosterPlayer } from "../roster";
 import { TeamAI } from "./ai";
 import { Ball, type BallEvent, type KickKind } from "./ball";
 import { attackDir, attackX, BALL_R, GOAL_H, GRAVITY, HALF_L, HALF_W } from "./field";
-import { Player, PLAYER_R } from "./player";
+import { Player, PLAYER_R, rate } from "./player";
 
 export const MATCH_SECONDS = 180;
 const GOLDEN_GOAL_SECONDS = 60;
@@ -46,6 +46,8 @@ export interface Pad {
   shootHeld: boolean;
   shootUp: boolean;
   skill: boolean;
+  /** Sprint held. */
+  sprint: boolean;
 }
 
 export type Sound = "kick" | "bigkick" | "wall" | "post" | "net" | "bounce" | "tackle" | "trick" | "whistle" | "whistleEnd" | "cheer" | "ooh" | "meter";
@@ -86,7 +88,7 @@ export class Match {
   /** Both teams AI-driven (demo / balance testing). */
   autopilot = false;
   /** Stats for balancing. */
-  log = { goalDist: [] as number[], shots: [0, 0], blocks: [0, 0], tackles: [0, 0], pokes: [0, 0], tricks: [0, 0], passes: [0, 0], possession: [0, 0] };
+  log = { goalDist: [] as number[], shots: [0, 0], blocks: [0, 0], tackles: [0, 0], pokes: [0, 0], tricks: [0, 0], passes: [0, 0], possession: [0, 0], sprint: [0, 0] };
 
   /** When the shoot button went down (charging), or null. */
   chargeStart: number | null = null;
@@ -250,6 +252,7 @@ export class Match {
   private celebrate(dt: number) {
     for (const p of this.players) {
       p.moodT += dt;
+      p.sprint = p.mood === "celebrate";
       if (p.mood === "celebrate") {
         const tx = attackX(p.team) * 0.7, tz = HALF_W - 4;
         const d = dist(p.pos, { x: tx, z: tz });
@@ -293,7 +296,8 @@ export class Match {
 
     for (const p of this.players) {
       const withBall = this.ball.owner === p;
-      p.move(dt, this.t, this.speedMul(p) * (withBall ? 0.9 : 1), withBall);
+      p.move(dt, this.t, this.speedMul(p) * (withBall ? p.dribbleSpeed : 1), withBall);
+      if (p.sprinting) this.log.sprint[p.team] += dt;
     }
     this.separate();
     this.tackles();
@@ -371,6 +375,8 @@ export class Match {
     const a = o.action;
     const s = o.speed;
     let reach = 0.42 + 0.03 * s + (0.05 + 0.1 * (0.5 + 0.5 * Math.sin(o.runPhase))) * Math.min(1, s / 6);
+    // Flat out, the ball is pushed further ahead (less so for good dribblers): easier to nick.
+    if (o.sprinting) reach += (0.06 + (1 - rate(o.stats.dribbling)) * 0.22) * Math.min(1, s / 6);
     if (a?.kind === "roulette") reach = 0.22;
     if (a?.kind === "stepover") reach = 0.36;
     if (a?.kind === "kick") reach = 0.4;
@@ -395,6 +401,7 @@ export class Match {
       switch (e.type) {
         case "wall": if (e.speed > 2) this.sound("wall", Math.min(1, e.speed / 16)); break;
         case "post":
+          if (b.kick) b.kick.rebound = true;
           if (e.speed > 2) {
             this.sound("post", Math.min(1, e.speed / 18));
             if (this.state === "play") this.sound("ooh", 1);
@@ -444,19 +451,31 @@ export class Match {
     if (b.pos.y > 1.7) return;
     const ballSpeed = b.speed;
     let best: Player | null = null, bestD = Infinity;
-    const shot = b.kick?.kind === "shot" ? b.kick.by.team : null;
+    const kick = b.kick;
+    const shot = kick?.kind === "shot" ? kick.by.team : null;
+    // A shot on its way in, before it comes back off a post or the wall.
+    const fresh = shot !== null && !!kick && !kick.walled && !kick.rebound && this.t - kick.t < 0.6;
     for (const p of this.players) {
-      if (!p.canControl(this.t)) continue;
+      if (!p.canControl(this.t) || (fresh && kick?.beat?.includes(p))) continue;
       const d = len(b.pos.x - p.pos.x, b.pos.z - p.pos.z);
-      // More reach for the intended receiver, and for defenders throwing a body/leg at a shot.
-      const reach = CONTROL_R + (b.kick?.target === p ? 0.15 : 0) + (b.pos.y > 0.9 ? -0.15 : 0)
-        + (shot !== null && shot !== p.team && b.pos.y < 1.9 ? 0.2 : 0);
-      if (d < reach && d < bestD) { best = p; bestD = d; }
+      // More reach for the intended receiver, for defenders throwing a body/leg at a shot,
+      // and for good defenders reading the other side's passes.
+      const theirs = !!kick && kick.by.team !== p.team && kick.kind !== "loose";
+      const reach = CONTROL_R + (kick?.target === p ? 0.15 : 0) + (b.pos.y > 0.9 ? -0.15 : 0)
+        + (shot !== null && shot !== p.team && b.pos.y < 1.9 ? 0.2 : 0)
+        + (theirs ? (rate(p.stats.defending) - 0.5) * 0.12 : 0);
+      if (d >= reach || d >= bestD) continue;
+      // A shot that isn't straight at them is past them before they react, more so the harder
+      // it's hit; good defenders react quicker. One chance per shot.
+      if (kick && fresh && shot !== p.team && d > PLAYER_R) {
+        const react = clamp(1.7 - b.speed / 40 + (rate(p.stats.defending) - 0.5) * 0.15, 0.45, 1);
+        if (Math.random() > react) { (kick.beat ??= []).push(p); continue; }
+      }
+      best = p; bestD = d;
     }
     if (!best) return;
     const p = best;
     const rel = len(b.vel.x - p.vel.x, b.vel.z - p.vel.z);
-    const kick = b.kick;
     const intended = kick?.target === p || (kick?.by.team === p.team && kick.kind !== "shot");
 
     // Hard shots get blocked, not controlled.
@@ -467,7 +486,11 @@ export class Match {
       this.sound("tackle", 0.7);
       return;
     }
-    let chance = intended ? 0.97 : clamp(1.15 - rel / 22 + (p.stats.dribbling - 70) / 200, 0.3, 1);
+    // First touch: a good dribbler takes it in their stride, a good passer's ball is easier to take.
+    const passer = intended && kick ? rate(kick.by.stats.passing) : 0;
+    let chance = intended
+      ? clamp(0.9 + passer * 0.05 + rate(p.stats.dribbling) * 0.05 - Math.max(0, rel - 17) / 30, 0.6, 0.99)
+      : clamp(1.1 - rel / 22 + (rate(p.stats.dribbling) - 0.5) * 0.3, 0.3, 1);
     if (b.pos.y > 0.9) chance *= 0.75; // chest/head control
     if (ballSpeed < 3) chance = 1;
     if (Math.random() < chance) {
@@ -499,17 +522,20 @@ export class Match {
       return;
     }
     for (const d of this.opponents(o.team)) {
-      const near = len(b.pos.x - d.pos.x, b.pos.z - d.pos.z) < 0.78 && d.action?.kind !== "stumble";
+      // Within a leg's stretch of the ball.
+      const near = len(b.pos.x - d.pos.x, b.pos.z - d.pos.z) < 1.05 && d.action?.kind !== "stumble";
       if (!near) { d.pressure = Math.max(0, d.pressure - dt); continue; }
       d.pressure += dt;
-      if (d.pressure < 0.25) continue;
-      // Shielding: defender behind the carrier has a much harder time.
+      if (d.pressure < 0.18) continue;
+      // Shielding: a defender behind the carrier has a much harder time, the stronger the carrier.
       const toD = angleOf(d.pos.x - o.pos.x, d.pos.z - o.pos.z);
       const behind = Math.abs(wrapAngle(toD - o.facing)) > 2.0;
       const cpuMul = d.team !== this.userTeam ? this.difficulty.steal : 1;
-      let rate = 0.9 * clamp(0.55 + (d.stats.defending - o.stats.dribbling) / 90 + (d.stats.physical - o.stats.physical) / 250, 0.12, 1.2);
-      rate *= (behind ? 0.4 : 1) * cpuMul * (this.fiveMode[o.team] > 0 ? 0.5 : 1);
-      if (Math.random() < rate * dt) {
+      const edge = (rate(d.stats.defending) - rate(o.stats.dribbling)) * 0.7 + (rate(d.stats.physical) - rate(o.stats.physical)) * 0.45;
+      let chance = 1.3 * clamp(0.5 + edge, 0.1, 1.2);
+      chance *= (behind ? 0.2 + 0.35 * (1 - rate(o.stats.physical)) : 1) * (o.sprinting ? 1.4 : 1);
+      chance *= cpuMul * (this.fiveMode[o.team] > 0 ? 0.5 : 1);
+      if (Math.random() < chance * dt) {
         this.log.pokes[d.team]++;
         if (Math.random() < 0.45) {
           this.giveBall(d);
@@ -552,7 +578,8 @@ export class Match {
       const toP = angleOf(p.pos.x - o.pos.x, p.pos.z - o.pos.z);
       const fromBehind = Math.abs(wrapAngle(toP - o.facing)) > 2.2;
       const cpuMul = p.team !== this.userTeam ? this.difficulty.steal : 1;
-      const chance = clamp(0.62 + (p.stats.defending - o.stats.dribbling) / 140 - (fromBehind ? 0.25 : 0), 0.15, 0.95) * Math.min(1.15, cpuMul);
+      const edge = (rate(p.stats.defending) - rate(o.stats.dribbling)) * 0.35 + (rate(p.stats.physical) - rate(o.stats.physical)) * 0.25;
+      const chance = clamp(0.6 + edge - (fromBehind ? 0.25 : 0), 0.15, 0.95) * Math.min(1.15, cpuMul);
       if (Math.random() < chance) {
         o.start("stumble", 0.45);
         o.noControlUntil = this.t + 0.5;
@@ -607,18 +634,22 @@ export class Match {
     const b = this.ball;
     this.log.passes[p.team]++;
     p.start("kick", 0.26, { power: 0.3 });
-    const err = gauss() * (1 - p.stats.passing / 100) * 0.09;
+    // Passing: how far off line it goes (1σ, radians), and how crisply it's played.
+    const skill = rate(p.stats.passing);
+    const err = gauss() * (0.01 + (1 - skill) * 0.11);
+    const pace = 0.86 + skill * 0.28;
 
     if (!target) {
       // Pass into space along the stick — off the wall if you like.
       const a = (dir && len(dir.x, dir.z) > 0.3 ? angleOf(dir.x, dir.z) : p.facing) + err;
-      this.kickBall(p, "space", dirX(a) * 13, 0, dirZ(a) * 13);
+      this.kickBall(p, "space", dirX(a) * 13 * pace, 0, dirZ(a) * 13 * pace);
       this.sound("kick", 0.45);
       return;
     }
     const d0 = dist(b.pos, target.pos);
-    const speed = clamp(8 + d0 * 0.75, 9.5, 19);
-    const lead = (d0 / speed) * 0.75;
+    const speed = clamp(8 + d0 * 0.75, 9.5, 19) * pace;
+    // Good passers play it into the runner's stride; poor ones leave it behind them.
+    const lead = (d0 / speed) * (0.4 + skill * 0.45);
     const tx = clamp(target.pos.x + target.vel.x * lead, -HALF_L + 0.6, HALF_L - 0.6);
     const tz = clamp(target.pos.z + target.vel.z * lead, -HALF_W + 0.6, HALF_W - 0.6);
     const d = len(tx - b.pos.x, tz - b.pos.z);
@@ -652,22 +683,24 @@ export class Match {
     p.start("kick", 0.34, { power });
 
     const gx = attackX(team) + attackDir(team) * 0.6;
+    // Shooting: good finishers go for the corner (posts at ±1.75), hit it harder and miss less.
+    const skill = rate(p.stats.shooting);
+    const corner = 0.7 + skill * 0.6;
     let z: number;
-    if (aimZ !== null && Math.abs(aimZ) > 0.25) z = Math.sign(aimZ) * 1.2;
+    if (aimZ !== null && Math.abs(aimZ) > 0.25) z = Math.sign(aimZ) * (corner + 0.1);
     else {
       // Away from the nearest defender to goal.
       const keeper = this.nearestTo(this.opponents(team), { x: attackX(team), z: 0 });
-      z = keeper.pos.z > b.pos.z * 0.2 ? -1.0 : 1.0;
-      z += gauss() * 0.3;
+      z = keeper.pos.z > b.pos.z * 0.2 ? -corner : corner;
+      z += gauss() * 0.25;
     }
     const D = len(gx - b.pos.x, z - b.pos.z);
-    const h = 13 + power * 15 + (five ? 4 : 0) + (firstTime ? 1.5 : 0);
+    const h = (13 + power * 15) * (0.9 + skill * 0.18) + (five ? 4 : 0) + (firstTime ? 1.5 : 0);
     let y = 0.25 + power * 0.95;
     const cpuAim = team !== this.userTeam ? this.difficulty.aim : 1;
-    const skill = p.stats.shooting / 100;
     // Spread (1σ, radians / metres): worse from distance, with power, and for weaker shooters.
-    let sAng = (0.012 + (1 - skill) * 0.08 + Math.max(0, D - 6) * 0.004 + power ** 3 * 0.025) * cpuAim;
-    let sY = (0.1 + power * power * 0.4 + Math.max(0, D - 10) * 0.025) * cpuAim;
+    let sAng = (0.012 + (1 - skill) * 0.1 + Math.max(0, D - 6) * 0.004 + power ** 3 * 0.025) * cpuAim;
+    let sY = (0.1 + power * power * 0.4 + Math.max(0, D - 10) * 0.025) * (1.3 - skill * 0.6) * cpuAim;
     if (five) { sAng *= 0.5; sY *= 0.5; }
     const a = angleOf(gx - b.pos.x, z - b.pos.z) + normal() * sAng;
     y = clamp(y + normal() * sY, 0.15, GOAL_H + 1.5);
@@ -780,6 +813,7 @@ export class Match {
     // Movement. With no input, a receiver drifts onto a pass, and after a panna or
     // rainbow flick you chase your own ball.
     const chasing = !b.owner && b.kick?.by === u && (b.kick.kind === "panna" || b.kick.kind === "rainbow");
+    u.sprint = pad.sprint;
     if (stick) u.want = { x: pad.move.x * u.topSpeed, z: pad.move.z * u.topSpeed };
     else if (!b.owner && (b.kick?.target === u || chasing)) {
       const d = len(b.pos.x - u.pos.x, b.pos.z - u.pos.z);

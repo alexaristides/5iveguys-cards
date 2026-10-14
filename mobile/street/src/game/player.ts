@@ -31,6 +31,11 @@ export interface Action {
 export type Mood = "play" | "celebrate" | "cheer" | "dejected" | "idle";
 
 export const PLAYER_R = 0.38;
+/** Running speed without sprint, as a share of sprint speed. */
+export const JOG = 0.8;
+
+/** A stat on a 0..1 scale (40 → 0, 99 → 1), for turning stats into abilities. */
+export const rate = (stat: number) => clamp((stat - 40) / 59, 0, 1);
 
 export class Player {
   readonly info: RosterPlayer;
@@ -58,6 +63,13 @@ export class Player {
   burstUntil = 0;
   /** Time spent pressing the ball carrier, for pokes. */
   pressure = 0;
+  /** Wants to sprint this step (sprint button, or the AI). */
+  sprint = false;
+  /** Actually sprinting: wanted it, has the legs, and is going faster than a run. */
+  sprinting = false;
+  /** Sprint left in the tank, 0..1. Empty = winded until it's back to a third. */
+  stamina = 1;
+  winded = false;
 
   mood: Mood = "play";
   moodT = 0;
@@ -66,9 +78,16 @@ export class Player {
   glow = false;
 
   // Derived from stats.
+  /** Sprint speed (m/s); without sprint they run at `JOG` of this. */
   readonly topSpeed: number;
   readonly accel: number;
   readonly turnRate: number;
+  /** Top speed with the ball, as a share of top speed without it. */
+  readonly dribbleSpeed: number;
+  /** Seconds of flat-out sprint on a full tank. */
+  readonly sprintSeconds: number;
+  /** Tank refilled per second when not sprinting. */
+  readonly recovery: number;
 
   constructor(info: RosterPlayer, team: 0 | 1, model: PlayerModel) {
     this.info = info;
@@ -77,11 +96,16 @@ export class Player {
     this.model = model;
     this.anim = new Animator(this.model);
     const s = this.stats;
-    // Roughly real sprint speeds (6.5–7.2 m/s) and a believable burst off the mark.
-    this.topSpeed = 5.0 + (s.pace / 100) * 2.2;
-    this.accel = 9 + (s.pace / 100) * 4;
-    // Radians per second; a 180° turn takes about a quarter of a second.
-    this.turnRate = 5 + (s.dribbling / 100) * 4;
+    // Pace: real sprint speeds, 6.6 m/s (pace 70) to 7.0 m/s (pace 92), and the burst off the mark.
+    this.topSpeed = 5.95 + rate(s.pace) * 1.2;
+    this.accel = 9.5 + rate(s.pace) * 3.5;
+    // Dribbling: radians per second (a 180° turn in about a third of a second) and
+    // how little the ball slows them down.
+    this.turnRate = 5.6 + rate(s.dribbling) * 3;
+    this.dribbleSpeed = 0.85 + rate(s.dribbling) * 0.1;
+    // Physical: how long they can sprint for, and how quickly they get it back.
+    this.sprintSeconds = 3.5 + rate(s.physical) * 4;
+    this.recovery = 0.12 + rate(s.physical) * 0.08;
   }
 
   get name() { return this.info.name; }
@@ -99,7 +123,9 @@ export class Player {
   /** Integrate movement toward `want`. `speedMul` scales top speed (dribbling, 5IVE MODE…). */
   move(dt: number, now: number, speedMul: number, withBall: boolean) {
     const a = this.action;
-    let top = this.topSpeed * speedMul * (now < this.burstUntil ? 1.15 : 1);
+    const sprint = this.sprint && !this.winded;
+    const run = this.topSpeed * speedMul;
+    let top = run * (sprint ? 1 : JOG) * (now < this.burstUntil ? 1.15 : 1);
     let accel = this.accel;
     let wantX = this.want.x, wantZ = this.want.z;
 
@@ -160,11 +186,18 @@ export class Player {
     this.pos.x = clamp(this.pos.x, -HALF_L + 0.3, HALF_L - 0.3);
     this.pos.z = clamp(this.pos.z, -HALF_W + 0.3, HALF_W - 0.3);
 
-    // Face where we're going (slower to turn with the ball); hold facing during tricks/tackles.
+    // The tank empties while going faster than a run and refills otherwise (quicker stood still).
     const sp = this.speed;
+    this.sprinting = sprint && !a && sp > run * JOG * 1.02;
+    if (this.sprinting) this.stamina = Math.max(0, this.stamina - dt / this.sprintSeconds);
+    else this.stamina = Math.min(1, this.stamina + dt * this.recovery * (sp < 2 ? 1.5 : 1));
+    if (this.stamina <= 0) this.winded = true;
+    else if (this.winded && this.stamina >= 0.33) this.winded = false;
+
+    // Face where we're going (slower to turn with the ball, and flat out); hold facing during tricks/tackles.
     const locked = a && a.kind !== "kick";
     if (!locked) {
-      const rate = (withBall ? this.turnRate * 0.75 : this.turnRate * 1.3) * dt;
+      const rate = (withBall ? this.turnRate * 0.75 : this.turnRate * 1.3) * (this.sprinting ? (withBall ? 0.7 : 0.85) : 1) * dt;
       if (sp > 0.6 && len(wantX, wantZ) > 0.3) this.facing = turnToward(this.facing, angleOf(this.vel.x, this.vel.z), rate);
       else if (this.look !== null) this.facing = turnToward(this.facing, this.look, rate * 0.7);
     }

@@ -88,6 +88,9 @@
   #hud .tip b { color: #fff; }
   #hud .tip.out { opacity: 0; }
   #hud .me { position: absolute; left: 0; top: 0; font-size: 12px; padding: 1px 6px; border-radius: 5px; background: rgba(126,34,206,0.85); pointer-events: none; white-space: nowrap; }
+  #hud .me .tank { display: block; height: 3px; margin: 1px 0 2px; border-radius: 2px; background: rgba(0,0,0,0.45); overflow: hidden; }
+  #hud .me .tank b { display: block; height: 100%; background: #4ade80; }
+  #hud .me .tank.winded b { background: #f59e0b; }
   #hud .onball.home { border-left: 4px solid var(--purple); }
   #hud .onball.away { border-left: 4px solid var(--gold); }
 
@@ -122,7 +125,9 @@
   .pad .ring { position: absolute; inset: -6px; border-radius: 50%; pointer-events: none; }
   #b-shoot { width: 96px; height: 96px; right: 0; bottom: 6px; font-size: 18px; background: radial-gradient(circle at 35% 30%, #c084fc, #7e22ce); border-color: #e9d5ff; }
   #b-pass { width: 70px; height: 70px; right: 112px; bottom: 0; font-size: 15px; }
-  #b-skill { width: 70px; height: 70px; right: 72px; bottom: 112px; font-size: 15px; }
+  #b-skill { width: 66px; height: 66px; right: 86px; bottom: 104px; font-size: 14px; }
+  #b-sprint { width: 70px; height: 70px; right: 13px; bottom: 112px; font-size: 13px; background: radial-gradient(circle at 35% 30%, rgba(74,222,128,0.4), rgba(22,101,52,0.35)); border-color: rgba(187,247,208,0.6); }
+  #b-sprint.winded { opacity: 0.6; }
   #buttons.def #b-shoot { background: radial-gradient(circle at 35% 30%, #fb7185, #be123c); border-color: #fecdd3; }
   #buttons.def #b-skill { opacity: 0.35; }
 
