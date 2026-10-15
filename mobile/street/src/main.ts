@@ -197,6 +197,7 @@ function pause() {
     resume: () => { paused = false; },
     restart: () => { if (lastTeams) startMatch(lastTeams.home, lastTeams.away, lastTeams.d); },
     quit: () => showSelect(),
+    menu: () => leave(),
     mute: (m) => audio.setMuted(m),
     autoSwitch: (on) => setAutoSwitch(on),
   });
