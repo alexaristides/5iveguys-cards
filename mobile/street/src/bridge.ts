@@ -10,6 +10,12 @@ export interface HostConfig {
   ratings?: Record<string, { averages: FanAverages; voteCount: number }>;
   /** True when hosted by the app (shows Exit instead of reloading). */
   app?: boolean;
+  /** The app's session token, for playing online (the website uses its cookie). */
+  token?: string;
+  /** The website the API is on (default: the page's own origin). */
+  api?: string;
+  /** Room code from an invite link: join it straight away. */
+  room?: string;
 }
 
 declare global {
@@ -24,7 +30,10 @@ export const host: HostConfig = window.__STREET__ ?? {};
 export type HostMessage =
   | { type: "ready" }
   | { type: "haptic"; style: "light" | "medium" | "heavy" | "success" | "error" }
-  | { type: "result"; home: number; away: number; won: boolean }
+  /** `home`: your goals, `away`: theirs (online you may be the away side). */
+  | { type: "result"; home: number; away: number; won: boolean; online?: boolean }
+  /** Online invite: the app shows the share sheet. */
+  | { type: "share"; text: string; url: string }
   | { type: "exit" };
 
 export function send(msg: HostMessage) {

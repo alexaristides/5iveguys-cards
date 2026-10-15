@@ -55,7 +55,18 @@ export interface Pad {
   skill: boolean;
   /** Sprint: the stick pushed right out (or Shift). */
   sprint: boolean;
+  /**
+   * How long Pass / Shoot were held (s), measured on the phone they were pressed
+   * on (online, the other player's). Used on release instead of the match clock.
+   */
+  passHeldFor?: number;
+  shootHeldFor?: number;
 }
+
+/** No buttons, stick centred. */
+export const IDLE_PAD: Pad = {
+  move: { x: 0, z: 0 }, passDown: false, passHeld: false, passUp: false, shootDown: false, shootHeld: false, shootUp: false, skill: false, sprint: false,
+};
 
 export type Sound = "kick" | "bigkick" | "wall" | "post" | "net" | "bounce" | "tackle" | "smash" | "trick" | "whistle" | "whistleEnd" | "cheer" | "ooh" | "meter";
 
@@ -73,17 +84,46 @@ const TACKLES: Record<TackleKind, { dur: number; from: number; to: number; reach
 
 export type MatchEvent =
   | { type: "sound"; name: Sound; v: number }
-  | { type: "haptic"; style: "light" | "medium" | "heavy" | "success" | "error" }
+  /** `team`: only for the person playing that side (unset = everyone). */
+  | { type: "haptic"; style: "light" | "medium" | "heavy" | "success" | "error"; team?: 0 | 1 }
   | { type: "style"; team: 0 | 1; text: string }
   | { type: "goal"; team: 0 | 1; scorer: Player | null; og: boolean; label?: string }
   | { type: "fiveMode"; team: 0 | 1 }
   | { type: "hit"; x: number; z: number; power: number; user: boolean }
   | { type: "kickoff" }
-  | { type: "end" };
+  /** `motm` is filled in when the match comes from another phone (online). */
+  | { type: "end"; motm?: Player };
 
 export type MatchState = "kickoff" | "play" | "goal" | "fulltime" | "over";
 
 export interface Scorer { team: 0 | 1; name: string; og: boolean; second: number }
+
+/** Someone playing one side: the player they control and the buttons they have going. */
+export class Controller {
+  /** Defending, hand them the teammate nearest the ball when theirs is out of the play. */
+  autoSwitch = true;
+  /** When the shoot button went down (charging), or null. */
+  chargeStart: number | null = null;
+  /** When the pass button went down (charging), or null. */
+  passStart: number | null = null;
+  /** First-time pass/shot queued before the ball arrived. */
+  buffered: { kind: "pass" | "shot"; power: number; until: number } | null = null;
+  /** Last Switch press (manual). */
+  lastSwitch = 0;
+  lastAutoSwitch = -Infinity;
+  /** Who the last auto switch took them off. */
+  switchedFrom: Player | null = null;
+  /** How long an auto switch has been on the cards. */
+  switchFor = 0;
+
+  constructor(readonly team: 0 | 1, public user: Player) {}
+
+  reset() {
+    this.buffered = null;
+    this.chargeStart = null;
+    this.passStart = null;
+  }
+}
 
 export class Match {
   t = 0;
@@ -98,8 +138,10 @@ export class Match {
   readonly teams: [Player[], Player[]];
   readonly players: Player[];
   readonly ball: Ball;
-  readonly userTeam: 0 | 1 = 0;
-  user: Player;
+  /** Who's playing each side (null = the CPU). */
+  readonly humans: [Controller | null, Controller | null];
+  /** The side this screen plays: its HUD, haptics and result. */
+  readonly userTeam: 0 | 1;
   lastScorer: Player | null = null;
   events: MatchEvent[] = [];
   /** Style points per player, for the man of the match. */
@@ -107,27 +149,13 @@ export class Match {
 
   /** Both teams AI-driven (demo / balance testing). */
   autopilot = false;
-  /** Defending, hand the user the teammate nearest the ball when theirs is out of the play. */
-  autoSwitch = true;
   /** Stats for balancing. */
   log = { goalDist: [] as number[], shots: [0, 0], blocks: [0, 0], tackles: [0, 0], pokes: [0, 0], tricks: [0, 0], passes: [0, 0], possession: [0, 0], sprint: [0, 0], takedowns: [0, 0] };
 
-  /** When the shoot button went down (charging), or null. */
-  chargeStart: number | null = null;
-  /** When the pass button went down (charging), or null. */
-  passStart: number | null = null;
-  /** First-time pass/shot queued before the ball arrived. */
-  private buffered: { kind: "pass" | "shot"; power: number; until: number } | null = null;
+  private people: Controller[];
   private kickoffTeam: 0 | 1 = 0;
   private possessionTeam: 0 | 1 | null = null;
   private graceUntil = 0;
-  /** Last Switch press (manual). */
-  private lastSwitch = 0;
-  private lastAutoSwitch = -Infinity;
-  /** Who the last auto switch took the user off. */
-  private switchedFrom: Player | null = null;
-  /** How long an auto switch has been on the cards. */
-  private switchFor = 0;
   private ai: [TeamAI, TeamAI];
   private ballEvents: BallEvent[] = [];
 
@@ -137,6 +165,8 @@ export class Match {
     away: RosterPlayer[],
     readonly difficulty: Difficulty,
     model: (p: RosterPlayer) => PlayerModel,
+    /** Online both sides are people; `userTeam` is the one playing on this screen. */
+    opts: { humans?: [boolean, boolean]; userTeam?: 0 | 1 } = {},
   ) {
     this.teams = [
       home.map((r) => new Player(r, 0, model(r))),
@@ -144,7 +174,10 @@ export class Match {
     ];
     this.players = [...this.teams[0], ...this.teams[1]];
     this.ball = new Ball(scene);
-    this.user = this.teams[0][0];
+    this.userTeam = opts.userTeam ?? 0;
+    const humans = opts.humans ?? [true, false];
+    this.humans = [0, 1].map((t) => (humans[t] || t === this.userTeam ? new Controller(t as 0 | 1, this.teams[t][0]) : null)) as Match["humans"];
+    this.people = this.humans.filter((c): c is Controller => !!c);
     this.ai = [new TeamAI(this, 0), new TeamAI(this, 1)];
     for (const p of this.players) this.style.set(p, 0);
     this.setupKickoff(Math.random() < 0.5 ? 0 : 1);
@@ -153,11 +186,18 @@ export class Match {
   emit(e: MatchEvent) { this.events.push(e); }
   sound(name: Sound, v = 1) { this.emit({ type: "sound", name, v }); }
 
-  isUser(p: Player) { return p === this.user; }
+  /** The person playing on this screen. */
+  get me(): Controller { return this.humans[this.userTeam]!; }
+  /** The player this screen controls. */
+  get user() { return this.me.user; }
+  get autoSwitch() { return this.me.autoSwitch; }
+  set autoSwitch(on: boolean) { this.me.autoSwitch = on; }
+  isUser(p: Player) { return p === this.humans[p.team]?.user; }
+  isCpu(team: 0 | 1) { return !this.humans[team]; }
   opponents(team: 0 | 1) { return this.teams[team === 0 ? 1 : 0]; }
   get possession() { return this.ball.owner?.team ?? null; }
   speedMul(p: Player) {
-    const cpu = p.team !== this.userTeam ? this.difficulty.speed : 1;
+    const cpu = this.isCpu(p.team) ? this.difficulty.speed : 1;
     return cpu * (this.fiveMode[p.team] > 0 ? 1.08 : 1);
   }
 
@@ -168,9 +208,6 @@ export class Match {
     this.state = "kickoff";
     this.stateT = 0;
     this.ball.reset(0, 0);
-    this.buffered = null;
-    this.chargeStart = null;
-    this.passStart = null;
     for (const t of [0, 1] as const) {
       const own = -attackDir(t);
       const spots: V2[] = t === team
@@ -190,8 +227,10 @@ export class Match {
     const kicker = this.teams[team][0];
     this.giveBall(kicker);
     this.graceUntil = this.t + 1.5;
-    if (team === this.userTeam) this.user = kicker;
-    else this.user = this.nearestTo(this.teams[this.userTeam], this.ball.pos);
+    for (const c of this.people) {
+      c.reset();
+      c.user = c.team === team ? kicker : this.nearestTo(this.teams[c.team], this.ball.pos);
+    }
     this.emit({ type: "kickoff" });
   }
 
@@ -205,7 +244,8 @@ export class Match {
     return best;
   }
 
-  step(dt: number, pad: Pad) {
+  /** Advance the match. `pad` drives the home side's person, `away` the away side's (online). */
+  step(dt: number, pad: Pad, away: Pad = IDLE_PAD) {
     this.t += dt;
     this.stateT += dt;
     for (const t of [0, 1] as const) {
@@ -239,7 +279,7 @@ export class Match {
             return;
           }
         }
-        this.play(dt, pad);
+        this.play(dt, pad, away);
         return;
       case "goal":
         this.celebrate(dt);
@@ -277,7 +317,10 @@ export class Match {
       p.action = null;
     }
     this.ball.owner = null;
-    this.emit({ type: "haptic", style: h > a ? "success" : h < a ? "error" : "medium" });
+    for (const c of this.people) {
+      const [mine, theirs] = c.team === 0 ? [h, a] : [a, h];
+      this.emit({ type: "haptic", style: mine > theirs ? "success" : mine < theirs ? "error" : "medium", team: c.team });
+    }
   }
 
   private celebrate(dt: number) {
@@ -318,10 +361,13 @@ export class Match {
 
   // ── Play ──────────────────────────────────────────────────────────────────
 
-  private play(dt: number, pad: Pad) {
+  private play(dt: number, pad: Pad, away: Pad) {
     if (!this.autopilot) {
-      this.autoSwitchUser(dt, pad);
-      this.userControl(pad);
+      for (const c of this.people) {
+        const p = c.team === 0 ? pad : away;
+        this.autoSwitchUser(c, dt, p);
+        this.userControl(c, p);
+      }
     }
     const pt = this.possession;
     if (pt !== null) this.log.possession[pt] += dt;
@@ -385,22 +431,24 @@ export class Match {
     }
     b.kick = null;
 
-    if (p.team === this.userTeam) {
-      this.user = p;
-      if (prevTeam !== null && prevTeam !== p.team) this.emit({ type: "haptic", style: "light" });
-      // A first-time pass or shot queued before the ball arrived.
-      const q = this.buffered;
-      this.buffered = null;
-      if (q && this.t <= q.until) {
-        if (q.kind === "shot") this.shoot(p, q.power, null, true);
-        else this.pass(p, this.pickPassTarget(p, null), null, q.power);
-      }
-    } else if (prevTeam === this.userTeam && this.ball.owner && this.autoSwitch) {
-      // Lost it: give the user the defender nearest the ball.
-      const u = this.nearestTo(this.teams[this.userTeam], this.ball.pos);
-      if (u !== this.user && dist(u.pos, this.ball.pos) + 1.5 < dist(this.user.pos, this.ball.pos)) {
-        this.user = u;
-        this.lastAutoSwitch = this.t;
+    for (const c of this.people) {
+      if (p.team === c.team) {
+        c.user = p;
+        if (prevTeam !== null && prevTeam !== p.team) this.emit({ type: "haptic", style: "light", team: c.team });
+        // A first-time pass or shot queued before the ball arrived.
+        const q = c.buffered;
+        c.buffered = null;
+        if (q && this.t <= q.until) {
+          if (q.kind === "shot") this.shoot(p, q.power, null, true);
+          else this.pass(p, this.pickPassTarget(p, null), null, q.power);
+        }
+      } else if (prevTeam === c.team && this.ball.owner && c.autoSwitch) {
+        // Lost it: give them the defender nearest the ball.
+        const u = this.nearestTo(this.teams[c.team], this.ball.pos);
+        if (u !== c.user && dist(u.pos, this.ball.pos) + 1.5 < dist(c.user.pos, this.ball.pos)) {
+          c.user = u;
+          c.lastAutoSwitch = this.t;
+        }
       }
     }
   }
@@ -462,9 +510,7 @@ export class Match {
     this.scorers.push({ team, name: scorer?.name ?? "?", og, second: Math.round(MATCH_SECONDS - this.clock) });
     this.state = "goal";
     this.stateT = 0;
-    this.buffered = null;
-    this.chargeStart = null;
-    this.passStart = null;
+    for (const c of this.people) c.reset();
 
     let label: string | undefined;
     if (scorer && !og) {
@@ -480,7 +526,7 @@ export class Match {
     this.emit({ type: "goal", team, scorer, og, label });
     this.sound("cheer", 1);
     this.sound("whistle", 0.6);
-    this.emit({ type: "haptic", style: team === this.userTeam ? "success" : "heavy" });
+    for (const c of this.people) this.emit({ type: "haptic", style: c.team === team ? "success" : "heavy", team: c.team });
   }
 
   // ── Control and contests ─────────────────────────────────────────────────
@@ -569,7 +615,7 @@ export class Match {
       // Shielding: a defender behind the carrier has a much harder time, the stronger the carrier.
       const toD = angleOf(d.pos.x - o.pos.x, d.pos.z - o.pos.z);
       const behind = Math.abs(wrapAngle(toD - o.facing)) > 2.0;
-      const cpuMul = d.team !== this.userTeam ? this.difficulty.steal : 1;
+      const cpuMul = this.isCpu(d.team) ? this.difficulty.steal : 1;
       const edge = (rate(d.stats.defending) - rate(o.stats.dribbling)) * 0.7 + (rate(d.stats.physical) - rate(o.stats.physical)) * 0.45;
       let chance = 1.3 * clamp(0.5 + edge, 0.1, 1.2);
       chance *= (behind ? 0.2 + 0.35 * (1 - rate(o.stats.physical)) : 1) * (o.sprinting ? 1.4 : 1);
@@ -624,7 +670,7 @@ export class Match {
           if (this.t < o.invulnUntil) { this.addStyle(o, "SKILLED HIM!", 0.1, 150); continue; }
           const toP = angleOf(p.pos.x - o.pos.x, p.pos.z - o.pos.z);
           const fromBehind = Math.abs(wrapAngle(toP - o.facing)) > 2.2;
-          const cpuMul = p.team !== this.userTeam ? this.difficulty.steal : 1;
+          const cpuMul = this.isCpu(p.team) ? this.difficulty.steal : 1;
           const edge = (rate(p.stats.defending) - rate(o.stats.dribbling)) * 0.35 + (rate(p.stats.physical) - rate(o.stats.physical)) * 0.25;
           const chance = clamp(spec.base + edge - (fromBehind ? 0.2 : 0), 0.15, 0.95) * Math.min(1.15, cpuMul);
           if (Math.random() > chance) {
@@ -672,7 +718,7 @@ export class Match {
     o.pressure = 0;
     o.jockeying = false;
     if (this.ball.owner === o) this.ball.owner = null;
-    const user = o.team === this.userTeam || by.team === this.userTeam;
+    const user = !this.isCpu(o.team) || !this.isCpu(by.team);
     this.emit({ type: "hit", x: o.pos.x, z: o.pos.z, power: s, user });
     this.sound("smash", Math.min(1, 0.6 + 0.4 * s));
     this.sound("ooh", 0.7);
@@ -754,7 +800,8 @@ export class Match {
       this.kickBall(p, "pass", dirX(a) * speed, 0, dirZ(a) * speed, target);
     }
     this.sound("kick", 0.45 + 0.4 * power);
-    if (p.team === this.userTeam) this.user = target;
+    const c = this.humans[p.team];
+    if (c) c.user = target;
   }
 
   /**
@@ -783,7 +830,7 @@ export class Match {
     const D = len(gx - b.pos.x, z - b.pos.z);
     const h = (13 + power * 15) * (0.9 + skill * 0.18) + (five ? 4 : 0) + (firstTime ? 1.5 : 0);
     let y = 0.25 + power * 0.95;
-    const cpuAim = team !== this.userTeam ? this.difficulty.aim : 1;
+    const cpuAim = this.isCpu(team) ? this.difficulty.aim : 1;
     // Spread (1σ, radians / metres): worse from distance, with power, and for weaker shooters.
     let sAng = (0.012 + (1 - skill) * 0.1 + Math.max(0, D - 6) * 0.004 + power ** 3 * 0.025) * cpuAim;
     let sY = (0.1 + power * power * 0.4 + Math.max(0, D - 10) * 0.025) * (1.3 - skill * 0.6) * cpuAim;
@@ -795,7 +842,7 @@ export class Match {
     this.kickBall(p, "shot", dirX(a) * h, vy, dirZ(a) * h);
     this.log.shots[team]++;
     this.sound("bigkick", 0.6 + power * 0.4);
-    if (team === this.userTeam) this.emit({ type: "haptic", style: power > 0.7 ? "heavy" : "medium" });
+    if (!this.isCpu(team)) this.emit({ type: "haptic", style: power > 0.7 ? "heavy" : "medium", team });
     if (firstTime) this.addStyle(p, "FIRST TIME!", 0.05, 80);
   }
 
@@ -895,10 +942,10 @@ export class Match {
     }
   }
 
-  // ── User ──────────────────────────────────────────────────────────────────
+  // ── People ────────────────────────────────────────────────────────────────
 
-  private userControl(pad: Pad) {
-    const u = this.user;
+  private userControl(c: Controller, pad: Pad) {
+    const u = c.user;
     const b = this.ball;
     const tilt = len(pad.move.x, pad.move.z);
     const stick = tilt > 0.2 ? pad.move : null;
@@ -928,15 +975,15 @@ export class Match {
     // the ball (or it on its way): pressed to tackle or switch, the release does nothing.
     const onTheBall = hasBall || comingToUs;
 
-    if (pad.shootDown) this.chargeStart = onTheBall ? this.t : null;
-    const released = pad.shootUp && this.chargeStart !== null;
-    const power = released ? clamp((this.t - this.chargeStart!) / SHOT_CHARGE, 0.12, 1) : 0;
-    if (pad.shootUp) this.chargeStart = null;
+    if (pad.shootDown) c.chargeStart = onTheBall ? this.t : null;
+    const released = pad.shootUp && c.chargeStart !== null;
+    const power = released ? clamp((pad.shootHeldFor ?? this.t - c.chargeStart!) / SHOT_CHARGE, 0.12, 1) : 0;
+    if (pad.shootUp) c.chargeStart = null;
 
-    if (pad.passDown) this.passStart = onTheBall ? this.t : null;
-    const passed = pad.passUp && this.passStart !== null;
-    const passPower = passed ? clamp((this.t - this.passStart! - PASS_TAP) / PASS_CHARGE, 0, 1) : 0;
-    if (pad.passUp) this.passStart = null;
+    if (pad.passDown) c.passStart = onTheBall ? this.t : null;
+    const passed = pad.passUp && c.passStart !== null;
+    const passPower = passed ? clamp(((pad.passHeldFor ?? this.t - c.passStart!) - PASS_TAP) / PASS_CHARGE, 0, 1) : 0;
+    if (pad.passUp) c.passStart = null;
 
     if (hasBall) {
       if (u.action?.kind === "kick") return;
@@ -948,37 +995,37 @@ export class Match {
 
     if (comingToUs && (passed || released)) {
       // Queue a first-time pass/shot for when it arrives.
-      this.buffered = { kind: passed ? "pass" : "shot", power: passed ? passPower : power, until: this.t + 0.6 };
+      c.buffered = { kind: passed ? "pass" : "shot", power: passed ? passPower : power, until: this.t + 0.6 };
       return;
     }
-    if (pad.passDown && !ourBall && !onTheBall) this.switchPlayer();
+    if (pad.passDown && !ourBall && !onTheBall) this.switchPlayer(c);
     if (pad.shootDown && !ourBall && !onTheBall) this.tackle(u);
   }
 
-  /** How full the shot and pass power rings are (0..1), for the HUD. */
-  get shotCharge() { return this.chargeStart === null ? 0 : Math.min(1, (this.t - this.chargeStart) / SHOT_CHARGE); }
-  get passCharge() { return this.passStart === null ? 0 : clamp((this.t - this.passStart - PASS_TAP) / PASS_CHARGE, 0, 1); }
+  /** How full this screen's shot and pass power rings are (0..1), for the HUD. */
+  get shotCharge() { return this.me.chargeStart === null ? 0 : Math.min(1, (this.t - this.me.chargeStart) / SHOT_CHARGE); }
+  get passCharge() { return this.me.passStart === null ? 0 : clamp((this.t - this.me.passStart - PASS_TAP) / PASS_CHARGE, 0, 1); }
 
   /**
-   * Defending, switch the user to the teammate nearest the ball, but only when the
+   * Defending, switch someone to the teammate nearest the ball, but only when the
    * player they have is out of the play: clearly further away, not already going
    * for the ball, and not just picked with Switch. It has to stay that way for a
    * moment, so play rushing past doesn't flick control back and forth.
    */
-  private autoSwitchUser(dt: number, pad: Pad) {
+  private autoSwitchUser(c: Controller, dt: number, pad: Pad) {
     const b = this.ball;
-    const u = this.user;
+    const u = c.user;
     const carrier = b.owner;
-    if (!this.autoSwitch || !carrier || carrier.team === this.userTeam || (u.busy && u.action?.kind !== "floored")
-      || this.t - this.lastSwitch < 3 || this.t - this.lastAutoSwitch < 1.5) {
-      this.switchFor = 0;
+    if (!c.autoSwitch || !carrier || carrier.team === c.team || (u.busy && u.action?.kind !== "floored")
+      || this.t - c.lastSwitch < 3 || this.t - c.lastAutoSwitch < 1.5) {
+      c.switchFor = 0;
       return;
     }
     // Nearest to the ball, counting goal side of it as a metre closer (they can step in, not chase).
-    const own = -attackX(this.userTeam);
+    const own = -attackX(c.team);
     const score = (p: Player) => dist(p.pos, b.pos) - (Math.abs(p.pos.x - own) < Math.abs(b.pos.x - own) ? 1 : 0);
     let best: Player | null = null;
-    for (const m of this.teams[this.userTeam]) {
+    for (const m of this.teams[c.team]) {
       if (m !== u && !m.busy && (!best || score(m) < score(best))) best = m;
     }
     const dU = dist(u.pos, b.pos);
@@ -988,29 +1035,29 @@ export class Match {
     const engaged = len(s.x, s.z) > 0.3
       && Math.abs(wrapAngle(angleOf(s.x, s.z) - angleOf(b.pos.x - u.pos.x, b.pos.z - u.pos.z))) < 0.9;
     // Straight back to the player it just took them off needs a much bigger gap.
-    const back = best === this.switchedFrom && this.t - this.lastAutoSwitch < 4;
+    const back = best === c.switchedFrom && this.t - c.lastAutoSwitch < 4;
     const margin = back ? 5 : 2.5, ratio = back ? 0.5 : 0.65;
     const outOfIt = dU > 3 && dB + margin < dU && dB < dU * ratio && (!engaged || dU > 8);
-    if (!best || !outOfIt) { this.switchFor = 0; return; }
-    this.switchFor += dt;
-    if (this.switchFor < 0.4) return;
-    this.switchFor = 0;
-    this.switchedFrom = u;
-    this.user = best;
-    this.lastAutoSwitch = this.t;
+    if (!best || !outOfIt) { c.switchFor = 0; return; }
+    c.switchFor += dt;
+    if (c.switchFor < 0.4) return;
+    c.switchFor = 0;
+    c.switchedFrom = u;
+    c.user = best;
+    c.lastAutoSwitch = this.t;
   }
 
-  switchPlayer() {
+  switchPlayer(c: Controller = this.me) {
     const b = this.ball;
-    const mates = this.teams[this.userTeam];
+    const mates = this.teams[c.team];
     // Nearest to the ball (anyone flat out on the floor last), or the next one if pressed again quickly.
     const score = (p: Player) => dist(p.pos, b.pos) + (p.action?.kind === "floored" ? 100 : 0);
-    const sorted = [...mates].sort((a, c) => score(a) - score(c));
-    let next = sorted[0] === this.user ? sorted[1] : sorted[0];
-    if (this.t - this.lastSwitch < 0.6) next = sorted[(sorted.indexOf(this.user) + 1) % sorted.length];
-    this.lastSwitch = this.t;
-    this.user = next;
-    this.emit({ type: "haptic", style: "light" });
+    const sorted = [...mates].sort((a, x) => score(a) - score(x));
+    let next = sorted[0] === c.user ? sorted[1] : sorted[0];
+    if (this.t - c.lastSwitch < 0.6) next = sorted[(sorted.indexOf(c.user) + 1) % sorted.length];
+    c.lastSwitch = this.t;
+    c.user = next;
+    this.emit({ type: "haptic", style: "light", team: c.team });
   }
 
   /** Man of the match: goals and style. */

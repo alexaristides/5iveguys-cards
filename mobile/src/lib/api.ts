@@ -17,6 +17,9 @@ export function setUnauthorizedHandler(fn: (() => void) | null) {
   onUnauthorized = fn;
 }
 
+/** The session token, for screens that call the API from a WebView (5IVE STREET online). */
+export const getApiToken = () => token;
+
 export function authHeader(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }

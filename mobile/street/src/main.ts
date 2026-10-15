@@ -7,10 +7,11 @@ import { Audio } from "./audio";
 import { applyRatings, fetchWebRatings, haptic, host, rosterWithRatings, send } from "./bridge";
 import { loadImage } from "./faces";
 import { faceSheet, installDevTools } from "./dev";
-import { Match, type Difficulty } from "./game/match";
+import { DIFFICULTIES, IDLE_PAD, Match, type Difficulty, type MatchEvent } from "./game/match";
 import { KITS } from "./rig/kits";
 import { buildPlayer, type PlayerModel } from "./rig/model";
 import type { RosterPlayer } from "./roster";
+import { Online } from "./online";
 import { Hud, pauseSheet, resultSheet } from "./ui/hud";
 import { Input } from "./ui/input";
 import { Select } from "./ui/select";
@@ -40,11 +41,9 @@ const audio = new Audio();
 
 // Ring under the player you control.
 const marker = new THREE.Group();
+const markerRing = new THREE.MeshBasicMaterial({ color: KITS.home.hud, transparent: true, opacity: 0.9, depthWrite: false });
 {
-  const ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.45, 0.56, 40),
-    new THREE.MeshBasicMaterial({ color: KITS.home.hud, transparent: true, opacity: 0.9, depthWrite: false }),
-  );
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.56, 40), markerRing);
   ring.rotation.x = -Math.PI / 2;
   const arrow = new THREE.Mesh(
     new THREE.CircleGeometry(0.16, 3),
@@ -87,6 +86,8 @@ const faces = inApp ? null : faceSheet(renderer, scene, roster, models);
 let match: Match | null = null;
 let hud: Hud | null = null;
 let paused = false;
+/** Online: the menu is open over a match that carries on. */
+let menuOpen = false;
 let lastTeams: { home: RosterPlayer[]; away: RosterPlayer[]; d: Difficulty } | null = null;
 
 const input = new Input(ui, () => audio.unlock());
@@ -97,10 +98,20 @@ const select = new Select(
   (home, away, d) => { audio.click(); startMatch(home, away, d); },
   () => leave(),
   () => { audio.unlock(); audio.click(); },
+  () => online.open(),
 );
+
+const online = new Online(ui, inApp, {
+  select,
+  roster,
+  play: (home, away, side, labels) => startMatch(home, away, DIFFICULTIES[1], { side, labels }),
+  showSelect: () => showSelect(),
+  click: () => audio.click(),
+});
 
 /** Exit: back to the app, or on the website back to where you came from. */
 function leave() {
+  if (online.active) online.leave();
   if (inApp) { send({ type: "exit" }); return; }
   const fromSite = document.referrer && new URL(document.referrer).origin === location.origin;
   if (fromSite && history.length > 1) history.back();
@@ -129,6 +140,7 @@ function endMatch() {
   hud?.destroy();
   hud = null;
   paused = false;
+  menuOpen = false;
   marker.visible = false;
   input.setEnabled(false);
 }
@@ -138,59 +150,80 @@ const AUTO_SWITCH_KEY = "street.autoSwitch";
 let autoSwitch = true;
 try { autoSwitch = localStorage.getItem(AUTO_SWITCH_KEY) !== "0"; } catch { /* storage unavailable */ }
 
-function startMatch(home: RosterPlayer[], away: RosterPlayer[], d: Difficulty) {
+/** Start a match. Online, `net` says which side this screen plays and the names for the scoreboard. */
+function startMatch(home: RosterPlayer[], away: RosterPlayer[], d: Difficulty, net?: { side: 0 | 1; labels: [string, string] }): Match {
   endMatch();
   select.hide();
-  lastTeams = { home, away, d };
+  if (!net) lastTeams = { home, away, d };
   // Only the six on the pitch are drawn; the bench waits for the next team select.
   for (const m of models.values()) m.root.visible = false;
   for (const p of home) models.get(p.key)!.setKit("home");
   for (const p of away) models.get(p.key)!.setKit("black");
   for (const p of [...home, ...away]) models.get(p.key)!.root.visible = true;
-  match = new Match(scene, home, away, d, (p) => models.get(p.key)!);
+  match = new Match(scene, home, away, d, (p) => models.get(p.key)!, net ? { humans: [true, true], userTeam: net.side } : {});
   match.autoSwitch = autoSwitch;
+  markerRing.color.set(net?.side === 1 ? KITS.black.hud : KITS.home.hud);
   if (!inApp) {
     // Dev: inspect from the console; ?autopilot lets the CPU play both sides.
     (window as unknown as { __match: Match }).__match = match;
-    match.autopilot = new URLSearchParams(location.search).has("autopilot");
+    if (!net) match.autopilot = new URLSearchParams(location.search).has("autopilot");
   }
-  hud = new Hud(ui, ["home", "black"], pause);
+  hud = new Hud(ui, ["home", "black"], pause, net?.labels);
+  hud.root.classList.toggle("away", net?.side === 1);
   hud.firstMatchTip();
   input.setEnabled(true);
   marker.visible = true;
   rig.cut("match", match);
+  return match;
 }
 
 function pause() {
-  if (!match || paused || match.state === "over") return;
-  paused = true;
+  if (!match || paused || menuOpen || match.state === "over") return;
   audio.click();
+  if (online.active) {
+    // Nobody can stop the other player's match: settings and a way out, while play goes on.
+    menuOpen = true;
+    pauseSheet(ui, audio.muted, autoSwitch, {
+      resume: () => { menuOpen = false; },
+      restart: () => {},
+      quit: () => { menuOpen = false; online.leave(); },
+      mute: (m) => audio.setMuted(m),
+      autoSwitch: (on) => setAutoSwitch(on),
+    }, true);
+    return;
+  }
+  paused = true;
   pauseSheet(ui, audio.muted, autoSwitch, {
     resume: () => { paused = false; },
     restart: () => { if (lastTeams) startMatch(lastTeams.home, lastTeams.away, lastTeams.d); },
     quit: () => showSelect(),
     mute: (m) => audio.setMuted(m),
-    autoSwitch: (on) => {
-      autoSwitch = on;
-      if (match) match.autoSwitch = on;
-      try { localStorage.setItem(AUTO_SWITCH_KEY, on ? "1" : "0"); } catch { /* storage unavailable */ }
-    },
+    autoSwitch: (on) => setAutoSwitch(on),
   });
 }
 
-document.addEventListener("visibilitychange", () => { if (document.hidden) pause(); });
+function setAutoSwitch(on: boolean) {
+  autoSwitch = on;
+  if (match) match.autoSwitch = on;
+  try { localStorage.setItem(AUTO_SWITCH_KEY, on ? "1" : "0"); } catch { /* storage unavailable */ }
+}
+
+// Closing the page: tell the other player straight away rather than leave them waiting.
+addEventListener("pagehide", () => { if (online.active) online.leave(); });
+// Leaving the app pauses (online the match can't wait, so it carries on).
+document.addEventListener("visibilitychange", () => { if (document.hidden && !online.active) pause(); });
 addEventListener("keydown", (e) => { if (e.key === "Escape" || e.key.toLowerCase() === "p") pause(); });
 
 // ── Match events ───────────────────────────────────────────────────────────
 
-function handleEvents(m: Match) {
-  for (const e of m.events) {
+function handleEvents(m: Match, events: MatchEvent[]) {
+  for (const e of events) {
     switch (e.type) {
       case "sound": audio.play(e.name, e.v); break;
-      case "haptic": haptic(e.style); break;
+      case "haptic": if (e.team === undefined || e.team === m.userTeam) haptic(e.style); break;
       case "style": hud?.style(e.text, e.team); break;
       case "fiveMode":
-        hud?.popup("5IVE MODE", e.team === m.userTeam ? "Your team is on fire" : "CPU on fire — hold tight", e.team !== 0);
+        hud?.popup("5IVE MODE", e.team === m.userTeam ? "Your team is on fire" : `${online.active ? online.opponent : "CPU"} on fire — hold tight`, e.team !== 0);
         if (e.team === m.userTeam) haptic("success");
         break;
       case "hit": {
@@ -212,18 +245,19 @@ function handleEvents(m: Match) {
         break;
       case "end": {
         const [h, a] = m.score;
-        send({ type: "result", home: h, away: a, won: h > a });
-        resultSheet(ui, m, m.motm(), inApp, {
+        const [mine, theirs] = m.userTeam === 0 ? [h, a] : [a, h];
+        send({ type: "result", home: mine, away: theirs, won: mine > theirs, online: online.active });
+        const sheet = resultSheet(ui, m, e.motm ?? m.motm(), inApp, online.active ? online.resultActions : {
           rematch: () => { if (lastTeams) startMatch(lastTeams.home, lastTeams.away, lastTeams.d); },
           teams: () => showSelect(),
           exit: () => leave(),
-        });
+        }, online.active);
+        if (online.active) online.ended(sheet);
         input.setEnabled(false);
         break;
       }
     }
   }
-  m.events.length = 0;
 }
 
 // ── Loop ───────────────────────────────────────────────────────────────────
@@ -259,14 +293,22 @@ renderer.setAnimationLoop(() => {
     const frozen = hitStop > 0;
     hitStop = Math.max(0, hitStop - raw);
     const step = paused || frozen ? 0 : dt;
-    if (!paused && !frozen) {
+    if (online.replica) {
+      // Online guest: send our buttons, draw the host's match.
+      handleEvents(m, online.guestFrame(m, input.read(), dt, autoSwitch));
+    } else if (!paused && !frozen) {
       const pad = input.read();
+      // Online host: the guest's buttons drive the away side.
+      const away = online.awayPad(m) ?? IDLE_PAD;
       // Substeps keep fast balls and tackles stable on slow frames.
       const n = Math.max(1, Math.ceil(dt / (1 / 90)));
-      const quiet = { ...pad, passDown: false, passUp: false, shootDown: false, shootUp: false, skill: false };
-      for (let i = 0; i < n; i++) m.step(dt / n, i === 0 ? pad : quiet);
-      handleEvents(m);
-    }
+      const still = { passDown: false, passUp: false, shootDown: false, shootUp: false, skill: false, passHeldFor: undefined, shootHeldFor: undefined };
+      const quiet = { ...pad, ...still }, quietAway = { ...away, ...still };
+      for (let i = 0; i < n; i++) m.step(dt / n, i === 0 ? pad : quiet, i === 0 ? away : quietAway);
+      online.hostFrame(m.events);
+      handleEvents(m, m.events);
+      m.events.length = 0;
+    } else online.hostFrame([]);
     for (const p of m.players) p.render(step, time, m.ball.pos);
     m.ball.render(step);
     const u = m.user;
@@ -276,9 +318,14 @@ renderer.setAnimationLoop(() => {
     const attacking = m.ball.owner?.team === m.userTeam || (!m.ball.owner && m.ball.kick?.target === u);
     input.setMode(attacking);
     input.setVisible(m.state === "play" || m.state === "kickoff");
-    input.setCharge(m.shotCharge, m.passCharge);
+    if (online.replica) input.setCharge(...online.charges());
+    else input.setCharge(m.shotCharge, m.passCharge);
     input.setStamina(u.stamina, u.winded, u.sprinting);
     hud?.update(m);
+    if (online.active) {
+      hud?.banner(online.banner(m));
+      hud?.link(online.room?.direct ?? null);
+    }
     if (marker.visible) {
       const head = new THREE.Vector3(u.pos.x, 2.25 * (u.info.look.height / 1.8), u.pos.z).project(rig.cam);
       hud?.meTag(u.name, ((head.x + 1) / 2) * innerWidth, ((1 - head.y) / 2) * innerHeight, u.stamina, u.winded);
@@ -300,11 +347,17 @@ renderer.setAnimationLoop(() => {
   else renderer.render(scene, rig.cam);
 });
 
-// Dev: `__sim(20)` / `__glitch(10)` in the browser console (see dev.ts).
-if (!inApp) installDevTools(roster);
+// Dev: `__sim(20)` / `__glitch(10)` in the browser console (see dev.ts), and `__online` (the room, sync).
+if (!inApp) {
+  installDevTools(roster);
+  (window as unknown as { __online: Online }).__online = online;
+}
 
 document.getElementById("loading")?.remove();
 showSelect();
+// Invite link (?room=CODE on the website, or passed in by the app): straight into that room.
+const invite = host.room ?? new URLSearchParams(location.search).get("room");
+if (invite && !faces) online.invited(invite);
 if (faces) {
   select.cull = false;
   select.root.style.display = "none";

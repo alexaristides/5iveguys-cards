@@ -3,6 +3,9 @@
  * use the arrows) to walk along the line, and tap players to pick three for
  * your side (purple home kit) and three for the CPU (black kit). Picked
  * players step forward; everyone else waits on the bench.
+ *
+ * Online, each person picks three for their own side from the same squad (the
+ * room's host settles who got a player first) and says when they're ready.
  */
 import * as THREE from "three";
 import { DIFFICULTIES, type Difficulty } from "../game/match";
@@ -23,7 +26,21 @@ const VIEW_DIST = 6.3;
 const MAX_FLING = 14;
 
 type Side = 0 | 1;
-const SIDE_LABEL = ["YOU", "CPU"] as const;
+const SIDE_LABEL: [string, string] = ["YOU", "CPU"];
+
+/** Picking online against someone else. */
+export interface OnlineDraft {
+  /** The side this screen picks for (the host is home). */
+  side: Side;
+  /** Tag labels for the two sides, e.g. ["YOU", "ALEX"]. */
+  labels: [string, string];
+  /** The other person's name. */
+  opponent: string;
+  /** A player was tapped (the host decides what happens). */
+  tap(key: string): void;
+  ready(on: boolean): void;
+  leave(): void;
+}
 
 interface Slot {
   p: RosterPlayer;
@@ -75,7 +92,13 @@ export class Select {
   private picking: Side = 0;
   private diff: Difficulty;
   private play: HTMLButtonElement;
+  private exit: HTMLButtonElement;
+  private exitLabel: string;
   private hint: HTMLElement;
+  private online: OnlineDraft | null = null;
+  private ready: [boolean, boolean] = [false, false];
+  /** A short message in place of the hint (e.g. that player's taken). */
+  private note: { text: string; until: number } | null = null;
   private sideBtns: HTMLButtonElement[] = [];
   private arrows: HTMLButtonElement[];
   private ray = new THREE.Raycaster();
@@ -94,6 +117,7 @@ export class Select {
     private onPlay: (home: RosterPlayer[], away: RosterPlayer[], d: Difficulty) => void,
     onExit: () => void,
     private onTap: () => void,
+    onOnline: () => void,
   ) {
     this.root = document.createElement("div");
     this.root.className = "layer hidden";
@@ -113,6 +137,7 @@ export class Select {
       <div class="bar">
         <div class="seg diff"></div>
         <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn ghost go-online" style="padding:10px 14px;font-size:15px">Online</button>
           <button class="btn ghost random" style="padding:10px 14px;font-size:15px">Random CPU</button>
           <button class="btn play">Play</button>
         </div>
@@ -121,7 +146,10 @@ export class Select {
     this.hint = this.root.querySelector(".hint")!;
     this.play = this.root.querySelector(".play")!;
     this.arrows = [this.root.querySelector(".prev")!, this.root.querySelector(".next")!];
-    this.root.querySelector(".exit")?.addEventListener("click", onExit);
+    this.exit = this.root.querySelector(".exit")!;
+    this.exitLabel = inApp ? "Exit" : "Back";
+    this.exit.addEventListener("click", () => (this.online ? this.online.leave() : onExit()));
+    this.root.querySelector(".go-online")!.addEventListener("click", () => { onTap(); onOnline(); });
 
     const savedDiff = load<string>(DIFF_KEY, "pro");
     this.diff = DIFFICULTIES.find((d) => d.id === savedDiff) ?? DIFFICULTIES[1];
@@ -144,6 +172,7 @@ export class Select {
       const b = document.createElement("button");
       b.className = side === 0 ? "home" : "away";
       b.addEventListener("click", () => {
+        if (this.online) return;
         this.picking = side;
         onTap();
         this.refresh();
@@ -175,19 +204,7 @@ export class Select {
       this.slots.push({ p, model, anim: new Animator(model), hit, ring, tag, x: (i - (n - 1) / 2) * SPACING, side: null, out: 0, hop: 0 });
     });
 
-    // Restore the last teams (falling back to the first six in the line-up).
-    const byKey = new Map(this.slots.map((s) => [s.p.key, s]));
-    const restore = (key: string, fallback: Slot[]) => {
-      const keys = load<string[]>(key, []);
-      const picked = keys.map((k) => byKey.get(k)).filter((s): s is Slot => !!s);
-      return picked.length === 3 && new Set(picked).size === 3 ? picked : fallback;
-    };
-    const home = restore(PICK_KEY, this.slots.slice(0, 3));
-    let away = restore(CPU_KEY, this.slots.slice(3, 6)).filter((s) => !home.includes(s));
-    if (away.length !== 3) away = this.slots.filter((s) => !home.includes(s)).slice(0, 3);
-    for (const s of home) this.assign(s, 0);
-    for (const s of away) this.assign(s, 1);
-    this.picking = 0;
+    this.restoreSaved();
 
     this.root.addEventListener("pointerdown", (e) => this.down(e));
     this.root.addEventListener("pointermove", (e) => this.move(e));
@@ -209,6 +226,11 @@ export class Select {
       this.randomCpu();
     });
     this.play.addEventListener("click", () => {
+      if (this.online) {
+        onTap();
+        this.online.ready(!this.ready[this.online.side]);
+        return;
+      }
       const [home, away] = this.order;
       if (home.length !== 3 || away.length !== 3) return;
       save(PICK_KEY, home.map((s) => s.p.key));
@@ -218,6 +240,87 @@ export class Select {
   }
 
   // ── Picking ───────────────────────────────────────────────────────────────
+
+  /** The last teams played (falling back to the first six in the line-up). */
+  private restoreSaved() {
+    for (const s of this.slots) s.side = null;
+    this.order = [[], []];
+    const byKey = new Map(this.slots.map((s) => [s.p.key, s]));
+    const restore = (key: string, fallback: Slot[]) => {
+      const keys = load<string[]>(key, []);
+      const picked = keys.map((k) => byKey.get(k)).filter((s): s is Slot => !!s);
+      return picked.length === 3 && new Set(picked).size === 3 ? picked : fallback;
+    };
+    const home = restore(PICK_KEY, this.slots.slice(0, 3));
+    let away = restore(CPU_KEY, this.slots.slice(3, 6)).filter((s) => !home.includes(s));
+    if (away.length !== 3) away = this.slots.filter((s) => !home.includes(s)).slice(0, 3);
+    for (const s of home) this.assign(s, 0);
+    for (const s of away) this.assign(s, 1);
+    this.picking = 0;
+  }
+
+  /** Your last three (to start an online draft with). */
+  savedPicks(): string[] {
+    return load<string[]>(PICK_KEY, []);
+  }
+
+  /** Remember the three you played online with, for next time. */
+  savePicks(keys: string[]) {
+    if (keys.length === 3) save(PICK_KEY, keys);
+  }
+
+  /** Switch to picking online against someone (null: back to playing the CPU). */
+  setOnline(d: OnlineDraft | null) {
+    this.online = d;
+    this.ready = [false, false];
+    this.note = null;
+    this.root.classList.toggle("online", !!d);
+    this.exit.textContent = d ? "Leave" : this.exitLabel;
+    if (d) {
+      this.picking = d.side;
+      this.setTeams([], [], [false, false]);
+    } else {
+      this.restoreSaved();
+      this.refresh();
+    }
+  }
+
+  /** Online: the teams as the host has them. */
+  setTeams(home: string[], away: string[], ready: [boolean, boolean]) {
+    const byKey = new Map(this.slots.map((s) => [s.p.key, s]));
+    const was = new Map(this.slots.map((s) => [s, s.side]));
+    for (const s of this.slots) s.side = null;
+    this.order = [[], []];
+    ([home, away] as const).forEach((keys, side) => {
+      for (const k of keys) {
+        const s = byKey.get(k);
+        if (!s || s.side !== null) continue;
+        s.side = side as Side;
+        this.order[side].push(s);
+        if (was.get(s) !== side) s.hop = 0.9;
+      }
+    });
+    this.ready = ready;
+    this.refresh();
+  }
+
+  /** Online: the players picked for each side, by key. */
+  teams(): [string[], string[]] {
+    return [this.order[0].map((s) => s.p.key), this.order[1].map((s) => s.p.key)];
+  }
+
+  /** Online: show who you're playing (scroll to their picks). */
+  lookAt(side: Side) {
+    const o = this.order[side];
+    if (!o.length) return;
+    this.targetX = this.clampX(o.reduce((a, s) => a + s.x, 0) / o.length);
+    this.vel = 0;
+  }
+
+  flash(text: string) {
+    this.note = { text, until: performance.now() + 1800 };
+    this.refresh();
+  }
 
   /** Put a player on a side (or the bench), bumping that side's oldest pick if it's full. */
   private assign(s: Slot, side: Side | null) {
@@ -232,6 +335,12 @@ export class Select {
 
   private tap(i: number) {
     const s = this.slots[i];
+    if (this.online) {
+      const mine = this.online.side;
+      if (s.side !== null && s.side !== mine) this.flash(`${this.online.opponent} has ${s.p.name}`);
+      else this.online.tap(s.p.key);
+      return;
+    }
     const side = this.picking;
     this.assign(s, s.side === side ? null : side);
     if (s.side !== null) s.hop = 0.9;
@@ -268,19 +377,35 @@ export class Select {
   private refresh() {
     const counts = this.order.map((o) => o.length);
     const ready = counts[0] === 3 && counts[1] === 3;
+    const labels = this.online?.labels ?? SIDE_LABEL;
     this.play.disabled = !ready;
     this.sideBtns.forEach((b, side) => {
-      b.textContent = `${SIDE_LABEL[side]} ${counts[side]}/3`;
+      b.textContent = `${labels[side]} ${counts[side]}/3${this.online && this.ready[side] ? " ✓" : ""}`;
       b.classList.toggle("on", side === this.picking);
     });
-    // Point at the side that still needs players, preferring the one being picked.
-    const need: Side = counts[this.picking] < 3 ? this.picking : this.picking === 0 ? 1 : 0;
-    this.hint.textContent = ready ? "Tap to swap players" : `Pick ${3 - counts[need]} more for ${need === 0 ? "you" : "the CPU"}`;
+    if (this.online) {
+      // Your three, then ready; the match starts once you both are.
+      const me = this.online.side, them: Side = me === 0 ? 1 : 0;
+      const opp = this.online.opponent;
+      this.play.disabled = counts[me] !== 3;
+      this.play.textContent = this.ready[me] ? "Ready ✓" : "Ready";
+      this.play.classList.toggle("on", this.ready[me]);
+      this.hint.textContent = this.note && this.note.until > performance.now() ? this.note.text
+        : counts[me] < 3 ? `Pick ${3 - counts[me]} more · ${opp} picks from the same squad`
+        : !this.ready[me] ? "Tap Ready when you're happy"
+        : counts[them] < 3 || !this.ready[them] ? `Waiting for ${opp}…` : "Kick off!";
+    } else {
+      this.play.textContent = "Play";
+      this.play.classList.remove("on");
+      // Point at the side that still needs players, preferring the one being picked.
+      const need: Side = counts[this.picking] < 3 ? this.picking : this.picking === 0 ? 1 : 0;
+      this.hint.textContent = ready ? "Tap to swap players" : `Pick ${3 - counts[need]} more for ${need === 0 ? "you" : "the CPU"}`;
+    }
     for (const s of this.slots) {
       s.tag.classList.toggle("home", s.side === 0);
       s.tag.classList.toggle("away", s.side === 1);
       s.tag.classList.toggle("bench", s.side === null);
-      (s.tag.querySelector(".side") as HTMLElement).textContent = s.side === null ? "" : SIDE_LABEL[s.side];
+      (s.tag.querySelector(".side") as HTMLElement).textContent = s.side === null ? "" : labels[s.side];
       s.model.setKit(s.side === 1 ? "black" : "home");
       s.ring.visible = s.side !== null;
       if (s.side !== null) (s.ring.material as THREE.MeshBasicMaterial).color.set(s.side === 0 ? KITS.home.hud : KITS.black.hud);
@@ -359,7 +484,7 @@ export class Select {
       s.anim.snap();
     });
     // Start on your team.
-    const mine = this.order[0];
+    const mine = this.order[this.online?.side ?? 0];
     this.targetX = this.viewX = this.clampX(mine.length ? mine.reduce((a, s) => a + s.x, 0) / mine.length : 0);
     this.vel = 0;
     this.refresh();
@@ -384,6 +509,7 @@ export class Select {
       this.vel *= Math.exp(-5 * dt);
     }
     if (!this.drag) this.viewX += (this.targetX - this.viewX) * (1 - Math.exp(-9 * dt));
+    if (this.note && this.note.until <= performance.now()) { this.note = null; this.refresh(); }
     const half = this.viewWidth() / 2;
     this.arrows[0].classList.toggle("hidden", this.targetX <= this.clampX(-Infinity) + 0.05);
     this.arrows[1].classList.toggle("hidden", this.targetX >= this.clampX(Infinity) - 0.05);

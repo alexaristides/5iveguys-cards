@@ -18,7 +18,9 @@ export class TeamAI {
 
   constructor(private m: Match, readonly team: 0 | 1) {}
 
-  private get cpu() { return this.team !== this.m.userTeam || this.m.autopilot; }
+  private get cpu() { return this.m.isCpu(this.team) || this.m.autopilot; }
+  /** The player a person is controlling on this side (the AI leaves them be), if any. */
+  private get human() { return this.m.autopilot ? null : this.m.humans[this.team]?.user ?? null; }
   private get dir() { return attackDir(this.team); }
   private get ownGoal(): V2 { return { x: -attackX(this.team), z: 0 }; }
   private get oppGoal(): V2 { return { x: attackX(this.team), z: 0 }; }
@@ -28,7 +30,8 @@ export class TeamAI {
     const b = m.ball;
     const mine = m.teams[this.team];
     // Anyone knocked flat sits this out until they're up.
-    const ai = (m.autopilot ? mine : mine.filter((p) => p !== m.user)).filter((p) => p.action?.kind !== "floored");
+    const human = this.human;
+    const ai = mine.filter((p) => p !== human && p.action?.kind !== "floored");
     if (!ai.length) return;
     const owner = b.owner;
 
@@ -86,9 +89,9 @@ export class TeamAI {
         const t = dist(p.pos, i) / p.topSpeed;
         if (t < best) { best = t; chaser = p; }
       }
-      // If the user is closer, let them go and hold shape.
-      const u = m.user;
-      if (!m.autopilot && u.team === this.team && chaser && dist(u.pos, b.pos) < dist(chaser.pos, b.pos) - 1) chaser = null;
+      // If the person playing this side is closer, let them go and hold shape.
+      const u = this.human;
+      if (u && chaser && dist(u.pos, b.pos) < dist(chaser.pos, b.pos) - 1) chaser = null;
     }
     // Who's winning the race decides attack or defence shape.
     let theirs = Infinity;
@@ -116,8 +119,8 @@ export class TeamAI {
       const d = dist(p.pos, carrier.pos) - (p === this.presser ? 1 : 0);
       if (d < pd) { pd = d; presser = p; }
     }
-    const u = m.user;
-    if (!m.autopilot && u.team === this.team && presser && dist(u.pos, carrier.pos) < pd + 4) presser = null;
+    const u = this.human;
+    if (u && presser && dist(u.pos, carrier.pos) < pd + 4) presser = null;
     this.presser = presser;
 
     if (presser) this.press(presser, carrier);

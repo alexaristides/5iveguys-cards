@@ -9,6 +9,8 @@ const el = (html: string) => {
   return t.content.firstElementChild as HTMLElement;
 };
 
+const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
 const fmtClock = (s: number) => {
   const c = Math.max(0, Math.ceil(s));
   return `${Math.floor(c / 60)}:${String(c % 60).padStart(2, "0")}`;
@@ -27,16 +29,22 @@ export class Hud {
   private meTank: HTMLElement;
   private meName = "";
   private last = "";
+  private bannerEl: HTMLElement;
+  private linkEl: HTMLElement;
 
-  constructor(parent: HTMLElement, kits: [KitId, KitId], onPause: () => void) {
+  /** `labels`: names for the two sides on the scoreboard (online), else the kit names. */
+  constructor(parent: HTMLElement, kits: [KitId, KitId], onPause: () => void, labels?: [string, string]) {
+    const [l0, l1] = labels ?? [KITS[kits[0]].label, KITS[kits[1]].label];
     this.root = el(`
       <div class="layer" id="hud">
         <button class="pause" aria-label="Pause">II</button>
         <div class="score display">
-          <div class="team home"><span>${KITS[kits[0]].label}</span><span class="goals" data-h>0</span></div>
+          <div class="team home"><span>${esc(l0)}</span><span class="goals" data-h>0</span></div>
           <div class="clock" data-c>3:00</div>
-          <div class="team away"><span class="goals" data-a>0</span><span>${KITS[kits[1]].label}</span></div>
+          <div class="team away"><span class="goals" data-a>0</span><span>${esc(l1)}</span></div>
         </div>
+        <div class="banner display hidden"></div>
+        <div class="link hidden"></div>
         <div class="meters"><div class="meter" data-mh><i></i></div><div class="meter away" data-ma><i></i></div></div>
         <div class="onball display hidden"></div>
         <div class="me display hidden"><span></span><i class="tank"><b></b></i></div>
@@ -51,7 +59,23 @@ export class Hud {
     this.me = this.root.querySelector(".me")!;
     this.meLabel = this.me.querySelector("span")!;
     this.meTank = this.me.querySelector(".tank")!;
+    this.bannerEl = this.root.querySelector(".banner")!;
+    this.linkEl = this.root.querySelector(".link")!;
     this.root.querySelector(".pause")!.addEventListener("click", onPause);
+  }
+
+  /** A message across the middle that stays until cleared (online: waiting, connection trouble). */
+  banner(text: string | null) {
+    if ((text ?? "") === this.bannerEl.textContent && this.bannerEl.classList.contains("hidden") === !text) return;
+    this.bannerEl.textContent = text ?? "";
+    this.bannerEl.classList.toggle("hidden", !text);
+  }
+
+  /** Online: how the match is reaching the other phone (direct is quickest). */
+  link(direct: boolean | null) {
+    this.linkEl.classList.toggle("hidden", direct === null);
+    this.linkEl.classList.toggle("slow", direct === false);
+    this.linkEl.textContent = direct ? "ONLINE" : "ONLINE · RELAY";
   }
 
   update(m: Match) {
@@ -137,15 +161,18 @@ export function pauseSheet(
   muted: boolean,
   autoSwitch: boolean,
   actions: { resume(): void; restart(): void; quit(): void; mute(m: boolean): void; autoSwitch(on: boolean): void },
+  /** Online there's no pausing the other player: the menu is just settings and leaving. */
+  online = false,
 ) {
   const autoLabel = (on: boolean) => `Auto switch ${on ? "on" : "off"}`;
   const s = el(`
     <div class="layer"><div class="sheet"><div class="panel">
-      <h2 class="display">Paused</h2>
-      <div class="row"><button class="btn" data-r>Resume</button></div>
+      <h2 class="display">${online ? "Menu" : "Paused"}</h2>
+      ${online ? `<div style="color:#a1a1aa;font-size:13px">The match carries on while this is open</div>` : ""}
+      <div class="row"><button class="btn" data-r>${online ? "Back to the match" : "Resume"}</button></div>
       <div class="row">
-        <button class="btn ghost" data-s>Restart</button>
-        <button class="btn ghost" data-q>Change teams</button>
+        ${online ? "" : `<button class="btn ghost" data-s>Restart</button>`}
+        <button class="btn ghost" data-q>${online ? "Leave match" : "Change teams"}</button>
         <button class="btn ghost" data-m>${muted ? "Sound off" : "Sound on"}</button>
         <button class="btn ghost" data-auto>${autoLabel(autoSwitch)}</button>
       </div>
@@ -154,7 +181,7 @@ export function pauseSheet(
   parent.appendChild(s);
   const close = (fn: () => void) => () => { s.remove(); fn(); };
   s.querySelector("[data-r]")!.addEventListener("click", close(actions.resume));
-  s.querySelector("[data-s]")!.addEventListener("click", close(actions.restart));
+  s.querySelector("[data-s]")?.addEventListener("click", close(actions.restart));
   s.querySelector("[data-q]")!.addEventListener("click", close(actions.quit));
   const mb = s.querySelector("[data-m]") as HTMLElement;
   let m = muted;
@@ -171,9 +198,12 @@ export function resultSheet(
   motm: Player,
   inApp: boolean,
   actions: { rematch(): void; teams(): void; exit(): void },
+  /** Online: rematch waits for both, and the buttons stay put (see `note`). */
+  online = false,
 ) {
   const [h, a] = m.score;
-  const title = h > a ? "YOU WIN" : h < a ? "YOU LOSE" : "DRAW";
+  const [mine, theirs] = m.userTeam === 0 ? [h, a] : [a, h];
+  const title = mine > theirs ? "YOU WIN" : mine < theirs ? "YOU LOSE" : "DRAW";
   const list = (team: 0 | 1) => m.scorers.filter((s) => s.team === team)
     .map((s) => `${s.name}${s.og ? " (OG)" : ""} ${Math.floor(s.second / 60)}:${String(s.second % 60).padStart(2, "0")}`).join("<br>");
   const s = el(`
@@ -183,17 +213,25 @@ export function resultSheet(
       <div class="final display"><span class="h">${h}</span><span style="color:#71717a">–</span><span class="a">${a}</span></div>
       <div class="scorers"><div>${list(0)}</div><div>${list(1)}</div></div>
       <div class="motm">Man of the match: <b></b></div>
+      <div class="note" style="margin-top:8px;font-size:14px;color:#fde68a;min-height:18px"></div>
       <div class="row">
         <button class="btn" data-r>Rematch</button>
         <button class="btn ghost" data-t>Change teams</button>
-        <button class="btn ghost" data-x>${inApp ? "Exit" : "Back"}</button>
+        <button class="btn ghost" data-x>${online ? "Leave" : inApp ? "Exit" : "Back"}</button>
       </div>
     </div></div></div>`);
   s.querySelector(".motm b")!.textContent = motm.name;
   parent.appendChild(s);
   const close = (fn: () => void) => () => { s.remove(); fn(); };
-  s.querySelector("[data-r]")!.addEventListener("click", close(actions.rematch));
+  // Online, Rematch only asks: the sheet goes when the match starts.
+  s.querySelector("[data-r]")!.addEventListener("click", online ? actions.rematch : close(actions.rematch));
   s.querySelector("[data-t]")!.addEventListener("click", close(actions.teams));
   s.querySelector("[data-x]")?.addEventListener("click", close(actions.exit));
   return s;
+}
+
+/** Online result sheet: say who's waiting on a rematch. */
+export function resultNote(sheet: HTMLElement | null, text: string) {
+  const n = sheet?.querySelector(".note");
+  if (n) n.textContent = text;
 }
