@@ -160,7 +160,7 @@ export function pauseSheet(
   parent: HTMLElement,
   muted: boolean,
   autoSwitch: boolean,
-  actions: { resume(): void; restart(): void; quit(): void; mute(m: boolean): void; autoSwitch(on: boolean): void },
+  actions: { resume(): void; restart(): void; quit(): void; menu?(): void; mute(m: boolean): void; autoSwitch(on: boolean): void },
   /** Online there's no pausing the other player: the menu is just settings and leaving. */
   online = false,
 ) {
@@ -176,6 +176,7 @@ export function pauseSheet(
         <button class="btn ghost" data-m>${muted ? "Sound off" : "Sound on"}</button>
         <button class="btn ghost" data-auto>${autoLabel(autoSwitch)}</button>
       </div>
+      ${online || !actions.menu ? "" : `<div class="row"><button class="btn ghost" data-menu>Back to menu</button></div>`}
       <p style="color:#a1a1aa;font-size:12px;margin:14px 0 0">Stick: half push to walk, right out to sprint (the ring is your stamina) · Pass (hold to drive it through) / Switch · Shoot (hold for power) / Tackle: anything goes, no fouls · Skill: auto trick · Auto switch hands you the defender nearest the ball when yours is out of the play</p>
     </div></div></div>`);
   parent.appendChild(s);
@@ -183,6 +184,7 @@ export function pauseSheet(
   s.querySelector("[data-r]")!.addEventListener("click", close(actions.resume));
   s.querySelector("[data-s]")?.addEventListener("click", close(actions.restart));
   s.querySelector("[data-q]")!.addEventListener("click", close(actions.quit));
+  s.querySelector("[data-menu]")?.addEventListener("click", close(() => actions.menu?.()));
   const mb = s.querySelector("[data-m]") as HTMLElement;
   let m = muted;
   mb.addEventListener("click", () => { m = !m; mb.textContent = m ? "Sound off" : "Sound on"; actions.mute(m); });
