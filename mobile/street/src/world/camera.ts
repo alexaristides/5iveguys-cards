@@ -21,6 +21,10 @@ export class CameraRig {
   private v = new THREE.Vector3();
   /** Team select: x along the line of players (the select screen scrolls it). */
   selectX = 0;
+  /** Watch the match from the other touchline (online, the away player: see `Match.camSide`). */
+  flipped = false;
+  /** The touchline the current shot is framed from (1 = the usual one). */
+  private side = 1;
   private shakeT = 0;
   private shakeAmp = 0;
 
@@ -50,16 +54,20 @@ export class CameraRig {
     const L = new THREE.Vector3();
     let rate = 3.2;
     let follow = false;
+    // Flipped, the shot is framed as usual on the pitch turned round (x and z negated), then turned back.
+    let k = this.flipped && mode === "match" && m ? -1 : 1;
 
     if (mode === "select" || !m) {
       P.set(this.selectX, 1.3, 6.3);
       L.set(this.selectX, 0.68, 0);
       rate = 2.5;
     } else if (m.state === "goal" && m.lastScorer && m.stateT > 0.5) {
-      const s = m.lastScorer.pos;
+      // From the touchline the scorer celebrates towards (online, the other one if they're the opponent).
+      k = m.camSide(m.lastScorer.team);
+      const sx = m.lastScorer.pos.x * k, sz = m.lastScorer.pos.z * k;
       // Stay inside the cage so the near wall doesn't fill the shot.
-      P.set(s.x * 0.8 + Math.sin(this.t * 0.35) * 1.2, 2.1, Math.min(s.z + 4.8, HALF_W - 0.4));
-      L.set(s.x, 1.05, s.z);
+      P.set(sx * 0.8 + Math.sin(this.t * 0.35) * 1.2, 2.1, Math.min(sz + 4.8, HALF_W - 0.4));
+      L.set(sx, 1.05, sz);
       rate = 2.2;
     } else if (m.state === "fulltime" || m.state === "over") {
       P.set(Math.sin(this.t * 0.15) * 5, 5.5, 12.5);
@@ -72,12 +80,20 @@ export class CameraRig {
     } else {
       // Follow the ball, leading it a little in the direction it's travelling.
       const b = m.ball.pos, bv = m.ball.vel;
-      const fx = clamp(b.x + bv.x * 0.22, -(HALF_L - 4), HALF_L - 4);
-      const fz = clamp(b.z + bv.z * 0.15, -HALF_W, HALF_W);
+      const fx = clamp((b.x + bv.x * 0.22) * k, -(HALF_L - 4), HALF_L - 4);
+      const fz = clamp((b.z + bv.z * 0.15) * k, -HALF_W, HALF_W);
       P.set(fx, 7.6 + Math.min(b.y, 4) * 0.3, 11.4 + fz * 0.4);
       L.set(fx, 0.5, fz * 0.62 - 0.8);
       rate = 4;
       follow = true;
+    }
+    P.x *= k; P.z *= k;
+    L.x *= k; L.z *= k;
+    // Over to the other touchline is a cut: easing there would swing the camera over the pitch.
+    if (k !== this.side) {
+      this.side = k;
+      this.pos.copy(P);
+      this.look.copy(L);
     }
     this.pos.set(damp(this.pos.x, P.x, rate, dt), damp(this.pos.y, P.y, rate, dt), damp(this.pos.z, P.z, rate, dt));
     this.look.set(damp(this.look.x, L.x, rate * 1.3, dt), damp(this.look.y, L.y, rate * 1.3, dt), damp(this.look.z, L.z, rate * 1.3, dt));

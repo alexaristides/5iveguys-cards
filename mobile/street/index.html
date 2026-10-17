@@ -93,6 +93,11 @@
   #hud .me .tank.winded b { background: #f59e0b; }
   #hud .onball.home { border-left: 4px solid var(--purple); }
   #hud .onball.away { border-left: 4px solid var(--gold); }
+  /* Online away player: they watch from the other touchline, so their side of the scoreboard is on the left. */
+  #hud.away .score, #hud.away .team, #hud.away .meters { flex-direction: row-reverse; }
+  #hud.away .team.home { background: linear-gradient(-90deg, #6b21a8, #a326d6); border-radius: 0 8px 8px 0; }
+  #hud.away .team.away { background: linear-gradient(-90deg, #1c1917, #292524); border-radius: 8px 0 0 8px; }
+  #hud.away .me { background: rgba(28,25,23,0.88); color: var(--gold); }
 
   .pop { position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%); pointer-events: none; text-align: center; white-space: nowrap; }
   .pop .big { font-size: 64px; line-height: 0.9; color: #fff; text-shadow: 0 4px 0 var(--purple-deep), 0 0 30px rgba(168,85,247,0.8); }

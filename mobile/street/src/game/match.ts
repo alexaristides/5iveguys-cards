@@ -44,7 +44,7 @@ const PASS_TAP = 0.15;
 const PASS_CHARGE = 0.6;
 
 export interface Pad {
-  /** World-space stick, length 0..1 (+x = right of screen, +z = toward the camera). */
+  /** World-space stick, length 0..1 (+x = right of screen, +z = toward the camera, both reversed from the other touchline: see `camSide`). */
   move: V2;
   passDown: boolean;
   passHeld: boolean;
@@ -194,6 +194,11 @@ export class Match {
   set autoSwitch(on: boolean) { this.me.autoSwitch = on; }
   isUser(p: Player) { return p === this.humans[p.team]?.user; }
   isCpu(team: 0 | 1) { return !this.humans[team]; }
+  /**
+   * Which touchline a side's screen watches from: 1 is the usual one (z > 0). Online the
+   * away player watches from the other one, so both people attack left to right.
+   */
+  camSide(team: 0 | 1): 1 | -1 { return team === 1 && this.humans[1] ? -1 : 1; }
   opponents(team: 0 | 1) { return this.teams[team === 0 ? 1 : 0]; }
   get possession() { return this.ball.owner?.team ?? null; }
   speedMul(p: Player) {
@@ -328,11 +333,13 @@ export class Match {
       p.moodT += dt;
       p.sprint = p.mood === "celebrate";
       if (p.mood === "celebrate") {
-        const tx = attackX(p.team) * 0.7, tz = HALF_W - 4;
+        // Off towards the scoring side's camera, and face it.
+        const side = this.camSide(p.team);
+        const tx = attackX(p.team) * 0.7, tz = (HALF_W - 4) * side;
         const d = dist(p.pos, { x: tx, z: tz });
         const run = p.info.celebration === "kneeSlide" ? p.moodT < 0.9 : d > 0.8 && p.moodT < 2.6;
         p.want = run ? { x: ((tx - p.pos.x) / d) * 6.5, z: ((tz - p.pos.z) / d) * 6.5 } : { x: 0, z: 0 };
-        if (!run) p.look = angleOf(0, 1); // face the camera
+        if (!run) p.look = angleOf(0, side);
       } else if (this.state === "goal" && p.team === this.lastGoalTeam && this.lastScorer) {
         const s = this.lastScorer.pos;
         const d = dist(p.pos, s);
