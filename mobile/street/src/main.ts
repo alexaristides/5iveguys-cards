@@ -34,7 +34,8 @@ renderer.toneMappingExposure = 1.05;
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog("#2a1748", 60, 170);
-scene.add(buildArena().group);
+const arena = buildArena().group;
+scene.add(arena);
 const rig = new CameraRig();
 const fx = new Fx(scene);
 const audio = new Audio();
@@ -143,6 +144,16 @@ function endMatch() {
   menuOpen = false;
   marker.visible = false;
   input.setEnabled(false);
+  setView(1);
+}
+
+/**
+ * Which touchline this screen watches from (`Match.camSide`). From the other one the
+ * cage is turned round with the camera, so it looks the same and only the match is mirrored.
+ */
+function setView(side: 1 | -1) {
+  rig.flipped = input.mirrored = side < 0;
+  arena.rotation.y = side < 0 ? Math.PI : 0;
 }
 
 /** Auto switch (pause menu), on unless turned off. */
@@ -162,6 +173,7 @@ function startMatch(home: RosterPlayer[], away: RosterPlayer[], d: Difficulty, n
   for (const p of [...home, ...away]) models.get(p.key)!.root.visible = true;
   match = new Match(scene, home, away, d, (p) => models.get(p.key)!, net ? { humans: [true, true], userTeam: net.side } : {});
   match.autoSwitch = autoSwitch;
+  setView(match.camSide(match.userTeam));
   markerRing.color.set(net?.side === 1 ? KITS.black.hud : KITS.home.hud);
   if (!inApp) {
     // Dev: inspect from the console; ?autopilot lets the CPU play both sides.

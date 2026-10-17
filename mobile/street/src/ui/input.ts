@@ -23,6 +23,8 @@ export class Input {
   private passHeld = false;
   private shootHeld = false;
   private enabled = false;
+  /** The camera's on the other touchline (online, playing away): right on the stick is -x on the pitch. */
+  mirrored = false;
 
   readonly root: HTMLElement;
   private zone: HTMLElement;
@@ -204,6 +206,7 @@ export class Input {
     const ky = (k.has("s") || k.has("arrowdown") ? 1 : 0) - (k.has("w") || k.has("arrowup") ? 1 : 0);
     const keyboard = kx !== 0 || ky !== 0;
     if (keyboard) { const l = Math.hypot(kx, ky); x = kx / l; y = ky / l; }
+    if (this.mirrored) { x = -x; y = -y; }
     const pad: Pad = {
       move: { x, z: y },
       passDown: this.edges.passDown,

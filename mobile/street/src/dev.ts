@@ -2,7 +2,7 @@
  * Dev tools for the browser console (not used in the app):
  *   __sim(20)     headless CPU-vs-CPU matches → goals, shots, tackles… (balance)
  *   __glitch(10)  the same, checking every frame for glitches and the camera
- *                 losing the ball
+ *                 losing the ball (every other match filmed from the other touchline)
  *   __duel(200, { pace: 90 })  what one stat is worth (see below)
  *   __switching(10)  how auto switch behaves for a stand-in user (see below)
  * Each match draws two random teams of three from the squad; pass player keys
@@ -155,6 +155,7 @@ export function installDevTools(roster: RosterPlayer[]) {
       const sim = newSim(roster, d, keys);
       const rig = new CameraRig();
       rig.resize(aspect * 390, 390);
+      rig.flipped = i % 2 === 1; // the online away player's view
       const prevPos = new Map(sim.players.map((p) => [p, { ...p.pos }]));
       const prevFacing = new Map(sim.players.map((p) => [p, p.facing]));
       const prevVel = new Map(sim.players.map((p) => [p, { ...p.vel }]));
