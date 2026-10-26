@@ -13,6 +13,7 @@ import { KITS } from "./rig/kits";
 import { buildPlayer, type PlayerModel } from "./rig/model";
 import type { RosterPlayer } from "./roster";
 import { Online } from "./online";
+import { installFullscreen } from "./ui/fullscreen";
 import { Hud, pauseSheet, resultSheet } from "./ui/hud";
 import { Input } from "./ui/input";
 import { Select } from "./ui/select";
@@ -22,6 +23,8 @@ import { Fx } from "./world/fx";
 
 const inApp = !!host.app || !!window.ReactNativeWebView;
 const ui = document.body;
+// On the website on a phone: get the browser's bars out of the way.
+installFullscreen(inApp);
 
 // ── Renderer and world ─────────────────────────────────────────────────────
 

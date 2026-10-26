@@ -15,6 +15,12 @@ import { JOG, Player, PLAYER_R, rate } from "./player";
 export const MATCH_SECONDS = 180;
 const GOLDEN_GOAL_SECONDS = 60;
 const FIVE_MODE_SECONDS = 15;
+/**
+ * 5IVE MODE (style fills a meter that powers your team up for a while) is
+ * switched off for now: the glow made both teams look the same colour and it
+ * wasn't clear how it worked. Style moves still score for the man of the match.
+ */
+export const FIVE_MODE = false;
 
 /**
  * How far from a player the ball can be for them to take it (m): good first
@@ -1290,7 +1296,7 @@ export class Match {
   addStyle(p: Player, text: string, meter: number, points: number) {
     this.style.set(p, (this.style.get(p) ?? 0) + points);
     this.emit({ type: "style", team: p.team, text });
-    if (this.fiveMode[p.team] > 0) return;
+    if (!FIVE_MODE || this.fiveMode[p.team] > 0) return;
     this.meter[p.team] = Math.min(1, this.meter[p.team] + meter);
     if (this.meter[p.team] >= 1) {
       this.meter[p.team] = 0;

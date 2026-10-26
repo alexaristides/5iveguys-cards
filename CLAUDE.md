@@ -82,6 +82,8 @@ New users receive 100 free starting points (via the `createUser` NextAuth event 
   - Testing needs two signed-in users: temp `User` + `Session` rows (see the iOS notes), each game in a same-origin iframe of one visible tab with `__STREET__ = { token }` set before `document.write`ing `/street` (a background tab's rAF is throttled to ~2 fps, which stalls a host). `__online` and `__match` in each frame's console.
 - The match camera must keep the ball inside `SAFE` (`world/camera.ts`), clear of the scoreboard and touch controls.
 - iOS ignores `user-scalable=no`/`touch-action` for double-tap zoom and pinch, which cancel held touches; `ui/input.ts` cancels the touch events on the stick and buttons to stop that (the game reads pointer events). Keep new controls inside those elements.
+- Full screen on the website (`ui/fullscreen.ts`, phones/tablets only, never in the app): where the Fullscreen API exists (Android, iPad) a tap goes full screen and locks landscape. iPhone Safari has no Fullscreen API for pages (checked on iOS 26.5), so the page is made scrollable behind a "Swipe up for full screen" card shown in landscape; the swipe tucks Safari's bars away, the page then locks, and the card returns if the bars do. Added to the Home Screen it opens full screen (`public/street/manifest.webmanifest` + apple meta tags in `street/index.html`).
+- 5IVE MODE (style meter → team power-up and glow) is switched off by `FIVE_MODE` in `game/match.ts` (the glow made both teams look the same colour and it was confusing); its meters are hidden.
 
 ### Key files
 

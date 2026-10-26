@@ -8,6 +8,13 @@
 <meta property="og:title" content="5IVE STREET — 3v3 street football" />
 <meta property="og:description" content="3v3 street football in 3D with the 5ive Guys squad. Free to play." />
 <meta name="theme-color" content="#0b0614" />
+<!-- Added to a phone's Home Screen, it opens full screen like an app. -->
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="5IVE STREET" />
+<link rel="manifest" href="/street/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/street/icon.png" />
 <style>
   :root {
     --purple: #a855f7;
@@ -156,6 +163,16 @@
   #rotate .phone { width: 44px; height: 76px; border: 3px solid #c084fc; border-radius: 10px; animation: turn 1.6s ease-in-out infinite; }
   @keyframes turn { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
   @media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
+  /* iPhone Safari on the website: swipe up to tuck the browser's bars away (ui/fullscreen.ts). */
+  html.ios-bars, html.ios-bars body { height: auto; min-height: 100%; overflow: visible; }
+  #swipe-room { height: 300vh; }
+  #swipe { display: none; position: fixed; inset: 0; z-index: 30; background: rgba(11,6,20,0.82); color: #fff; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; }
+  #swipe .display { font-size: 30px; }
+  #swipe .sub { color: #a1a1aa; font-size: 15px; }
+  #swipe .hand { font-size: 40px; font-weight: 900; color: #c084fc; animation: swipe 1.2s ease-in-out infinite; }
+  @keyframes swipe { 0% { transform: translateY(14px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(-14px); opacity: 0; } }
+  html.swipe #swipe { display: flex; }
+  html.swipe, html.swipe body, html.swipe #swipe { touch-action: pan-y; }
   .loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; background: #0b0614; z-index: 10; }
 
   /* ── Online ──────────────────────────────────────────────────── */

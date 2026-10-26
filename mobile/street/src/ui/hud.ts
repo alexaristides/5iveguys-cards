@@ -1,5 +1,5 @@
 /** In-match HUD, pause menu and the full-time screen (DOM over the canvas). */
-import type { Match } from "../game/match";
+import { FIVE_MODE, type Match } from "../game/match";
 import type { Player } from "../game/player";
 import { KITS, type KitId } from "../rig/kits";
 
@@ -45,7 +45,7 @@ export class Hud {
         </div>
         <div class="banner display hidden"></div>
         <div class="link hidden"></div>
-        <div class="meters"><div class="meter" data-mh><i></i></div><div class="meter away" data-ma><i></i></div></div>
+        <div class="meters${FIVE_MODE ? "" : " hidden"}"><div class="meter" data-mh><i></i></div><div class="meter away" data-ma><i></i></div></div>
         <div class="onball display hidden"></div>
         <div class="me display hidden"><span></span><i class="tank"><b></b></i></div>
       </div>`);
