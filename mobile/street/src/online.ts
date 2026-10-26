@@ -6,7 +6,7 @@
  */
 import { host, send } from "./bridge";
 import { getMe, listRooms, signInOnWebsite, type Me } from "./net/api";
-import type { GameMsg, RoomMsg } from "./net/protocol";
+import { GAME_VERSION, type GameMsg, type RoomMsg } from "./net/protocol";
 import { cleanCode, isCode, Room, RoomError, type RoomEvent } from "./net/room";
 import { HostSync, INPUT_RATE, PadSender, RATE, Replica } from "./net/sync";
 import { dist } from "./math";
@@ -137,7 +137,7 @@ export class Online {
       const room = await Room.join(this.me!, code);
       this.enter(room);
       this.names[0] = room.opponent?.name ?? "Host";
-      room.send({ t: "hello", name: this.me!.user.name, prefs: this.hooks.select.savedPicks() });
+      room.send({ t: "hello", name: this.me!.user.name, prefs: this.hooks.select.savedPicks(), v: GAME_VERSION });
       this.startDraft();
     } catch (e) {
       const why = e instanceof RoomError ? e.reason : "offline";
@@ -200,7 +200,7 @@ export class Online {
         this.setOpponent(e.name);
         if (this.side === 0) {
           // Someone's in: pick teams (their hello brings their name and last picks).
-          room.send({ t: "hello", name: this.me!.user.name });
+          room.send({ t: "hello", name: this.me!.user.name, v: GAME_VERSION });
           this.startDraft();
           room.connectDirect();
         }
@@ -219,6 +219,7 @@ export class Online {
     switch (msg.t) {
       case "hello":
         this.setOpponent(msg.name);
+        if ((msg.v ?? 1) !== GAME_VERSION) { this.versionClash(msg.v ?? 1); return; }
         if (host && msg.prefs) {
           const valid = new Set(this.hooks.roster.map((p) => p.key));
           L.away = msg.prefs.filter((k) => valid.has(k) && !L.home.includes(k)).slice(0, 3);
@@ -265,6 +266,15 @@ export class Online {
       this.draft.labels[this.side === 0 ? 1 : 0] = short(name);
       this.hooks.select.setTeams(this.lineup.home, this.lineup.away, this.lineup.ready);
     }
+  }
+
+  /** The other phone has a different version of the game: they can't play each other. */
+  private versionClash(theirs: number) {
+    const name = this.opponent || "Your opponent";
+    this.leave();
+    this.open(theirs < GAME_VERSION
+      ? `${name} has an older version of 5IVE STREET. They need to update to play you.`
+      : `${name} has a newer version of 5IVE STREET. ${this.inApp ? "Update the app" : "Refresh the page"} to play them.`);
   }
 
   private opponentLeft() {

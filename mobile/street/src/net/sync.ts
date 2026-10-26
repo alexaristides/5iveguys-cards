@@ -11,6 +11,7 @@
  */
 import { clamp, wrapAngle } from "../math";
 import { BALL_R } from "../game/field";
+import { CELEBRATIONS } from "../roster";
 import { IDLE_PAD, type Match, type MatchEvent, type Pad, type Scorer } from "../game/match";
 import type { KickInfo } from "../game/ball";
 import type { Action, Player } from "../game/player";
@@ -66,8 +67,9 @@ export class HostSync {
         r2(m.meter[0]), r2(m.meter[1]), r2(m.fiveMode[0]), r2(m.fiveMode[1]),
         idx(m, m.humans[0]?.user), idx(m, m.humans[1]?.user), idx(m, b.owner), idx(m, m.lastScorer),
         k ? KICKS.indexOf(k.kind) : -1, idx(m, k?.by), idx(m, k?.target),
+        m.lastScorer ? CELEBRATIONS.indexOf(m.lastScorer.celebration) : -1,
       ],
-      b: [r3(b.pos.x), r3(b.pos.y), r3(b.pos.z), r2(b.vel.x), r2(b.vel.y), r2(b.vel.z)],
+      b: [r3(b.pos.x), r3(b.pos.y), r3(b.pos.z), r2(b.vel.x), r2(b.vel.y), r2(b.vel.z), r2(b.spin.x), r2(b.spin.y), r2(b.spin.z)],
       p: m.players.map((p) => {
         const a = p.action;
         const flags = (p.sprinting ? 1 : 0) | (p.winded ? 2 : 0) | (p.jockeying ? 4 : 0) | (p.glow ? 8 : 0);
@@ -270,6 +272,7 @@ export class Replica {
     ball.vel.set(lerp(ba[3], bb[3]), lerp(ba[4], bb[4]), lerp(ba[5], bb[5]));
     ball.pos.set(lerp(ba[0], bb[0]) + ball.vel.x * ahead, Math.max(BALL_R, lerp(ba[1], bb[1]) + ball.vel.y * ahead), lerp(ba[2], bb[2]) + ball.vel.z * ahead);
     ball.owner = at(gd[12]);
+    if (bb.length > 6) ball.spin.set(bb[6], bb[7], bb[8]);
     const key = `${gd[14]}|${gd[15]}|${gd[16]}`;
     if (key !== this.kickKey) {
       this.kickKey = key;
@@ -283,8 +286,11 @@ export class Replica {
     P.forEach((p, i) => {
       const A = a.p[i], B = b.p[i], D = d.p[i];
       if (!A || !B || !D) return;
+      // Leaning into turns, from how the run's heading changes.
+      const was = Math.atan2(p.vel.x, p.vel.z);
       p.vel.x = lerp(A[2], B[2]);
       p.vel.z = lerp(A[3], B[3]);
+      p.lean = p.speed > 1 && dt > 0 ? (wrapAngle(Math.atan2(p.vel.x, p.vel.z) - was) / dt) * p.speed : 0;
       p.pos.x = lerp(A[0], B[0]) + p.vel.x * ahead;
       p.pos.z = lerp(A[1], B[1]) + p.vel.z * ahead;
       p.facing = A[4] + wrapAngle(B[4] - A[4]) * k;
@@ -295,6 +301,9 @@ export class Replica {
       p.glow = (D[6] & 8) !== 0;
       p.stamina = lerp(A[7], B[7]);
       p.mood = MOODS[D[8]] ?? "play";
+      // The scorer's celebration (teammates who join in do the same one).
+      const cel = CELEBRATIONS[gd[17]];
+      if (p.mood === "celebrate" && cel) p.celebration = cel;
       p.moodT = A[8] === B[8] ? lerp(A[9], B[9]) : D[9];
       if (D[10] < 0) p.action = null;
       else {

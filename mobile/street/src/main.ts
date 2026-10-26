@@ -7,6 +7,7 @@ import { Audio } from "./audio";
 import { applyRatings, fetchWebRatings, haptic, host, rosterWithRatings, send } from "./bridge";
 import { loadImage } from "./faces";
 import { faceSheet, installDevTools } from "./dev";
+import { HALF_L } from "./game/field";
 import { DIFFICULTIES, IDLE_PAD, Match, type Difficulty, type MatchEvent } from "./game/match";
 import { KITS } from "./rig/kits";
 import { buildPlayer, type PlayerModel } from "./rig/model";
@@ -250,7 +251,7 @@ function handleEvents(m: Match, events: MatchEvent[]) {
         const who = e.og ? "Own goal" : e.scorer?.name ?? "";
         hud?.popup("GOAL!", e.label ? `${who} · ${e.label}` : who, e.team !== 0);
         const kit = e.team === 0 ? KITS.home : KITS.black;
-        fx.confetti(new THREE.Vector3(e.team === 0 ? 15.4 : -15.4, 0.5, 0), [e.team === 0 ? kit.shirt : kit.hud, kit.trim, "#ffffff"]);
+        fx.confetti(new THREE.Vector3((e.team === 0 ? 1 : -1) * (HALF_L + 0.4), 0.5, 0), [e.team === 0 ? kit.shirt : kit.hud, kit.trim, "#ffffff"]);
         break;
       }
       case "kickoff":
@@ -364,6 +365,8 @@ renderer.setAnimationLoop(() => {
 if (!inApp) {
   installDevTools(roster);
   (window as unknown as { __online: Online }).__online = online;
+  // The renderer, scene and camera, for grabbing frames from the console.
+  (window as unknown as { __gfx: unknown }).__gfx = { renderer, scene, rig };
 }
 
 document.getElementById("loading")?.remove();

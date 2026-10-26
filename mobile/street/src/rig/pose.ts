@@ -22,7 +22,8 @@ const IDX = Object.fromEntries(JOINTS.map((j, i) => [j, i * 3])) as Record<J, nu
 const LIFT = JOINTS.length * 3;
 const TILT = LIFT + 1; // body rotation x, y, z
 const YAW = TILT + 3; // extra spin (roulette, siuu) — not eased
-const N = YAW + 1;
+const FLIP = YAW + 1; // somersault about the hips (backflip) — not eased
+const N = FLIP + 1;
 
 export class Pose {
   v = new Float32Array(N);
@@ -35,6 +36,8 @@ export class Pose {
   lift(h: number) { this.v[LIFT] = h; return this; }
   tilt(x: number, y = 0, z = 0) { this.v[TILT] = x; this.v[TILT + 1] = y; this.v[TILT + 2] = z; return this; }
   yaw(a: number) { this.v[YAW] = a; return this; }
+  /** Somersault about the hips (radians, − = backwards). Not eased, so whole turns end where they started. */
+  flip(a: number) { this.v[FLIP] = a; return this; }
 }
 
 /** Piecewise-smooth keyframes: [[t0, v0], [t1, v1], …] sampled at t. */
@@ -60,13 +63,17 @@ export class Animator {
     const c = this.cur.v, t = this.target.v;
     for (let i = 0; i < YAW; i++) c[i] = damp(c[i], t[i], rate, dt);
     c[YAW] = t[YAW];
+    c[FLIP] = t[FLIP];
     const j = this.model.joints;
     for (const name of JOINTS) {
       const i = IDX[name];
       j[name].rotation.set(c[i], c[i + 1], c[i + 2]);
     }
-    this.model.body.position.y = c[LIFT];
-    this.model.body.rotation.set(c[TILT], c[TILT + 1] + c[YAW], c[TILT + 2]);
+    // The body pivots at the feet; a flip turns it about the hips instead.
+    const f = c[FLIP];
+    const hip = this.model.hipHeight * this.model.body.scale.y;
+    this.model.body.position.set(0, c[LIFT] + hip * (1 - Math.cos(f)), -hip * Math.sin(f));
+    this.model.body.rotation.set(c[TILT] + f, c[TILT + 1] + c[YAW], c[TILT + 2]);
   }
 
   snap() { this.cur.v.set(this.target.v); this.update(0); }
@@ -354,5 +361,172 @@ export function celebrate(p: Pose, kind: Celebration, t: number, runPhase: numbe
         .x("lElbow", -0.15).x("rElbow", -0.15).x("neck", -0.5).x("spine", -0.05);
       return;
     }
+    case "backflip": {
+      // Run in, plant, crouch, flip backwards tucked, land, arms out.
+      if (t < 0.95) { run(p, runPhase, s, false); return; }
+      if (t < 1.15) { crouch(p, smooth((t - 0.95) / 0.2)); return; }
+      if (t < 1.75) {
+        const k = (t - 1.15) / 0.6;
+        const tuck = Math.sin(Math.PI * clamp(k * 1.15, 0, 1));
+        p.reset()
+          .x("spine", 0.3 * tuck).x("neck", 0.3 * tuck)
+          .set("lHip", -1.7 * tuck, 0, 0.12).set("rHip", -1.7 * tuck, 0, -0.12)
+          .x("lKnee", 0.3 + 1.9 * tuck).x("rKnee", 0.3 + 1.9 * tuck)
+          .set("lShoulder", -2.6 + 1.3 * tuck, 0, 0.3).set("rShoulder", -2.6 + 1.3 * tuck, 0, -0.3)
+          .x("lElbow", -0.6 * tuck).x("rElbow", -0.6 * tuck)
+          .lift(0.85 * Math.sin(Math.PI * k))
+          .flip(-Math.PI * 2 * smooth(k));
+        return;
+      }
+      if (t < 2.0) { crouch(p, 1 - smooth((t - 1.75) / 0.25) * 0.6); return; }
+      armsWide(p, t);
+      return;
+    }
+    case "bellyDive": {
+      // Run, dive full length, slide on the belly, kicking the legs.
+      if (t < 0.9) { run(p, runPhase, s, false); return; }
+      const dv = smooth(clamp((t - 0.9) / 0.22, 0, 1));
+      const kickL = Math.sin(t * 9) * 0.35 * clamp(t - 1.3, 0, 1);
+      p.reset()
+        .x("spine", -0.25 * dv).x("neck", -0.7 * dv)
+        .set("lShoulder", -2.9 * dv, 0, 0.35).set("rShoulder", -2.9 * dv, 0, -0.35)
+        .x("lElbow", -0.2).x("rElbow", -0.2)
+        .set("lHip", 0.1 * dv, 0, 0.08).set("rHip", 0.1 * dv, 0, -0.08)
+        .x("lKnee", (0.5 + kickL) * dv).x("rKnee", (0.5 - kickL) * dv)
+        .tilt(1.42 * dv, 0, 0)
+        .lift(0.16 * dv);
+      return;
+    }
+    case "shush": {
+      if (t < 0.7) { run(p, runPhase, s, false); return; }
+      stand(p, t)
+        .x("spine", 0.12).x("neck", 0.05).y("neck", 0.15 * Math.sin(t * 1.3))
+        // Finger to the lips…
+        .set("rShoulder", -1.3, 0, 0.55).x("rElbow", -2.3)
+        // …other hand on the hip.
+        .set("lShoulder", 0.15, 0, 0.6).set("lElbow", 0, 0, -1.8);
+      return;
+    }
+    case "cupEars": {
+      // Can't hear you: hands cupped to the ears, leaning one way then the other.
+      if (t < 0.7) { run(p, runPhase, s, false); return; }
+      const lean = Math.sin((t - 0.7) * 3.2);
+      stand(p, t)
+        .x("spine", -0.05).z("spine", 0.12 * lean).z("neck", 0.2 * lean)
+        .set("lShoulder", -0.35, 0, 1.45).set("lElbow", 0, 0, 2.45)
+        .set("rShoulder", -0.35, 0, -1.45).set("rElbow", 0, 0, -2.45);
+      return;
+    }
+    case "robot": {
+      // Stiff, on the beat: the arms snap between positions and the body ticks round.
+      if (t < 0.7) { run(p, runPhase, s, false); return; }
+      const beat = Math.floor((t - 0.7) * 4);
+      const f = ROBOT[beat % ROBOT.length];
+      p.reset()
+        .set("lHip", -0.05, 0, 0.1).set("rHip", -0.05, 0, -0.1).x("lKnee", 0.15).x("rKnee", 0.15)
+        .set("lShoulder", f[0], 0, f[1]).x("lElbow", f[2])
+        .set("rShoulder", f[3], 0, f[4]).x("rElbow", f[5])
+        .y("neck", f[6]).yaw(f[7])
+        .lift(beat % 2 ? -0.02 : 0);
+      return;
+    }
+    case "dance": {
+      if (t < 0.7) { run(p, runPhase, s, false); return; }
+      const w = (t - 0.7) * 6.5;
+      const sw = Math.sin(w), bounce = Math.abs(Math.sin(w));
+      p.reset()
+        .y("pelvis", 0.3 * sw).y("spine", -0.35 * sw).x("spine", 0.05).z("neck", 0.15 * sw)
+        .set("lHip", -0.15, 0, 0.14).set("rHip", -0.15, 0, -0.14)
+        .x("lKnee", 0.25 + 0.3 * bounce).x("rKnee", 0.25 + 0.3 * bounce)
+        .set("lShoulder", -1.7 - 0.9 * sw, 0, 0.5).x("lElbow", -0.7)
+        .set("rShoulder", -1.7 + 0.9 * sw, 0, -0.5).x("rElbow", -0.7)
+        .tilt(0, 0, 0.08 * sw)
+        .lift(-0.06 * bounce);
+      return;
+    }
+    case "salute": {
+      if (t < 0.7) { run(p, runPhase, s, false); return; }
+      stand(p, t)
+        .x("spine", -0.12).x("neck", -0.12)
+        .set("lHip", 0, 0, 0.03).set("rHip", 0, 0, -0.03)
+        .set("lShoulder", 0.02, 0, 0.08).x("lElbow", -0.05)
+        .set("rShoulder", -1.15, 0, -1.05).set("rElbow", -2.35, 0, 0);
+      return;
+    }
+    case "rockBaby": {
+      // Rocking the baby: arms cradled in front, swaying side to side.
+      if (t < 0.7) { run(p, runPhase, s, false); return; }
+      const rock = Math.sin((t - 0.7) * 5);
+      stand(p, t)
+        .x("spine", 0.15).y("spine", 0.3 * rock).x("neck", 0.35)
+        // Upper arms turned in, so the forearms cradle across the chest.
+        .set("lShoulder", -0.45, -0.85 + 0.25 * rock, 0.2).set("lElbow", -1.7, 0, 0)
+        .set("rShoulder", -0.45, 0.85 + 0.25 * rock, -0.2).set("rElbow", -1.7, 0, 0)
+        .tilt(0, 0, 0.05 * rock);
+      return;
+    }
+    case "calma": {
+      // Calm down: palms down, patting the air.
+      if (t < 0.7) { run(p, runPhase, s * 0.5, false); return; }
+      const pat = Math.sin((t - 0.7) * 7);
+      stand(p, t)
+        .x("spine", 0.08).x("neck", 0.1 + 0.08 * pat)
+        .set("lShoulder", -0.8 + 0.2 * pat, 0, 0.3).x("lElbow", -0.45)
+        .set("rShoulder", -0.8 + 0.2 * pat, 0, -0.3).x("rElbow", -0.45);
+      return;
+    }
+    case "archer": {
+      // Draw a bow at the sky, side-on, then let it go.
+      if (t < 0.7) { run(p, runPhase, s, false); return; }
+      const draw = smooth(clamp((t - 0.8) / 0.6, 0, 1));
+      const loose = t > 1.9 ? smooth(clamp((t - 1.9) / 0.15, 0, 1)) : 0;
+      p.reset()
+        .y("pelvis", 0.7).y("spine", 0.25).y("neck", -0.7).x("neck", -0.45).x("spine", -0.22)
+        .set("lHip", -0.35, 0, 0.25).set("rHip", 0.25, 0, -0.2).x("lKnee", 0.35).x("rKnee", 0.2)
+        // Bow arm up at the sky; the other hand draws back to the chin, then lets go behind.
+        .set("lShoulder", -2.3 * draw, 0, 0.3).x("lElbow", -0.05)
+        .set("rShoulder", -1.5 * draw * (1 - loose) + 0.5 * loose, 0, -0.25 - 0.45 * loose).x("rElbow", -2.6 * draw * (1 - loose) - 0.3 * loose)
+        .tilt(-0.08, 0, 0);
+      return;
+    }
   }
+}
+
+/** Arm positions for the robot, one per beat: left shoulder x/z, elbow, right shoulder x/z, elbow, head turn, body turn. */
+const ROBOT: number[][] = [
+  [-1.57, 0.1, -1.57, 0.05, -0.1, 0, 0, 0],
+  [-1.57, 0.1, -1.57, -1.57, -0.1, -1.57, 0.6, 0],
+  [0.05, 0.1, 0, -1.57, -0.1, -1.57, 0.6, -0.5],
+  [-1.57, 1.5, -1.57, -1.57, -1.5, -1.57, 0, -0.5],
+  [-1.57, 1.5, 0, -1.57, -1.5, 0, -0.6, 0],
+  [-3.0, 0.1, 0, 0.05, -0.1, 0, -0.6, 0.5],
+  [-1.57, 0.1, -1.57, -3.0, -0.1, 0, 0, 0.5],
+  [0.05, 0.1, 0, 0.05, -0.1, 0, 0, 0],
+];
+
+/** Standing tall, feet apart, breathing. */
+function stand(p: Pose, t: number) {
+  const breathe = Math.sin(t * 2.6) * 0.02;
+  return p.reset()
+    .x("spine", breathe).set("lHip", -0.03, 0, 0.12).set("rHip", -0.03, 0, -0.12)
+    .x("lKnee", 0.08).x("rKnee", 0.08).x("lAnkle", -0.05).x("rAnkle", -0.05)
+    .set("lShoulder", 0, 0, 0.1).set("rShoulder", 0, 0, -0.1).x("lElbow", -0.15).x("rElbow", -0.15);
+}
+
+/** Squatting down (k 0..1), arms swung back: winding up a jump or landing one. */
+function crouch(p: Pose, k: number) {
+  p.reset()
+    .x("spine", 0.45 * k).x("neck", -0.3 * k)
+    .set("lHip", -1.1 * k, 0, 0.12).set("rHip", -1.1 * k, 0, -0.12)
+    .x("lKnee", 1.9 * k).x("rKnee", 1.9 * k).x("lAnkle", -0.7 * k).x("rAnkle", -0.7 * k)
+    .set("lShoulder", 0.9 * k, 0, 0.2).set("rShoulder", 0.9 * k, 0, -0.2)
+    .lift(-0.32 * k);
+}
+
+/** Arms flung wide and chest out, soaking it up. */
+function armsWide(p: Pose, t: number) {
+  stand(p, t)
+    .x("spine", -0.2).x("neck", -0.35)
+    .set("lShoulder", -0.4, 0, 2.1).set("rShoulder", -0.4, 0, -2.1)
+    .x("lElbow", -0.2).x("rElbow", -0.2);
 }
