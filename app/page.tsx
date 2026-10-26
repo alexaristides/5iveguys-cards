@@ -1,34 +1,17 @@
 "use client";
 
 import { signIn, useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-
-interface Channel {
-  id: string;
-  slug: string;
-  name: string;
-  description: string | null;
-  thumbnailUrl: string | null;
-  rewardTags: string | null;
-  _count: { userStats: number };
-}
+import { WORLDS } from "@/lib/worlds";
 
 export default function HomePage() {
   const { status } = useSession();
   const router = useRouter();
-  const [channels, setChannels] = useState<Channel[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (status === "authenticated") {
-      router.push("/dashboard");
-      return;
-    }
-    fetch("/api/channels")
-      .then((r) => r.ok ? r.json() : { channels: [] })
-      .then((data) => { setChannels(data.channels ?? []); setLoading(false); });
+    if (status === "authenticated") router.push("/dashboard");
   }, [status, router]);
 
   if (status === "loading" || status === "authenticated") {
@@ -86,7 +69,7 @@ export default function HomePage() {
             5iveG
           </h1>
           <p className="text-zinc-400 text-lg max-w-lg mx-auto">
-            Earn points by engaging with your favourite YouTube channels and unlock exclusive rewards.
+            Get points for being a fan of 5ive Guys and Other Guys, and unlock exclusive rewards.
           </p>
         </div>
 
@@ -117,42 +100,35 @@ export default function HomePage() {
           </div>
         </a>
 
-        {/* 5ive Verse hero */}
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+        {/* 5ive Verse hero: pick a world to enter */}
+        <div className="relative overflow-hidden rounded-3xl border border-purple-500/30 bg-gradient-to-br from-purple-800/30 via-[#0b0714] to-[#0b0714] p-8 sm:p-10">
+          <div className="pointer-events-none absolute -right-10 -top-10 text-[160px] opacity-10">
+            🃏
           </div>
-        ) : channels.length === 0 ? (
-          <div className="text-center py-20 text-zinc-600">
-            <p className="text-xl mb-2">No channels yet</p>
-            <p className="text-sm">An admin needs to add a channel first.</p>
+          <div className="relative">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-500/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-purple-300">
+              ✦ Fan Zone · collect &amp; earn
+            </span>
+            <h2 className="mt-4 text-3xl font-extrabold leading-tight text-white sm:text-4xl">
+              Enter the <span className="text-purple-400">5ive Verse</span>
+            </h2>
+            <p className="mt-2 text-base text-zinc-300 sm:text-lg">
+              Be a fan, get points. <span className="text-zinc-400">Open packs. Collect cards.</span>
+            </p>
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {WORLDS.map((w) => (
+                <Link
+                  key={w.slug}
+                  href={`/${w.slug}`}
+                  className="group flex items-center justify-between rounded-2xl border border-purple-500/30 bg-purple-500/10 px-6 py-4 transition hover:border-purple-400/70 hover:bg-purple-500/20"
+                >
+                  <span className="text-lg font-extrabold text-white">{w.name}</span>
+                  <span className="text-purple-300 transition-transform group-hover:translate-x-1">Enter →</span>
+                </Link>
+              ))}
+            </div>
           </div>
-        ) : (
-          <Link
-            href={`/${channels[0].slug}`}
-            className="group relative block overflow-hidden rounded-3xl border border-purple-500/30 bg-gradient-to-br from-purple-800/30 via-[#0b0714] to-[#0b0714] p-8 transition hover:border-purple-500/60 sm:p-10"
-          >
-            <div className="pointer-events-none absolute -right-10 -top-10 text-[160px] opacity-10 transition group-hover:scale-110">
-              🃏
-            </div>
-            <div className="relative">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-500/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-purple-300">
-                ✦ {channels.length} channel{channels.length === 1 ? "" : "s"} · collect & earn
-              </span>
-              <h2 className="mt-4 text-3xl font-extrabold leading-tight text-white sm:text-4xl">
-                Enter the <span className="text-purple-400">5ive Verse</span>
-              </h2>
-              <p className="mt-2 text-base text-zinc-300 sm:text-lg">
-                Earn points across your favourite channels. <span className="text-zinc-400">Open packs. Collect cards.</span>
-              </p>
-              <div className="mt-6 flex flex-wrap items-center gap-4">
-                <span className="rounded-2xl bg-purple-500 px-6 py-3 text-base font-extrabold text-white shadow-lg shadow-purple-500/20 transition group-hover:bg-purple-400">
-                  Enter →
-                </span>
-              </div>
-            </div>
-          </Link>
-        )}
+        </div>
 
         {/* Footer */}
         <div className="mt-20 text-center space-y-3">

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { WORLD_SLUGS } from "@/lib/worlds";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -12,7 +13,7 @@ export async function GET() {
   const userId = session.user.id;
 
   const userStats = await prisma.userChannelStats.findMany({
-    where: { userId },
+    where: { userId, channel: { slug: { in: WORLD_SLUGS } } },
     include: {
       channel: {
         select: {

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
+import { worldName } from "@/lib/worlds";
 
 interface Channel {
   id?: string;
@@ -63,7 +64,7 @@ export default function ChannelSwitcher({ current, onSwitch }: ChannelSwitcherPr
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2 px-1.5 py-1 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors group"
-        aria-label="Switch channel"
+        aria-label="Switch world"
       >
         {current.thumbnailUrl ? (
           <div className="w-8 h-8 rounded-full overflow-hidden relative shrink-0">
@@ -100,7 +101,7 @@ export default function ChannelSwitcher({ current, onSwitch }: ChannelSwitcherPr
               {others.length > 0 && (
                 <div className="py-1.5">
                   <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-zinc-500">
-                    Switch channel
+                    Switch world
                   </p>
                   {others.map((ch) => (
                     <button
@@ -118,7 +119,7 @@ export default function ChannelSwitcher({ current, onSwitch }: ChannelSwitcherPr
                         </div>
                       )}
                       <span className="text-gray-800 dark:text-zinc-200 text-sm font-medium truncate">
-                        {ch.name}
+                        {worldName(ch.slug) ?? ch.name}
                       </span>
                     </button>
                   ))}
