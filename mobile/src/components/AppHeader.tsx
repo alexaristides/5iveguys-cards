@@ -3,34 +3,32 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { CHANNELS } from "@/lib/config";
 import { useChannel } from "@/lib/channel";
-import { useAccount, useMe } from "@/lib/queries";
+import { useAccount, useMe, useWorlds } from "@/lib/queries";
 import { colors } from "@/lib/theme";
 
-/** Shared top bar for the tabs: channel switch (or a title), points, account. */
+/** Shared top bar for the tabs: the world you're in (or a title), points, account. */
 export function AppHeader({ title }: { title?: string } = {}) {
   const insets = useSafeAreaInsets();
-  const { slug, setSlug } = useChannel();
+  const { slug, name } = useChannel();
   const { data: me } = useMe();
   const { data: account } = useAccount();
+  const { data: worlds } = useWorlds();
+  const crest = worlds?.get(slug)?.thumbnailUrl;
 
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
-      {title ? <Text style={styles.title}>{title}</Text> : <View style={styles.switcher}>
-        {CHANNELS.map((c) => {
-          const active = c.slug === slug;
-          return (
-            <Pressable
-              key={c.slug}
-              onPress={() => { if (!active) { Haptics.selectionAsync(); setSlug(c.slug); } }}
-              style={[styles.seg, active && styles.segActive]}
-            >
-              <Text style={[styles.segText, active && styles.segTextActive]}>{c.name}</Text>
-            </Pressable>
-          );
-        })}
-      </View>}
+      {title ? <Text style={styles.title}>{title}</Text> : (
+        <Pressable
+          onPress={() => { Haptics.selectionAsync(); router.push("/worlds"); }}
+          hitSlop={8}
+          style={({ pressed }) => [styles.world, pressed && { opacity: 0.7 }]}
+        >
+          {crest ? <Image source={{ uri: crest }} style={styles.crest} /> : <View style={[styles.crest, styles.avatarFallback]} />}
+          <Text style={styles.worldName}>{name}</Text>
+          <Text style={styles.chevron}>▾</Text>
+        </Pressable>
+      )}
       <View style={styles.right}>
         <View style={styles.points}>
           <Text style={styles.pointsText}>⚡ {me ? me.points.toLocaleString() : "–"}</Text>
@@ -55,11 +53,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingBottom: 10, backgroundColor: colors.bg,
   },
   title: { color: colors.text, fontSize: 20, fontWeight: "900" },
-  switcher: { flexDirection: "row", backgroundColor: colors.card, borderRadius: 12, padding: 3 },
-  seg: { paddingHorizontal: 12, height: 30, borderRadius: 9, justifyContent: "center" },
-  segActive: { backgroundColor: colors.accent },
-  segText: { color: colors.text2, fontSize: 13, fontWeight: "700" },
-  segTextActive: { color: "#fff" },
+  world: {
+    flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.card,
+    borderRadius: 18, paddingLeft: 4, paddingRight: 12, height: 36,
+  },
+  crest: { width: 28, height: 28, borderRadius: 14 },
+  worldName: { color: colors.text, fontSize: 15, fontWeight: "800" },
+  chevron: { color: colors.text2, fontSize: 12 },
   right: { flexDirection: "row", alignItems: "center", gap: 10 },
   points: {
     backgroundColor: "rgba(147,51,234,0.18)", borderColor: "rgba(168,85,247,0.4)", borderWidth: 1,

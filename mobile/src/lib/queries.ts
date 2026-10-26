@@ -1,12 +1,13 @@
 import { useCallback, useRef } from "react";
 import { useFocusEffect } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 import { useChannel } from "./channel";
+import { CHANNELS } from "./config";
 import { ROSTER, type FanAverages } from "../../street/src/roster";
 import type {
   Account, CollectionItem, DbCard, FantasyGameweekResult, FantasyLeaderboard, FantasyOverview, Me, MotmResults, Record3,
-  Video, VotesResponse,
+  Video, VotesResponse, World,
 } from "./types";
 
 /** Refetch when a screen comes back into focus (skips the first focus, which mounts). */
@@ -26,6 +27,27 @@ export function useMe() {
   return useQuery({
     queryKey: ["me", slug],
     queryFn: () => api<Me>(`/api/user?channelSlug=${slug}`),
+  });
+}
+
+/** Crest and fan count for each world (public list), keyed by slug. */
+export function useWorlds() {
+  return useQuery({
+    queryKey: ["worlds"],
+    queryFn: () =>
+      api<{ channels: World[] }>("/api/channels")
+        .then((r) => new Map(r.channels.map((c) => [c.slug, c]))),
+    staleTime: 10 * 60_000,
+  });
+}
+
+/** Your points in every world (shares the cache with useMe). */
+export function useWorldPoints() {
+  return useQueries({
+    queries: CHANNELS.map((c) => ({
+      queryKey: ["me", c.slug],
+      queryFn: () => api<Me>(`/api/user?channelSlug=${c.slug}`),
+    })),
   });
 }
 
