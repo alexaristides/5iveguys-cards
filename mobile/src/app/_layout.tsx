@@ -50,6 +50,7 @@ function RootStack() {
           name="motm/[videoId]"
           options={{ presentation: "formSheet", sheetAllowedDetents: [0.92], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
         />
+        <Stack.Screen name="worlds" options={{ presentation: "fullScreenModal" }} />
         <Stack.Screen
           name="settings"
           options={{ presentation: "formSheet", sheetAllowedDetents: [0.55], sheetGrabberVisible: true, sheetCornerRadius: 24 }}

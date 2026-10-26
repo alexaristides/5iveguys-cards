@@ -70,7 +70,7 @@ export default function PlayersTab() {
           <Chip label="A–Z" active={sort === "name"} onPress={() => setSort("name")} />
         </View>
         {body}
-        <Text style={styles.footnote}>Tap a player to rate them. +10 pts the first time you rate each player.</Text>
+        <Text style={styles.footnote}>Tap a player to rate them.</Text>
       </ScrollView>
     </View>
   );

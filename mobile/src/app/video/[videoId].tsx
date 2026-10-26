@@ -3,7 +3,6 @@ import { AppState, Linking, StyleSheet, Text, useWindowDimensions, View } from "
 import { router, useLocalSearchParams } from "expo-router";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { useQueryClient } from "@tanstack/react-query";
-import { POINTS_CONFIG } from "@shared/cards";
 import { Button } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useChannel } from "@/lib/channel";
@@ -75,8 +74,8 @@ export default function VideoSheet() {
           {cappedOut
             ? "Max watch points reached for this video"
             : playing
-              ? `Earning +${POINTS_CONFIG.watchMinute} pts per minute`
-              : "Press play to start earning"}
+              ? "Watching"
+              : "Press play to watch"}
         </Text>
       </View>
       {earned > 0 && <Text style={styles.earned}>+{earned} points earned</Text>}
@@ -90,7 +89,6 @@ export default function VideoSheet() {
         title="🏆  Vote MOTM"
         onPress={() => router.push({ pathname: "/motm/[videoId]", params: { videoId } })}
       />
-      <Text style={styles.hint}>Likes count after you tap Sync YouTube.</Text>
     </View>
   );
 }
@@ -103,5 +101,4 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { color: colors.text2, fontSize: 14 },
   earned: { color: colors.gold, fontSize: 16, fontWeight: "900" },
-  hint: { color: colors.text3, fontSize: 12, textAlign: "center" },
 });
