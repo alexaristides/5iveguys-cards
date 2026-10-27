@@ -18,6 +18,13 @@ export class TeamAI {
 
   constructor(private m: Match, readonly team: 0 | 1) {}
 
+  /** A sub came on: drop anything held about who's who. */
+  forget() {
+    this.presser = null;
+    this.nextThink.clear();
+    this.stuck.clear();
+  }
+
   private get cpu() { return this.m.isCpu(this.team) || this.m.autopilot; }
   /** The player a person is controlling on this side (the AI leaves them be), if any. */
   private get human() { return this.m.autopilot ? null : this.m.humans[this.team]?.user ?? null; }
