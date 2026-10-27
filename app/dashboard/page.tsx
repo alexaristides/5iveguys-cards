@@ -271,6 +271,9 @@ export default function DashboardPage() {
             <button onClick={() => setActiveMode("play")} className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors">
               Game
             </button>
+            <Link href="/fantasy" className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors">
+              Fantasy
+            </Link>
             <Link href="/settings" className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors">
               Settings
             </Link>
@@ -316,11 +319,11 @@ export default function DashboardPage() {
             <p className="text-zinc-400 text-sm mb-8">What do you want to do today?</p>
 
             {/* Mode cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-2xl">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-2xl md:max-w-none">
               {/* Collect */}
               <button
                 onClick={() => setActiveMode("collect")}
-                className="group text-left rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-purple-600/70 hover:shadow-lg hover:shadow-purple-900/20 transition-all duration-200 p-6"
+                className="group text-left rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-purple-600/70 hover:shadow-lg hover:shadow-purple-900/20 transition-all duration-200 p-6 flex flex-col"
               >
                 <div className="w-12 h-12 rounded-xl bg-purple-900/60 border border-purple-700/50 flex items-center justify-center mb-4 group-hover:bg-purple-800/70 transition-colors">
                   <span className="text-2xl leading-none">🃏</span>
@@ -329,7 +332,7 @@ export default function DashboardPage() {
                 <p className="text-zinc-500 text-sm leading-relaxed">
                   Earn points by engaging with your favourite channels — subscribe, like videos, and sync your activity. Spend points to open card packs and build your collection.
                 </p>
-                <div className="mt-5 flex items-center gap-1.5 text-purple-400 text-sm font-semibold">
+                <div className="mt-auto pt-5 flex items-center gap-1.5 text-purple-400 text-sm font-semibold">
                   <span>Enter</span>
                   <span className="group-hover:translate-x-1 transition-transform">→</span>
                 </div>
@@ -338,7 +341,7 @@ export default function DashboardPage() {
               {/* Play */}
               <button
                 onClick={() => setActiveMode("play")}
-                className="group text-left rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-green-600/70 hover:shadow-lg hover:shadow-green-900/20 transition-all duration-200 p-6"
+                className="group text-left rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-green-600/70 hover:shadow-lg hover:shadow-green-900/20 transition-all duration-200 p-6 flex flex-col"
               >
                 <div className="w-12 h-12 rounded-xl bg-green-900/60 border border-green-700/50 flex items-center justify-center mb-4 group-hover:bg-green-800/70 transition-colors">
                   <span className="text-2xl leading-none">⚽</span>
@@ -347,11 +350,29 @@ export default function DashboardPage() {
                 <p className="text-zinc-500 text-sm leading-relaxed">
                   Jump into a football simulation, challenge another fan to a live 1v1 PvP match, or check where you rank on the leaderboard.
                 </p>
-                <div className="mt-5 flex items-center gap-1.5 text-green-400 text-sm font-semibold">
+                <div className="mt-auto pt-5 flex items-center gap-1.5 text-green-400 text-sm font-semibold">
                   <span>Enter</span>
                   <span className="group-hover:translate-x-1 transition-transform">→</span>
                 </div>
               </button>
+
+              {/* Fantasy */}
+              <Link
+                href="/fantasy"
+                className="group text-left rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-amber-500/70 hover:shadow-lg hover:shadow-amber-900/20 transition-all duration-200 p-6 flex flex-col"
+              >
+                <div className="w-12 h-12 rounded-xl bg-amber-900/50 border border-amber-700/50 flex items-center justify-center mb-4 group-hover:bg-amber-800/60 transition-colors">
+                  <span className="text-2xl leading-none">🏆</span>
+                </div>
+                <h2 className="text-white font-bold text-xl mb-2 group-hover:text-amber-300 transition-colors">Fantasy</h2>
+                <p className="text-zinc-500 text-sm leading-relaxed">
+                  Pick 9 of the real 5ive Guys, choose your captain before each deadline, and score points from their Division 1 matches.
+                </p>
+                <div className="mt-auto pt-5 flex items-center gap-1.5 text-amber-400 text-sm font-semibold">
+                  <span>Enter</span>
+                  <span className="group-hover:translate-x-1 transition-transform">→</span>
+                </div>
+              </Link>
             </div>
           </div>
         )}
