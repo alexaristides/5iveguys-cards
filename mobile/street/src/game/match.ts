@@ -454,11 +454,15 @@ export class Match {
   }
 
   /**
-   * Keep players from overlapping, and bump: running into someone stops you and
-   * shoves them, the stronger one giving less ground.
+   * Keep players from overlapping (the stronger one gives less ground). Running
+   * into someone hard (closing at more than 2 m/s) is a bump: the speed over that
+   * is lost, shared by "mass" (physical). Leaning on someone isn't: it only keeps
+   * them apart. A carrier running into a man rolls round him rather than
+   * stopping dead (otherwise a defender stood in the way is a wall).
    */
   private separate() {
     const ps = this.players;
+    const owner = this.ball.owner;
     for (let i = 0; i < ps.length; i++) {
       for (let j = i + 1; j < ps.length; j++) {
         const a = ps[i], b = ps[j];
@@ -473,16 +477,38 @@ export class Match {
         a.pos.z -= nz * push * wa;
         b.pos.x += nx * push * (1 - wa);
         b.pos.z += nz * push * (1 - wa);
-        // Closing on each other: a mostly dead collision, shared by "mass" (physical).
+        if (a.air > 0 || b.air > 0) continue;
         const vn = (b.vel.x - a.vel.x) * nx + (b.vel.z - a.vel.z) * nz;
-        if (vn >= 0 || a.air > 0 || b.air > 0) continue;
-        const ma = 1 + rate(a.stats.physical) * 0.6, mb = 1 + rate(b.stats.physical) * 0.6;
-        const j2 = (-1.15 * vn) / (1 / ma + 1 / mb);
-        a.vel.x -= (nx * j2) / ma; a.vel.z -= (nz * j2) / ma;
-        b.vel.x += (nx * j2) / mb; b.vel.z += (nz * j2) / mb;
-        a.bumpedAt = b.bumpedAt = this.t;
+        const hit = -vn - 2;
+        if (hit > 0) {
+          const ma = 1 + rate(a.stats.physical) * 0.6, mb = 1 + rate(b.stats.physical) * 0.6;
+          const j2 = (1.15 * hit) / (1 / ma + 1 / mb);
+          a.vel.x -= (nx * j2) / ma; a.vel.z -= (nz * j2) / ma;
+          b.vel.x += (nx * j2) / mb; b.vel.z += (nz * j2) / mb;
+          a.bumpedAt = b.bumpedAt = this.t;
+        }
+        if (owner === a) this.rollRound(a, b, nx, nz);
+        else if (owner === b) this.rollRound(b, a, -nx, -nz);
       }
     }
+  }
+
+  /**
+   * Turn a carrier's run into someone (`n`: toward them) into a run round them:
+   * more of it for a good dribbler, less against a good defender (they hold you up).
+   */
+  private rollRound(p: Player, by: Player, nx: number, nz: number) {
+    const into = p.vel.x * nx + p.vel.z * nz;
+    if (into <= 0) return;
+    // Round the side the stick leans to, else the side the ball's on, else their left.
+    const tx = -nz, tz = nx;
+    const lean = p.want.x * tx + p.want.z * tz;
+    const ball = (this.ball.pos.x - p.pos.x) * tx + (this.ball.pos.z - p.pos.z) * tz;
+    const side = Math.abs(lean) > 0.3 ? Math.sign(lean) : Math.abs(ball) > 0.05 ? Math.sign(ball) : 1;
+    const edge = by.team === p.team ? 0.5 : clamp(0.5 + (rate(p.stats.dribbling) - rate(by.stats.defending)) * 0.8, 0, 1);
+    const round = (0.35 + 0.5 * edge) * into;
+    p.vel.x += -nx * into + tx * side * round;
+    p.vel.z += -nz * into + tz * side * round;
   }
 
   private giveBall(p: Player) {
