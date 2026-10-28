@@ -22,6 +22,8 @@ export interface StoryMatch {
   awayKit: string;
   labels: [string, string];
   difficulty: Difficulty;
+  /** Match length (s). */
+  seconds: number;
 }
 
 export interface StoryHost {
@@ -171,6 +173,7 @@ export class Story {
       awayKit: clubKit(club),
       labels: ["5IVE", club.short],
       difficulty: C.fixtureDifficulty(c.div, c.round),
+      seconds: C.STORY_SECONDS,
     });
   }
 
