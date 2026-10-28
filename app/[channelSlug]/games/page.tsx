@@ -27,7 +27,7 @@ const GAMES = [
     cta: "bg-amber-600 hover:bg-amber-500 shadow-amber-600/20",
   },
   {
-    href: "/game?tab=sp",
+    href: "/game/single",
     emoji: "⚽",
     title: "Single Player",
     description: "Pick your best squad and play a 7v7 match vs CPU",

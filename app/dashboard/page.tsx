@@ -8,8 +8,6 @@ import Link from "next/link";
 import { dbCardToCard, Rarity } from "@/lib/cards";
 import CardDisplay from "@/components/CardDisplay";
 import CardRatingsLeaderboard from "@/components/CardRatingsLeaderboard";
-import FootballGame from "@/components/football/FootballGame";
-import GameLeaderboard from "@/components/football/GameLeaderboard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -174,12 +172,11 @@ export default function DashboardPage() {
   const [searchFocused, setSearchFocused] = useState(false);
   const searchDebounce = useRef<ReturnType<typeof setTimeout>>();
 
-  // Top-level mode (home → collect or play)
-  const [activeMode, setActiveMode] = useState<"home" | "collect" | "play">("home");
+  // Top-level mode (home → collect). Play and Fantasy are pages of their own (/game, /fantasy).
+  const [activeMode, setActiveMode] = useState<"home" | "collect">("home");
   // Collect sub-tab
   const [activeTab, setActiveTab] = useState<"channels" | "collection" | "discover" | "cards">("channels");
   const [showInactive, setShowInactive] = useState(false);
-  const [gameMode, setGameMode] = useState<"sp" | "pvp" | "leaderboard">("sp");
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/");
@@ -268,9 +265,9 @@ export default function DashboardPage() {
           </button>
 
           <div className="flex items-center gap-3">
-            <button onClick={() => setActiveMode("play")} className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors">
-              Game
-            </button>
+            <Link href="/game" className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors">
+              Games
+            </Link>
             <Link href="/fantasy" className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors">
               Fantasy
             </Link>
@@ -339,8 +336,8 @@ export default function DashboardPage() {
               </button>
 
               {/* Play */}
-              <button
-                onClick={() => setActiveMode("play")}
+              <Link
+                href="/game"
                 className="group text-left rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-green-600/70 hover:shadow-lg hover:shadow-green-900/20 transition-all duration-200 p-6 flex flex-col"
               >
                 <div className="w-12 h-12 rounded-xl bg-green-900/60 border border-green-700/50 flex items-center justify-center mb-4 group-hover:bg-green-800/70 transition-colors">
@@ -348,13 +345,13 @@ export default function DashboardPage() {
                 </div>
                 <h2 className="text-white font-bold text-xl mb-2 group-hover:text-green-300 transition-colors">Play</h2>
                 <p className="text-zinc-500 text-sm leading-relaxed">
-                  Jump into a football simulation, challenge another fan to a live 1v1 PvP match, or check where you rank on the leaderboard.
+                  5IVE STREET 3v3 and its new story mode, the 7v7 sim against the CPU, live 1v1 PvP and the leaderboard.
                 </p>
                 <div className="mt-auto pt-5 flex items-center gap-1.5 text-green-400 text-sm font-semibold">
                   <span>Enter</span>
                   <span className="group-hover:translate-x-1 transition-transform">→</span>
                 </div>
-              </button>
+              </Link>
 
               {/* Fantasy */}
               <Link
@@ -587,87 +584,6 @@ export default function DashboardPage() {
           <CardRatingsLeaderboard
             channels={channels.map((c) => ({ id: c.slug, name: c.name, slug: c.slug }))}
           />
-        )}
-
-        {/* ── Play mode ── */}
-        {activeMode === "play" && (
-          <div className="flex flex-col items-center w-full">
-            {/* Mode tabs: SP / PvP / Leaderboard */}
-            <div className="flex gap-1 mb-6 bg-zinc-800 border border-zinc-600 rounded-xl p-1 self-start sm:self-center">
-              <button
-                onClick={() => setGameMode("sp")}
-                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                  gameMode === "sp" ? "bg-green-700 text-white shadow" : "text-zinc-200 hover:text-white hover:bg-zinc-700"
-                }`}
-              >
-                ⚽ Single Player
-              </button>
-              <button
-                onClick={() => setGameMode("pvp")}
-                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                  gameMode === "pvp" ? "bg-green-700 text-white shadow" : "text-zinc-200 hover:text-white hover:bg-zinc-700"
-                }`}
-              >
-                ⚔️ PvP
-              </button>
-              <button
-                onClick={() => setGameMode("leaderboard")}
-                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
-                  gameMode === "leaderboard" ? "bg-green-700 text-white shadow" : "text-zinc-200 hover:text-white hover:bg-zinc-700"
-                }`}
-              >
-                🏆 Leaderboard
-              </button>
-            </div>
-
-            {gameMode === "sp" && (
-              <div className="w-full">
-                <div className="max-w-sm mx-auto mb-5">
-                  {/* 5IVE STREET is a static page (public/street), so a plain link rather than <Link>. */}
-                  <a
-                    href="/street"
-                    className="group flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#a326d6] to-purple-900 hover:from-[#b43ae6] hover:to-purple-800 p-4 shadow-lg shadow-purple-900/40 transition-all active:scale-[0.99]"
-                  >
-                    <span className="text-3xl shrink-0">🏙️</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-white font-bold leading-tight">5IVE STREET · 3v3</div>
-                      <div className="text-purple-100/80 text-xs mt-0.5">Street football in 3D with the squad</div>
-                    </div>
-                    <span className="text-white/80 text-xl shrink-0 group-hover:translate-x-0.5 transition-transform">›</span>
-                  </a>
-                </div>
-                <FootballGame />
-              </div>
-            )}
-
-            {gameMode === "pvp" && (
-              <div className="max-w-xl w-full">
-                <p className="text-zinc-500 text-sm mb-5">
-                  Challenge another player to a live 1v1 match — both pick squads, then watch the same simulation unfold in real time.
-                </p>
-                <Link
-                  href="/game?tab=pvp"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-green-700 hover:bg-green-600 text-white font-bold transition-all shadow-lg shadow-green-900/30"
-                >
-                  ⚔️ Open PvP Lobby
-                </Link>
-              </div>
-            )}
-
-            {gameMode === "leaderboard" && (
-              <div className="max-w-lg w-full space-y-6">
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-white font-bold text-lg">Game Leaderboard</h3>
-                      <p className="text-zinc-500 text-xs mt-0.5">Ranked by wins · all-time</p>
-                    </div>
-                  </div>
-                  <GameLeaderboard />
-                </div>
-              </div>
-            )}
-          </div>
         )}
 
         {/* ── Discover tab ── */}

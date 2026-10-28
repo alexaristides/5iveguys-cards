@@ -7,73 +7,101 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
+import GameLeaderboard from "@/components/football/GameLeaderboard";
 
-// ── Single-player game-mode menu ────────────────────────────────────────────────
+// ── The games menu ──────────────────────────────────────────────────────────────
 
-interface GameMode {
+interface GameCard {
   href: string;
   emoji: string;
   title: string;
-  subtitle: string;
-  gradient: string;
-  shadow: string;
+  blurb: string;
+  accent: string;
 }
 
-const GAME_MODES: GameMode[] = [
+/** Everything but 5IVE STREET (which gets the big card at the top). */
+const OTHER_GAMES: GameCard[] = [
   {
-    href: "/street",
-    emoji: "🏙️",
-    title: "5IVE STREET · 3v3",
-    subtitle: "Street football in 3D with the squad — play it off the walls and nutmeg the CPU",
-    gradient: "from-[#a326d6] to-purple-900 hover:from-[#b43ae6] hover:to-purple-800",
-    shadow: "shadow-purple-900/40",
-  },
-  {
-    href: "/street?story",
-    emoji: "🏆",
-    title: "5IVE STREET · Story mode",
-    subtitle: "You're Oscar, player-manager: take Five Guys FC from Division 4 to the Golden Cage",
-    gradient: "from-amber-600 to-orange-800 hover:from-amber-500 hover:to-orange-700",
-    shadow: "shadow-amber-900/40",
+    href: "/game/single",
+    emoji: "⚽",
+    title: "Single Player vs CPU",
+    blurb: "Pick seven from your card collection, set a formation and take on the CPU",
+    accent: "border-green-600/30 hover:border-green-500/70 from-green-900/30",
   },
   {
     href: "/game/exhibition",
     emoji: "🎮",
     title: "Exhibition Match",
-    subtitle: "Pick BOTH teams from any players, then run the sim — fan ratings decide who wins",
-    gradient: "from-green-700 to-emerald-700 hover:from-green-600 hover:to-emerald-600",
-    shadow: "shadow-green-900/30",
+    blurb: "Pick both teams from any players, then run the sim. Fan ratings decide who wins",
+    accent: "border-emerald-600/30 hover:border-emerald-500/70 from-emerald-900/30",
   },
   {
-    href: "/game/single",
-    emoji: "⚽",
-    title: "Single Player vs CPU",
-    subtitle: "Build your best squad from your collection and take on the CPU",
-    gradient: "from-blue-700 to-sky-700 hover:from-blue-600 hover:to-sky-600",
-    shadow: "shadow-blue-900/30",
+    href: "/game?tab=pvp",
+    emoji: "⚔️",
+    title: "PvP · live 1v1",
+    blurb: "Challenge another fan: you both pick squads and watch the same match unfold",
+    accent: "border-orange-600/30 hover:border-orange-500/70 from-orange-900/30",
+  },
+  {
+    href: "/game?tab=leaderboard",
+    emoji: "🏅",
+    title: "Leaderboard",
+    blurb: "Who's won the most matches, all time",
+    accent: "border-sky-600/30 hover:border-sky-500/70 from-sky-900/30",
   },
 ];
 
-function GameModeMenu() {
+function GamesMenu() {
   return (
-    <div className="space-y-3">
-      {GAME_MODES.map((mode) => {
-        const className = `group flex items-center gap-3 rounded-2xl bg-gradient-to-r ${mode.gradient} p-4 shadow-lg ${mode.shadow} transition-all active:scale-[0.99]`;
-        const body = (
-          <>
-            <span className="text-3xl shrink-0">{mode.emoji}</span>
-            <div className="flex-1 min-w-0">
-              <div className="text-white font-bold leading-tight">{mode.title}</div>
-              <div className="text-white/70 text-xs mt-0.5">{mode.subtitle}</div>
+    <div className="space-y-5">
+      {/* 5IVE STREET is a static page (public/street), so plain links rather than <Link>. */}
+      <div className="relative overflow-hidden rounded-3xl border border-purple-500/40 bg-gradient-to-br from-[#a326d6]/35 via-[#12061f] to-[#070b14] p-6 sm:p-8">
+        <div className="pointer-events-none absolute -right-6 -top-6 text-[120px] opacity-10">🏙️</div>
+        <div className="relative">
+          <span className="inline-flex rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-200">
+            New · Story mode
+          </span>
+          <h2 className="mt-3 text-3xl font-extrabold italic leading-tight text-white">
+            5IVE STREET <span className="text-purple-300">3v3</span>
+          </h2>
+          <p className="mt-1 text-sm text-zinc-300 sm:text-base">
+            Street football in 3D with the 5ive Guys squad. Free to play, best on a phone held sideways.
+          </p>
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <a
+              href="/street"
+              className="group rounded-2xl bg-purple-600 p-4 shadow-lg shadow-purple-600/30 transition hover:bg-purple-500 active:scale-[0.99]"
+            >
+              <div className="text-lg font-extrabold text-white">Play a match →</div>
+              <div className="mt-0.5 text-xs text-purple-100/80">Pick three, pick the CPU&apos;s three, kick off. Or play a friend online</div>
+            </a>
+            <a
+              href="/street?story"
+              className="group rounded-2xl border border-amber-300/60 bg-amber-400/15 p-4 transition hover:bg-amber-400/25 active:scale-[0.99]"
+            >
+              <div className="text-lg font-extrabold text-amber-100">🏆 Story mode →</div>
+              <div className="mt-0.5 text-xs text-amber-100/70">You&apos;re Oscar, player-manager. Take Five Guys FC from Division 4 to the Golden Cage</div>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {OTHER_GAMES.map((g) => (
+          <Link
+            key={g.href}
+            href={g.href}
+            className={`group flex items-center gap-4 rounded-2xl border bg-gradient-to-br to-zinc-950 p-4 transition active:scale-[0.99] ${g.accent}`}
+          >
+            <span className="text-3xl shrink-0">{g.emoji}</span>
+            <div className="min-w-0 flex-1">
+              <div className="font-bold leading-tight text-white">{g.title}</div>
+              <div className="mt-0.5 text-xs text-zinc-400">{g.blurb}</div>
             </div>
-            <span className="text-white/80 text-xl shrink-0 group-hover:translate-x-0.5 transition-transform">›</span>
-          </>
-        );
-        // 5IVE STREET is a static page (public/street), so it needs a full page load.
-        return mode.href.startsWith("/street")
-          ? <a key={mode.href} href={mode.href} className={className}>{body}</a>
-          : <Link key={mode.href} href={mode.href} className={className}>{body}</Link>;
-      })}
+            <span className="shrink-0 text-xl text-white/60 transition-transform group-hover:translate-x-0.5">›</span>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
@@ -243,9 +271,9 @@ function GamePageInner() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState<"sp" | "pvp">(() =>
-    searchParams.get("tab") === "pvp" ? "pvp" : "sp"
-  );
+  // The menu of games, or one of the games that lives on this page.
+  const view = searchParams.get("tab");
+  const tab: "menu" | "pvp" | "leaderboard" = view === "pvp" || view === "leaderboard" ? view : "menu";
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/");
@@ -290,43 +318,31 @@ function GamePageInner() {
       </header>
 
       <div className="relative max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        {/* SP / PvP toggle */}
-        <div className="flex gap-1 mb-8 bg-zinc-900/60 border border-zinc-800 rounded-xl p-1 w-fit">
-          <button
-            onClick={() => setTab("sp")}
-            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-              tab === "sp" ? "bg-green-700 text-white shadow" : "text-zinc-400 hover:text-white"
-            }`}
-          >
-            ⚽ Single Player
-          </button>
-          <button
-            onClick={() => setTab("pvp")}
-            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-              tab === "pvp" ? "bg-green-700 text-white shadow" : "text-zinc-400 hover:text-white"
-            }`}
-          >
-            ⚔️ PvP
-          </button>
-        </div>
-
-        {tab === "sp" && (
+        {tab === "menu" && (
           <div>
-            <div className="mb-4">
-              <h2 className="text-xl font-bold text-white">Game Modes</h2>
-              <p className="text-zinc-500 text-sm mt-1">Choose how you want to play</p>
+            <div className="mb-5">
+              <h1 className="text-2xl font-extrabold text-white">Games</h1>
+              <p className="text-zinc-500 text-sm mt-1">Pick a game</p>
             </div>
-            <GameModeMenu />
+            <GamesMenu />
           </div>
         )}
 
-        {tab === "pvp" && (
-          <div>
+        {tab !== "menu" && (
+          <Link href="/game" className="mb-5 inline-flex items-center gap-1.5 text-sm font-semibold text-zinc-400 hover:text-white">
+            ← All games
+          </Link>
+        )}
+
+        {tab === "pvp" && <PvPTab />}
+
+        {tab === "leaderboard" && (
+          <div className="max-w-lg">
             <div className="mb-6">
-              <h2 className="text-xl font-bold text-white">PvP Matches</h2>
-              <p className="text-zinc-500 text-sm mt-1">1v1 live matches — both players watch the same simulation unfold</p>
+              <h2 className="text-xl font-bold text-white">Leaderboard</h2>
+              <p className="text-zinc-500 text-sm mt-1">Ranked by wins · all time</p>
             </div>
-            <PvPTab />
+            <GameLeaderboard />
           </div>
         )}
       </div>
