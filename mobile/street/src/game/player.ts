@@ -41,12 +41,16 @@ export const PLAYER_R = 0.38;
 /** Running speed without sprint, as a share of sprint speed. */
 export const JOG = 0.8;
 
+const STAT_KEYS: (keyof Stats)[] = ["pace", "shooting", "passing", "dribbling", "defending", "physical"];
+
 /** A stat on a 0..1 scale (40 → 0, 99 → 1), for turning stats into abilities. */
 export const rate = (stat: number) => clamp((stat - 40) / 59, 0, 1);
 
 export class Player {
   readonly info: RosterPlayer;
+  /** Stats as they play now: `base`, worn down by tiredness (story mode, see `tire`). */
   readonly stats: Stats;
+  readonly base: Stats;
   readonly team: 0 | 1;
   readonly model: PlayerModel;
   readonly anim: Animator;
@@ -82,6 +86,16 @@ export class Player {
   /** Sprint left in the tank, 0..1. Empty = winded until it's back to a third. */
   stamina = 1;
   winded = false;
+  /**
+   * Legs left over the whole match, 0..1 (story mode only: see `Match.fatigue`). It drains
+   * on the pitch (faster sprinting, slower for strong players) and comes back on the bench.
+   */
+  energy = 1;
+  /** This match: seconds on the pitch, goals, assists and tackles won (story mode progress). */
+  secs = 0;
+  goals = 0;
+  assists = 0;
+  tackles = 0;
   /** Height off the ground (flying kicks, being sent flying) and its vertical speed. */
   air = 0;
   vy = 0;
@@ -92,21 +106,21 @@ export class Player {
   jockeying = false;
   glow = false;
 
-  // Derived from stats.
+  // Derived from stats (see `derive`).
   /** Sprint speed (m/s); without sprint they run at `JOG` of this. */
-  readonly topSpeed: number;
-  readonly accel: number;
-  readonly turnRate: number;
+  topSpeed = 0;
+  accel = 0;
+  turnRate = 0;
   /** Top speed with the ball, as a share of top speed without it. */
-  readonly dribbleSpeed: number;
+  dribbleSpeed = 0;
   /** Seconds of flat-out sprint on a full tank. */
-  readonly sprintSeconds: number;
+  sprintSeconds = 0;
   /** Tank refilled per second when not sprinting. */
-  readonly recovery: number;
+  recovery = 0;
   /** Braking (m/s²): stopping and planting to cut back. */
-  readonly brake: number;
+  brake = 0;
   /** Cornering grip (m/s² sideways): how tight they can turn at speed. */
-  readonly grip: number;
+  grip = 0;
   /** Sideways acceleration this step (m/s², + = turning left), for leaning into turns. */
   lean = 0;
   /** The goal celebration they're doing (picked by the match for each goal). */
@@ -114,25 +128,45 @@ export class Player {
 
   constructor(info: RosterPlayer, team: 0 | 1, model: PlayerModel) {
     this.info = info;
-    this.stats = info.stats;
+    this.base = info.stats;
+    this.stats = { ...info.stats };
     this.team = team;
     this.model = model;
     this.anim = new Animator(this.model);
+    this.derive();
+    this.celebration = info.celebration;
+  }
+
+  /** Tiredness at this much energy: 1 = fresh, down to 0.8 running on empty. */
+  static wear(energy: number) {
+    return energy >= 0.6 ? 1 : 0.8 + (0.2 * energy) / 0.6;
+  }
+
+  /** Set their energy and wear their stats down to match (story mode). */
+  tire(energy: number) {
+    this.energy = clamp(energy, 0, 1);
+    const k = Player.wear(this.energy);
+    for (const key of STAT_KEYS) this.stats[key] = this.base[key] * k;
+    this.derive();
+  }
+
+  private derive() {
     const s = this.stats;
+    // Running on empty: a little slower, and the sprint tank runs dry sooner.
+    const legs = clamp(this.energy / 0.5, 0, 1);
     // Pace: real sprint speeds, 6.6 m/s (pace 70) to 7.0 m/s (pace 92), and the burst off the mark.
-    this.topSpeed = 5.95 + rate(s.pace) * 1.2;
+    this.topSpeed = (5.95 + rate(s.pace) * 1.2) * (0.9 + 0.1 * legs);
     this.accel = 9.5 + rate(s.pace) * 3.5;
     // Dribbling: radians per second (a 180° turn in about a third of a second) and
     // how little the ball slows them down.
     this.turnRate = 5.6 + rate(s.dribbling) * 3;
     this.dribbleSpeed = 0.85 + rate(s.dribbling) * 0.1;
     // Physical: how long they can sprint for, and how quickly they get it back.
-    this.sprintSeconds = 3.5 + rate(s.physical) * 4;
+    this.sprintSeconds = (3.5 + rate(s.physical) * 4) * (0.55 + 0.45 * legs);
     this.recovery = 0.12 + rate(s.physical) * 0.08;
     // Braking and cornering: quick feet (dribbling) and a burst (pace) stop and turn sharper.
     this.brake = 15 + rate(s.pace) * 4 + rate(s.dribbling) * 2;
     this.grip = 16 + rate(s.dribbling) * 4;
-    this.celebration = info.celebration;
   }
 
   get name() { return this.info.name; }

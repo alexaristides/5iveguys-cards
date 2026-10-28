@@ -34,7 +34,8 @@ const LEGS_R = 0.22;
 const TORSO_R = 0.27;
 
 export interface Difficulty {
-  id: "amateur" | "pro" | "legend";
+  /** Story mode makes its own in between (see `story/career.ts`). */
+  id: "amateur" | "pro" | "legend" | "story";
   label: string;
   /** CPU decision delay (s). */
   react: number;
@@ -107,6 +108,9 @@ export type MatchEvent =
   | { type: "fiveMode"; team: 0 | 1 }
   | { type: "hit"; x: number; z: number; power: number; user: boolean }
   | { type: "kickoff" }
+  /** Story mode: a substitution, and one of the user's players running low on legs. */
+  | { type: "sub"; team: 0 | 1; off: Player; on: Player }
+  | { type: "tired"; player: Player }
   /** `motm` is filled in when the match comes from another phone (online). */
   | { type: "end"; motm?: Player };
 
@@ -151,8 +155,13 @@ export class Match {
   scorers: Scorer[] = [];
   meter: [number, number] = [0, 0];
   fiveMode: [number, number] = [0, 0];
+  /** On the pitch. */
   readonly teams: [Player[], Player[]];
   readonly players: Player[];
+  /** Subs waiting to come on (story mode). */
+  readonly bench: [Player[], Player[]];
+  /** Players tire over the match and subs matter (story mode): see `Player.energy`. */
+  readonly fatigue: boolean;
   readonly ball: Ball;
   /** Who's playing each side (null = the CPU). */
   readonly humans: [Controller | null, Controller | null];
@@ -172,6 +181,11 @@ export class Match {
   };
   /** Celebrations each player has done this match (a new one for every goal). */
   private celebrated = new Map<Player, Celebration[]>();
+  /** The last pass someone took, for assists. */
+  private lastPass: { from: Player; to: Player; t: number } | null = null;
+  /** Players we've already said are tiring. */
+  private warned = new Set<Player>();
+  private nextCpuSub = 0;
 
   private people: Controller[];
   private kickoffTeam: 0 | 1 = 0;
@@ -186,21 +200,26 @@ export class Match {
     away: RosterPlayer[],
     readonly difficulty: Difficulty,
     model: (p: RosterPlayer) => PlayerModel,
-    /** Online both sides are people; `userTeam` is the one playing on this screen. */
-    opts: { humans?: [boolean, boolean]; userTeam?: 0 | 1 } = {},
+    /**
+     * Online both sides are people; `userTeam` is the one playing on this screen.
+     * Story mode: `bench` (subs for each side) and `fatigue`.
+     */
+    opts: { humans?: [boolean, boolean]; userTeam?: 0 | 1; bench?: [RosterPlayer[], RosterPlayer[]]; fatigue?: boolean } = {},
   ) {
     this.teams = [
       home.map((r) => new Player(r, 0, model(r))),
       away.map((r) => new Player(r, 1, model(r))),
     ];
     this.players = [...this.teams[0], ...this.teams[1]];
+    this.bench = [0, 1].map((t) => (opts.bench?.[t] ?? []).map((r) => new Player(r, t as 0 | 1, model(r)))) as Match["bench"];
+    this.fatigue = !!opts.fatigue;
     this.ball = new Ball(scene);
     this.userTeam = opts.userTeam ?? 0;
     const humans = opts.humans ?? [true, false];
     this.humans = [0, 1].map((t) => (humans[t] || t === this.userTeam ? new Controller(t as 0 | 1, this.teams[t][0]) : null)) as Match["humans"];
     this.people = this.humans.filter((c): c is Controller => !!c);
     this.ai = [new TeamAI(this, 0), new TeamAI(this, 1)];
-    for (const p of this.players) this.style.set(p, 0);
+    for (const p of [...this.players, ...this.bench[0], ...this.bench[1]]) this.style.set(p, 0);
     this.setupKickoff(Math.random() < 0.5 ? 0 : 1);
   }
 
@@ -250,6 +269,8 @@ export class Match {
         p.anim.snap();
       });
     }
+    // Rolling subs: the CPU freshens up at kick-offs.
+    if (this.fatigue) for (const t of [0, 1] as const) if (this.isCpu(t)) this.cpuSubs(t, 0.55, true);
     const kicker = this.teams[team][0];
     this.giveBall(kicker);
     this.graceUntil = this.t + 1.5;
@@ -306,6 +327,7 @@ export class Match {
           }
         }
         this.play(dt, pad, away);
+        if (this.fatigue) this.tireOut(dt);
         return;
       case "goal":
         this.celebrate(dt);
@@ -477,9 +499,11 @@ export class Match {
     b.spin.multiplyScalar(0.2);
     p.touchAt = this.t;
     p.pressure = 0;
-    if (kick && kick.by !== p && kick.by.team === p.team && (kick.kind === "pass" || kick.kind === "lob" || kick.kind === "space")) {
+    const passed = !!kick && kick.by !== p && kick.by.team === p.team && (kick.kind === "pass" || kick.kind === "lob" || kick.kind === "space");
+    if (passed) {
       this.log.completed[p.team]++;
-    }
+      this.lastPass = { from: kick!.by, to: p, t: this.t };
+    } else if (this.lastPass && this.lastPass.to !== p) this.lastPass = null;
     this.possessionTeam = p.team;
     this.graceUntil = this.t + 0.45;
 
@@ -816,6 +840,9 @@ export class Match {
 
     let label: string | undefined;
     if (scorer && !og) {
+      scorer.goals++;
+      const lp = this.lastPass;
+      if (lp && lp.to === scorer && lp.from !== scorer && this.t - lp.t < 10) lp.from.assists++;
       scorer.mood = "celebrate";
       scorer.moodT = 0;
       scorer.action = null;
@@ -825,6 +852,7 @@ export class Match {
       this.style.set(scorer, (this.style.get(scorer) ?? 0) + 500);
       scorer.celebration = this.pickCelebration(scorer, label);
     }
+    this.lastPass = null;
     if (b.kick) this.log.goalDist.push(Math.round(Math.abs(b.kick.fromX - attackX(team))));
     this.emit({ type: "goal", team, scorer, og, label });
     this.sound("cheer", 1);
@@ -960,6 +988,7 @@ export class Match {
         this.log.pokes[d.team]++;
         if (Math.random() < 0.45) {
           this.giveBall(d);
+          d.tackles++;
           this.addStyle(d, "STOLEN", 0.05, 60);
         } else {
           b.owner = null;
@@ -1021,6 +1050,7 @@ export class Match {
         flattened++;
         if (hadBall) {
           this.log.tackles[p.team]++;
+          p.tackles++;
           if (a.kind === "barge" && Math.random() < 0.6) this.giveBall(p);
           else this.knockLoose(p, 4.5);
         }
@@ -1447,10 +1477,86 @@ export class Match {
     this.emit({ type: "haptic", style: "light", team: c.team });
   }
 
+  // ── Fatigue and subs (story mode) ─────────────────────────────────────────
+
+  /**
+   * Legs drain on the pitch over the match (sprinting more than twice as fast; strong
+   * players last longer) and come back on the bench. Played the whole match, a weak
+   * player is down to about a third by full time, a strong one to about half.
+   */
+  private tireOut(dt: number) {
+    for (const p of this.players) {
+      p.secs += dt;
+      const drain = ((0.62 - 0.3 * rate(p.base.physical)) / MATCH_SECONDS) * (p.sprinting ? 2.2 : 1);
+      p.tire(p.energy - drain * dt);
+      if (p.energy < 0.35 && !this.warned.has(p) && !this.isCpu(p.team) && this.bench[p.team].length) {
+        this.warned.add(p);
+        this.emit({ type: "tired", player: p });
+      }
+    }
+    for (const t of [0, 1] as const) for (const p of this.bench[t]) if (p.energy < 1) p.tire(p.energy + dt / 200);
+    // The CPU also brings on a sub mid-play for someone out on their feet and away from the ball.
+    if (this.t >= this.nextCpuSub) {
+      this.nextCpuSub = this.t + 5;
+      for (const t of [0, 1] as const) if (this.isCpu(t)) this.cpuSubs(t, 0.38, false);
+    }
+  }
+
+  /** CPU: swap tired players (under `below`) for the freshest sub, if they're a lot fresher. */
+  private cpuSubs(team: 0 | 1, below: number, dead: boolean) {
+    for (const p of [...this.teams[team]]) {
+      if (p.energy >= below) continue;
+      if (!dead && (this.ball.owner === p || p.busy || dist(p.pos, this.ball.pos) < 7)) continue;
+      const fresh = [...this.bench[team]].sort((a, b) => b.energy - a.energy)[0];
+      if (fresh && fresh.energy > p.energy + 0.3) this.substitute(p, fresh);
+    }
+  }
+
+  /**
+   * Rolling sub: `on` (from the bench) takes over from `off` where they stand, ball and
+   * all, and `off` sits down. Fine at any point in the match.
+   */
+  substitute(off: Player, on: Player) {
+    const team = off.team;
+    const i = this.teams[team].indexOf(off), j = this.bench[team].indexOf(on);
+    if (i < 0 || j < 0) return;
+    this.teams[team][i] = on;
+    this.bench[team][j] = off;
+    this.players[this.players.indexOf(off)] = on;
+    on.pos = { ...off.pos };
+    on.vel = { x: 0, z: 0 };
+    on.want = { x: 0, z: 0 };
+    on.facing = off.facing;
+    on.look = off.look;
+    on.action = null;
+    on.air = on.vy = 0;
+    on.mood = off.mood === "celebrate" ? "cheer" : off.mood;
+    on.moodT = 0;
+    on.stamina = 1;
+    on.winded = false;
+    on.anim.snap();
+    off.action = null;
+    off.sprint = off.sprinting = false;
+    const b = this.ball;
+    if (b.owner === off) { b.owner = on; on.touchAt = this.t; }
+    if (b.lastTouch === off) b.lastTouch = on;
+    if (b.kick?.target === off) b.kick.target = on;
+    if (this.lastScorer === off) this.lastScorer = null;
+    if (this.lastPass?.to === off) this.lastPass = null;
+    for (const c of this.people) {
+      if (c.user === off) c.user = on;
+      if (c.switchedFrom === off) c.switchedFrom = null;
+    }
+    this.ai[team].forget();
+    off.model.root.visible = false;
+    on.model.root.visible = true;
+    this.emit({ type: "sub", team, off, on });
+  }
+
   /** Man of the match: goals and style. */
   motm(): Player {
     let best = this.players[0], bs = -1;
-    for (const p of this.players) {
+    for (const p of [...this.players, ...this.bench[0], ...this.bench[1]]) {
       const s = this.style.get(p) ?? 0;
       if (s > bs) { bs = s; best = p; }
     }

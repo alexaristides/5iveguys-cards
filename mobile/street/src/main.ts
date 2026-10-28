@@ -9,7 +9,7 @@ import { loadImage } from "./faces";
 import { faceSheet, installDevTools } from "./dev";
 import { HALF_L } from "./game/field";
 import { DIFFICULTIES, IDLE_PAD, Match, type Difficulty, type MatchEvent } from "./game/match";
-import { KITS } from "./rig/kits";
+import { KITS, type KitId } from "./rig/kits";
 import { buildPlayer, type PlayerModel } from "./rig/model";
 import type { RosterPlayer } from "./roster";
 import { Online } from "./online";
@@ -17,6 +17,7 @@ import { installFullscreen } from "./ui/fullscreen";
 import { Hud, pauseSheet, resultSheet } from "./ui/hud";
 import { Input } from "./ui/input";
 import { Select } from "./ui/select";
+import { needsSub, Story, subsSheet, type StoryMatch } from "./story/ui";
 import { buildArena } from "./world/arena";
 import { CameraRig } from "./world/camera";
 import { Fx } from "./world/fx";
@@ -94,6 +95,12 @@ let paused = false;
 /** Online: the menu is open over a match that carries on. */
 let menuOpen = false;
 let lastTeams: { home: RosterPlayer[]; away: RosterPlayer[]; d: Difficulty } | null = null;
+/** The two sides' kits in the current match. */
+let kits: [KitId, KitId] = ["home", "black"];
+/** Story mode: this match is a career game (fatigue, subs, the result goes to the career). */
+let storyOn = false;
+/** Players made up for a story match (the other club), thrown away after it. */
+const extraModels = new Map<string, PlayerModel>();
 
 const input = new Input(ui, () => audio.unlock());
 input.setEnabled(false);
@@ -104,7 +111,39 @@ const select = new Select(
   () => leave(),
   () => { audio.unlock(); audio.click(); },
   () => online.open(),
+  () => openStory(),
 );
+
+const story = new Story(ui, {
+  models,
+  camera: rig.cam,
+  play: (s) => { audio.click(); startStory(s); },
+  matchDone: () => { endMatch(); rig.cut("select", null); },
+  leave: () => showSelect(),
+  click: () => audio.click(),
+});
+
+function openStory() {
+  endMatch();
+  select.hide();
+  rig.cut("select", null);
+  void story.open();
+}
+
+/** A story match: your squad (subs on the bench) against a club in its own kit. */
+function startStory(s: StoryMatch) {
+  const awayModel = (p: RosterPlayer) => {
+    let m = models.get(p.key) ?? extraModels.get(p.key);
+    if (!m) {
+      m = buildPlayer(p.name, p.look, s.awayKit);
+      extraModels.set(p.key, m);
+      scene.add(m.root);
+    }
+    return m;
+  };
+  for (const p of [...s.away, ...s.awayBench]) awayModel(p).setKit(s.awayKit);
+  startMatch(s.home, s.away, s.difficulty, undefined, s);
+}
 
 const online = new Online(ui, inApp, {
   select,
@@ -141,6 +180,10 @@ function endMatch() {
     match.ball.mesh.removeFromParent();
     match.ball.shadow.removeFromParent();
   }
+  for (const m of extraModels.values()) m.dispose();
+  extraModels.clear();
+  storyOn = false;
+  kits = ["home", "black"];
   match = null;
   hud?.destroy();
   hud = null;
@@ -165,17 +208,27 @@ const AUTO_SWITCH_KEY = "street.autoSwitch";
 let autoSwitch = true;
 try { autoSwitch = localStorage.getItem(AUTO_SWITCH_KEY) !== "0"; } catch { /* storage unavailable */ }
 
-/** Start a match. Online, `net` says which side this screen plays and the names for the scoreboard. */
-function startMatch(home: RosterPlayer[], away: RosterPlayer[], d: Difficulty, net?: { side: 0 | 1; labels: [string, string] }): Match {
+/**
+ * Start a match. Online, `net` says which side this screen plays and the names for the scoreboard.
+ * Story mode (`s`): both benches, tiring legs, and the other club's kit and players.
+ */
+function startMatch(home: RosterPlayer[], away: RosterPlayer[], d: Difficulty, net?: { side: 0 | 1; labels: [string, string] }, s?: StoryMatch): Match {
+  const keep = s ? new Map(extraModels) : null;
+  extraModels.clear(); // endMatch would throw away the other club, made just now
   endMatch();
+  if (keep) for (const [k, m] of keep) extraModels.set(k, m);
   select.hide();
-  if (!net) lastTeams = { home, away, d };
+  storyOn = !!s;
+  kits = ["home", s?.awayKit ?? "black"];
+  lastTeams = net || s ? null : { home, away, d };
   // Only the six on the pitch are drawn; the bench waits for the next team select.
-  for (const m of models.values()) m.root.visible = false;
-  for (const p of home) models.get(p.key)!.setKit("home");
-  for (const p of away) models.get(p.key)!.setKit("black");
-  for (const p of [...home, ...away]) models.get(p.key)!.root.visible = true;
-  match = new Match(scene, home, away, d, (p) => models.get(p.key)!, net ? { humans: [true, true], userTeam: net.side } : {});
+  const model = (p: RosterPlayer) => (models.get(p.key) ?? extraModels.get(p.key))!;
+  for (const m of [...models.values(), ...extraModels.values()]) m.root.visible = false;
+  for (const p of [...home, ...(s?.homeBench ?? [])]) model(p).setKit(kits[0]);
+  for (const p of [...away, ...(s?.awayBench ?? [])]) model(p).setKit(kits[1]);
+  for (const p of [...home, ...away]) model(p).root.visible = true;
+  match = new Match(scene, home, away, d, model,
+    net ? { humans: [true, true], userTeam: net.side } : s ? { bench: [s.homeBench, s.awayBench], fatigue: true } : {});
   match.autoSwitch = autoSwitch;
   setView(match.camSide(match.userTeam));
   markerRing.color.set(net?.side === 1 ? KITS.black.hud : KITS.home.hud);
@@ -184,7 +237,7 @@ function startMatch(home: RosterPlayer[], away: RosterPlayer[], d: Difficulty, n
     (window as unknown as { __match: Match }).__match = match;
     if (!net) match.autopilot = new URLSearchParams(location.search).has("autopilot");
   }
-  hud = new Hud(ui, ["home", "black"], pause, net?.labels);
+  hud = new Hud(ui, kits, pause, net?.labels ?? s?.labels, s ? () => openSubs() : undefined);
   hud.root.classList.toggle("away", net?.side === 1);
   hud.firstMatchTip();
   input.setEnabled(true);
@@ -193,9 +246,30 @@ function startMatch(home: RosterPlayer[], away: RosterPlayer[], d: Difficulty, n
   return match;
 }
 
+/** Story mode: the subs sheet (the match waits). */
+function openSubs() {
+  const m = match;
+  if (!m || !storyOn || paused || m.state === "over") return;
+  audio.click();
+  paused = true;
+  subsSheet(ui, m, () => audio.click(), () => { paused = false; });
+}
+
 function pause() {
   if (!match || paused || menuOpen || match.state === "over") return;
   audio.click();
+  if (storyOn) {
+    paused = true;
+    pauseSheet(ui, audio.muted, autoSwitch, {
+      resume: () => { paused = false; },
+      restart: () => {},
+      quit: () => story.quitMatch(),
+      subs: () => { paused = false; openSubs(); },
+      mute: (m) => audio.setMuted(m),
+      autoSwitch: (on) => setAutoSwitch(on),
+    });
+    return;
+  }
   if (online.active) {
     // Nobody can stop the other player's match: settings and a way out, while play goes on.
     menuOpen = true;
@@ -250,10 +324,16 @@ function handleEvents(m: Match, events: MatchEvent[]) {
         fx.confetti(new THREE.Vector3(e.x, 0.1, e.z), ["#e7e5e4", "#a8a29e", "#78716c", "#fde047"], 28, 0.4);
         break;
       }
+      case "sub":
+        hud?.note(e.team === m.userTeam ? `${e.on.name} on · ${e.off.name} off` : `${KITS[kits[e.team]].label} sub: ${e.on.name} on`);
+        break;
+      case "tired":
+        hud?.note(`${e.player.name}'s legs are going · SUBS`);
+        break;
       case "goal": {
         const who = e.og ? "Own goal" : e.scorer?.name ?? "";
         hud?.popup("GOAL!", e.label ? `${who} · ${e.label}` : who, e.team !== 0);
-        const kit = e.team === 0 ? KITS.home : KITS.black;
+        const kit = KITS[kits[e.team]] ?? (e.team === 0 ? KITS.home : KITS.black);
         fx.confetti(new THREE.Vector3((e.team === 0 ? 1 : -1) * (HALF_L + 0.4), 0.5, 0), [e.team === 0 ? kit.shirt : kit.hud, kit.trim, "#ffffff"]);
         break;
       }
@@ -264,6 +344,12 @@ function handleEvents(m: Match, events: MatchEvent[]) {
         const [h, a] = m.score;
         const [mine, theirs] = m.userTeam === 0 ? [h, a] : [a, h];
         send({ type: "result", home: mine, away: theirs, won: mine > theirs, online: online.active });
+        input.setEnabled(false);
+        if (storyOn) {
+          hud?.setVisible(false);
+          void story.finished(m);
+          break;
+        }
         const sheet = resultSheet(ui, m, e.motm ?? m.motm(), inApp, online.active ? online.resultActions : {
           rematch: () => { if (lastTeams) startMatch(lastTeams.home, lastTeams.away, lastTeams.d); },
           teams: () => showSelect(),
@@ -296,9 +382,8 @@ function adaptResolution(dt: number) {
   }
 }
 
-renderer.setAnimationLoop(() => {
-  const now = performance.now();
-  const raw = (now - last) / 1000;
+function frame(now = performance.now()) {
+  const raw = Math.max(0, (now - last) / 1000);
   const dt = Math.min(0.05, raw);
   last = now;
   time += dt;
@@ -339,6 +424,10 @@ renderer.setAnimationLoop(() => {
     else input.setCharge(m.shotCharge, m.passCharge);
     input.setStamina(u.stamina, u.winded, u.sprinting);
     hud?.update(m);
+    if (storyOn) {
+      hud?.subsAlert(needsSub(m));
+      hud?.meTired(m.user.energy < 0.4);
+    }
     if (online.active) {
       hud?.banner(online.banner(m));
       hud?.link(online.room?.direct ?? null);
@@ -355,14 +444,16 @@ renderer.setAnimationLoop(() => {
     rig.update(dt, "match", m);
   } else {
     select.update(dt);
+    story.update(dt);
     fx.update(dt, offscreen, false, "#fff");
     fx.dazed([], time);
-    rig.selectX = select.viewX;
+    rig.selectX = story.active ? story.viewX : select.viewX;
     rig.update(dt, "select", null);
   }
   if (faces) faces();
   else renderer.render(scene, rig.cam);
-});
+}
+renderer.setAnimationLoop(() => frame());
 
 // Dev: `__sim(20)` / `__glitch(10)` in the browser console (see dev.ts), and `__online` (the room, sync).
 if (!inApp) {
@@ -370,6 +461,10 @@ if (!inApp) {
   (window as unknown as { __online: Online }).__online = online;
   // The renderer, scene and camera, for grabbing frames from the console.
   (window as unknown as { __gfx: unknown }).__gfx = { renderer, scene, rig };
+  // Run `n` frames of `dt` straight away, e.g. when the browser has stopped animating a hidden page.
+  (window as unknown as { __frames: unknown }).__frames = (n: number, dt = 1 / 30) => {
+    for (let i = 0; i < n; i++) frame(last + dt * 1000);
+  };
 }
 
 document.getElementById("loading")?.remove();
@@ -377,6 +472,8 @@ showSelect();
 // Invite link (?room=CODE on the website, or passed in by the app): straight into that room.
 const invite = host.room ?? new URLSearchParams(location.search).get("room");
 if (invite && !faces) online.invited(invite);
+// `/street?story` (the website's Story mode links): straight into story mode.
+else if (!faces && new URLSearchParams(location.search).has("story")) openStory();
 if (faces) {
   select.cull = false;
   select.root.style.display = "none";

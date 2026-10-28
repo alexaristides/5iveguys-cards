@@ -29,6 +29,14 @@ const GAME_MODES: GameMode[] = [
     shadow: "shadow-purple-900/40",
   },
   {
+    href: "/street?story",
+    emoji: "🏆",
+    title: "5IVE STREET · Story mode",
+    subtitle: "You're Oscar, player-manager: take Five Guys FC from Division 4 to the Golden Cage",
+    gradient: "from-amber-600 to-orange-800 hover:from-amber-500 hover:to-orange-700",
+    shadow: "shadow-amber-900/40",
+  },
+  {
     href: "/game/exhibition",
     emoji: "🎮",
     title: "Exhibition Match",
@@ -62,7 +70,7 @@ function GameModeMenu() {
           </>
         );
         // 5IVE STREET is a static page (public/street), so it needs a full page load.
-        return mode.href === "/street"
+        return mode.href.startsWith("/street")
           ? <a key={mode.href} href={mode.href} className={className}>{body}</a>
           : <Link key={mode.href} href={mode.href} className={className}>{body}</Link>;
       })}
