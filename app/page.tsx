@@ -90,17 +90,18 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* 5IVE STREET hero — a static page (public/street), so a plain link rather than <Link>. */}
-        <a
-          href="/street"
-          className="group relative mb-14 block overflow-hidden rounded-3xl border border-purple-500/40 bg-gradient-to-br from-[#a326d6]/30 via-[#12061f] to-[#070b14] p-8 transition hover:border-purple-400/70 sm:p-10"
-        >
+        {/*
+          5IVE STREET hero. The game is a static page (public/street), so plain links rather than <Link>.
+          The whole card plays; the Story mode button opens straight into story mode (/street?story).
+        */}
+        <div className="group relative mb-14 overflow-hidden rounded-3xl border border-purple-500/40 bg-gradient-to-br from-[#a326d6]/30 via-[#12061f] to-[#070b14] p-8 transition hover:border-purple-400/70 sm:p-10">
+          <a href="/street" className="absolute inset-0" tabIndex={-1} aria-hidden="true" />
           <div className="pointer-events-none absolute -right-8 -top-8 text-[150px] opacity-10 transition group-hover:scale-110">
             ⚽
           </div>
-          <div className="relative">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-500/20 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-purple-200">
-              New · 3D · Free to play · no account needed
+          <div className="pointer-events-none relative">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-200">
+              New · Story mode · 3D · Free to play · no account needed
             </span>
             <h2 className="mt-4 text-3xl font-extrabold italic leading-tight text-white sm:text-4xl">
               5IVE STREET <span className="text-purple-300">3v3</span>
@@ -108,14 +109,27 @@ export default function HomePage() {
             <p className="mt-2 text-base text-zinc-300 sm:text-lg">
               Street football in a cage with the 5ive Guys squad. Play it off the walls, nutmeg the CPU.
             </p>
-            <div className="mt-6 flex flex-wrap items-center gap-4">
-              <span className="rounded-2xl bg-purple-600 px-6 py-3 text-base font-extrabold text-white shadow-lg shadow-purple-600/30 transition group-hover:bg-purple-500">
+            <p className="mt-2 text-sm text-amber-100/80 sm:text-base">
+              <b className="text-amber-200">Story mode:</b> you&apos;re Oscar, player-manager. Take Five Guys FC from the Division 4 car park to
+              the Golden Cage, and get one over on Rex Hollins&apos; Royals.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <a
+                href="/street"
+                className="pointer-events-auto rounded-2xl bg-purple-600 px-6 py-3 text-base font-extrabold text-white shadow-lg shadow-purple-600/30 transition hover:bg-purple-500"
+              >
                 Play now →
-              </span>
+              </a>
+              <a
+                href="/street?story"
+                className="pointer-events-auto rounded-2xl border border-amber-300/60 bg-amber-400/15 px-6 py-3 text-base font-extrabold text-amber-100 transition hover:bg-amber-400/25"
+              >
+                🏆 Story mode
+              </a>
               <span className="text-sm font-semibold text-zinc-400">Best on a phone held sideways · keyboard on desktop</span>
             </div>
           </div>
-        </a>
+        </div>
 
         {/* 5ive Verse hero */}
         {loading ? (

@@ -51,7 +51,8 @@ function swipeToHideBars() {
   html.classList.add("ios-bars");
   const card = document.createElement("div");
   card.id = "swipe";
-  card.innerHTML = `<div class="hand">↑</div><div class="display">Swipe up</div><div class="sub">for full screen · or tap to play</div>`;
+  card.innerHTML = `<div class="hand">↑</div><div class="display">Swipe up</div><div class="sub">for full screen · or tap to play</div>
+    <div class="tip">Full screen every time: Share <b>⎙</b> → <b>Add to Home Screen</b></div>`;
   const room = document.createElement("div");
   room.id = "swipe-room";
   document.body.append(card, room);

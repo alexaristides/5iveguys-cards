@@ -472,6 +472,8 @@ showSelect();
 // Invite link (?room=CODE on the website, or passed in by the app): straight into that room.
 const invite = host.room ?? new URLSearchParams(location.search).get("room");
 if (invite && !faces) online.invited(invite);
+// `/street?story` (the website's Story mode links): straight into story mode.
+else if (!faces && new URLSearchParams(location.search).has("story")) openStory();
 if (faces) {
   select.cull = false;
   select.root.style.display = "none";
