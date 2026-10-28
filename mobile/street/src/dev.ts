@@ -33,12 +33,18 @@ function newSim(roster: RosterPlayer[], d: number, keys?: string[]) {
 
 export function installDevTools(roster: RosterPlayer[]) {
   const w = window as unknown as Record<string, unknown>;
+  // A headless CPU-vs-CPU match to poke at: `const m = __newSim(); m.step(1 / 60, __PAD)`.
+  w.__newSim = (d = 1, keys?: string[]) => newSim(roster, d, keys);
+  w.__PAD = PAD;
 
   w.__sim = (n: number, d = 1, keys?: string[]) => {
     const out: string[] = [];
     const goalDist: number[] = [];
     const goalsBy: Record<string, number> = {};
-    const total = { goals: [0, 0], shots: [0, 0], blocks: [0, 0], tackles: [0, 0], takedowns: [0, 0], pokes: [0, 0], tricks: [0, 0], passes: [0, 0], possession: [0, 0], sprint: [0, 0] };
+    const total = {
+      goals: [0, 0], shots: [0, 0], onTarget: [0, 0], blocks: [0, 0], tackles: [0, 0], takedowns: [0, 0], pokes: [0, 0], tricks: [0, 0],
+      passes: [0, 0], completed: [0, 0], heavyTouches: [0, 0], bodyBlocks: [0, 0], possession: [0, 0], sprint: [0, 0],
+    };
     for (let i = 0; i < n; i++) {
       const sim = newSim(roster, d, keys);
       let guard = 0;
@@ -47,14 +53,15 @@ export function installDevTools(roster: RosterPlayer[]) {
       goalDist.push(...sim.log.goalDist);
       for (const g of sim.scorers) if (!g.og) goalsBy[g.name] = (goalsBy[g.name] ?? 0) + 1;
       total.goals[0] += sim.score[0]; total.goals[1] += sim.score[1];
-      for (const k of ["shots", "blocks", "tackles", "takedowns", "pokes", "tricks", "passes", "possession", "sprint"] as const) {
+      for (const k of ["shots", "onTarget", "blocks", "tackles", "takedowns", "pokes", "tricks", "passes", "completed", "heavyTouches", "bodyBlocks", "possession", "sprint"] as const) {
         total[k][0] += sim.log[k][0]; total[k][1] += sim.log[k][1];
       }
     }
     const avg = Object.fromEntries(Object.entries(total).map(([k, v]) => [k, v.map((x) => +(x / n).toFixed(1))]));
     const hist: Record<string, number> = {};
     for (const g of goalDist) { const k = `${Math.floor(g / 3) * 3}m`; hist[k] = (hist[k] ?? 0) + 1; }
-    return { scores: out.join(" "), avg, goalsFrom: hist, goalsBy };
+    const passPct = Math.round((100 * (total.completed[0] + total.completed[1])) / Math.max(1, total.passes[0] + total.passes[1]));
+    return { scores: out.join(" "), avg, passPct, goalsFrom: hist, goalsBy };
   };
 
   // `__duel(200, { pace: 90 })`: identical teams of three (every stat 75), except
@@ -183,7 +190,7 @@ export function installDevTools(roster: RosterPlayer[]) {
         if (Math.abs(b.pos.x) > HALF_L + GOAL_DEPTH + 0.02 || Math.abs(b.pos.z) > HALF_W + 0.02 || b.pos.y < BALL_R - 0.02) flag("ballOutOfCage", sim, `${b.pos.x.toFixed(2)},${b.pos.y.toFixed(2)},${b.pos.z.toFixed(2)}`);
         const jump = b.pos.distanceTo(prevBall);
         if (!b.owner && jump > b.vel.length() * dt + 0.35 && sim.stateT > 0.05) flag("ballTeleport", sim, `${jump.toFixed(2)}m`);
-        if (b.owner && dist(b.owner.pos, b.pos) > 1.1) flag("ballFarFromOwner", sim, `${b.owner.name} ${dist(b.owner.pos, b.pos).toFixed(2)}m`);
+        if (b.owner && dist(b.owner.pos, b.pos) > 2.4) flag("ballFarFromOwner", sim, `${b.owner.name} ${dist(b.owner.pos, b.pos).toFixed(2)}m`);
         prevBall.copy(b.pos);
         if (play && !b.owner && b.speed < 0.3) { deadFor += dt; if (deadFor > 3) { flag("deadBall", sim, `${b.pos.x.toFixed(1)},${b.pos.z.toFixed(1)}`); deadFor = -999; } }
         else if (b.owner || b.speed >= 0.3) deadFor = 0;
@@ -216,7 +223,8 @@ export function installDevTools(roster: RosterPlayer[]) {
           const trick = p.action?.kind === "roulette";
           if (turn > 13 && !trick && p.speed < 1.5 && p.mood === "play") flag("spinOnSpot", sim, `${p.name} ${turn.toFixed(0)}rad/s act=${p.action?.kind ?? "-"} ball=${sim.ball.owner === p ? "own" : sim.ball.owner ? "theirs" : "loose"} user=${p === sim.user}`);
           const pv = prevVel.get(p)!;
-          const justHit = p.action?.kind === "floored" && p.action.t < 0.1; // a tackle knocks them back
+          // A tackle knocks them back; so does running into someone.
+          const justHit = (p.action?.kind === "floored" && p.action.t < 0.1) || sim.t - p.bumpedAt < 0.05;
           if (!justHit && p.speed > 1.2 && Math.hypot(pv.x, pv.z) > 1.2 && p.vel.x * pv.x + p.vel.z * pv.z < 0) flag("velocityFlip", sim, p.name);
           if (Math.abs(p.pos.x) > HALF_L || Math.abs(p.pos.z) > HALF_W) flag("playerOutOfCage", sim, p.name);
           prevPos.set(p, { ...p.pos });

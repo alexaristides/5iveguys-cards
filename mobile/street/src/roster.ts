@@ -7,7 +7,17 @@
 export type HairStyle =
   | "curlyMop" | "curlyTop" | "shortCurly" | "messy" | "locs" | "quiff" | "longCurly" | "afro" | "twists";
 export type Beard = "none" | "stubble" | "goatee" | "full";
-export type Celebration = "airplane" | "kneeSlide" | "flex" | "siuu" | "fistPump" | "pointUp";
+export type Celebration =
+  | "airplane" | "kneeSlide" | "flex" | "siuu" | "fistPump" | "pointUp"
+  | "backflip" | "bellyDive" | "shush" | "cupEars" | "robot" | "dance" | "salute" | "rockBaby" | "calma" | "archer";
+
+/** Every celebration. A player does their own (in their roster entry) first, then a different one for each goal. */
+export const CELEBRATIONS: Celebration[] = [
+  "airplane", "kneeSlide", "flex", "siuu", "fistPump", "pointUp",
+  "backflip", "bellyDive", "shush", "cupEars", "robot", "dance", "salute", "rockBaby", "calma", "archer",
+];
+/** Celebrations the scorer's teammates join in with when they get to them. */
+export const GROUP_CELEBRATIONS: Celebration[] = ["robot", "dance", "salute", "rockBaby"];
 
 /** Where the face is on a card, as fractions of the image: midpoint between the eyes, and the chin. */
 export interface FaceCrop {
@@ -107,7 +117,7 @@ export const ROSTER: RosterPlayer[] = [
       face: { x: 0.505, y: 0.314, chin: 0.55 },
     },
     stats: { pace: 72, shooting: 74, passing: 82, dribbling: 80, defending: 70, physical: 66 },
-    celebration: "fistPump",
+    celebration: "salute",
   },
   {
     key: "oscar",
@@ -145,7 +155,7 @@ export const ROSTER: RosterPlayer[] = [
       face: { x: 0.488, y: 0.241, chin: 0.468, tilt: -3 },
     },
     stats: { pace: 86, shooting: 78, passing: 68, dribbling: 77, defending: 58, physical: 80 },
-    celebration: "kneeSlide",
+    celebration: "backflip",
   },
   {
     key: "gravz",
@@ -158,7 +168,7 @@ export const ROSTER: RosterPlayer[] = [
       face: { x: 0.495, y: 0.277, chin: 0.505, tilt: -2 },
     },
     stats: { pace: 88, shooting: 74, passing: 79, dribbling: 80, defending: 52, physical: 62 },
-    celebration: "fistPump",
+    celebration: "dance",
   },
   {
     key: "jack",
@@ -171,7 +181,7 @@ export const ROSTER: RosterPlayer[] = [
       face: { x: 0.563, y: 0.304, chin: 0.52, w: 0.85, tilt: -9 },
     },
     stats: { pace: 76, shooting: 84, passing: 72, dribbling: 85, defending: 45, physical: 62 },
-    celebration: "siuu",
+    celebration: "shush",
   },
   {
     key: "joad",
@@ -184,7 +194,7 @@ export const ROSTER: RosterPlayer[] = [
       face: { x: 0.588, y: 0.293, chin: 0.54, w: 0.75, tilt: 2 },
     },
     stats: { pace: 88, shooting: 58, passing: 68, dribbling: 66, defending: 84, physical: 80 },
-    celebration: "airplane",
+    celebration: "bellyDive",
   },
   {
     key: "lats",
@@ -197,7 +207,7 @@ export const ROSTER: RosterPlayer[] = [
       face: { x: 0.407, y: 0.268, chin: 0.493, w: 0.9 },
     },
     stats: { pace: 70, shooting: 60, passing: 72, dribbling: 58, defending: 90, physical: 92 },
-    celebration: "flex",
+    celebration: "robot",
   },
   {
     key: "milo",
@@ -210,7 +220,7 @@ export const ROSTER: RosterPlayer[] = [
       face: { x: 0.441, y: 0.288, chin: 0.515, w: 0.85, tilt: -5 },
     },
     stats: { pace: 92, shooting: 74, passing: 74, dribbling: 86, defending: 50, physical: 58 },
-    celebration: "pointUp",
+    celebration: "archer",
   },
   {
     key: "ryan",
@@ -236,7 +246,7 @@ export const ROSTER: RosterPlayer[] = [
       face: { x: 0.489, y: 0.278, chin: 0.493 },
     },
     stats: { pace: 75, shooting: 86, passing: 72, dribbling: 84, defending: 48, physical: 80 },
-    celebration: "flex",
+    celebration: "cupEars",
   },
   {
     key: "sweetchilli",
@@ -249,7 +259,7 @@ export const ROSTER: RosterPlayer[] = [
       face: { x: 0.486, y: 0.363, chin: 0.58 },
     },
     stats: { pace: 90, shooting: 80, passing: 76, dribbling: 82, defending: 50, physical: 72 },
-    celebration: "airplane",
+    celebration: "rockBaby",
   },
   {
     key: "theo",
@@ -262,7 +272,7 @@ export const ROSTER: RosterPlayer[] = [
       face: { x: 0.507, y: 0.308, chin: 0.528, tilt: 2 },
     },
     stats: { pace: 76, shooting: 66, passing: 84, dribbling: 82, defending: 84, physical: 72 },
-    celebration: "kneeSlide",
+    celebration: "calma",
   },
 ];
 

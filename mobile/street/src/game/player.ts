@@ -3,13 +3,13 @@
  * tackle, trick…), and turning that into an animated 3D model.
  */
 import type * as THREE from "three";
-import { angleOf, clamp, dirX, dirZ, len, turnToward, type V2 } from "../math";
+import { angleOf, clamp, dirX, dirZ, len, turnToward, wrapAngle, type V2 } from "../math";
 import type { PlayerModel } from "../rig/model";
 import {
   Animator, barge, celebrate, cheer, dejected, flick, floored, idle, jockey, kick, kungfu, panna, roulette, run, slide,
   stepover, stumble,
 } from "../rig/pose";
-import type { RosterPlayer, Stats } from "../roster";
+import type { Celebration, RosterPlayer, Stats } from "../roster";
 import { HALF_L, HALF_W } from "./field";
 
 export type ActionKind =
@@ -41,12 +41,16 @@ export const PLAYER_R = 0.38;
 /** Running speed without sprint, as a share of sprint speed. */
 export const JOG = 0.8;
 
+const STAT_KEYS: (keyof Stats)[] = ["pace", "shooting", "passing", "dribbling", "defending", "physical"];
+
 /** A stat on a 0..1 scale (40 → 0, 99 → 1), for turning stats into abilities. */
 export const rate = (stat: number) => clamp((stat - 40) / 59, 0, 1);
 
 export class Player {
   readonly info: RosterPlayer;
+  /** Stats as they play now: `base`, worn down by tiredness (story mode, see `tire`). */
   readonly stats: Stats;
+  readonly base: Stats;
   readonly team: 0 | 1;
   readonly model: PlayerModel;
   readonly anim: Animator;
@@ -68,6 +72,11 @@ export class Player {
   invulnUntil = 0;
   /** Short speed boost after beating a man. */
   burstUntil = 0;
+  /** When they last bumped into someone (match time). */
+  bumpedAt = -Infinity;
+  /** Dribbling: when the next touch is due, and when the last one was. */
+  touchAt = 0;
+  lastTouchT = -Infinity;
   /** Time spent pressing the ball carrier, for pokes. */
   pressure = 0;
   /** Wants to sprint this step (sprint button, or the AI). */
@@ -77,6 +86,16 @@ export class Player {
   /** Sprint left in the tank, 0..1. Empty = winded until it's back to a third. */
   stamina = 1;
   winded = false;
+  /**
+   * Legs left over the whole match, 0..1 (story mode only: see `Match.fatigue`). It drains
+   * on the pitch (faster sprinting, slower for strong players) and comes back on the bench.
+   */
+  energy = 1;
+  /** This match: seconds on the pitch, goals, assists and tackles won (story mode progress). */
+  secs = 0;
+  goals = 0;
+  assists = 0;
+  tackles = 0;
   /** Height off the ground (flying kicks, being sent flying) and its vertical speed. */
   air = 0;
   vy = 0;
@@ -87,35 +106,67 @@ export class Player {
   jockeying = false;
   glow = false;
 
-  // Derived from stats.
+  // Derived from stats (see `derive`).
   /** Sprint speed (m/s); without sprint they run at `JOG` of this. */
-  readonly topSpeed: number;
-  readonly accel: number;
-  readonly turnRate: number;
+  topSpeed = 0;
+  accel = 0;
+  turnRate = 0;
   /** Top speed with the ball, as a share of top speed without it. */
-  readonly dribbleSpeed: number;
+  dribbleSpeed = 0;
   /** Seconds of flat-out sprint on a full tank. */
-  readonly sprintSeconds: number;
+  sprintSeconds = 0;
   /** Tank refilled per second when not sprinting. */
-  readonly recovery: number;
+  recovery = 0;
+  /** Braking (m/s²): stopping and planting to cut back. */
+  brake = 0;
+  /** Cornering grip (m/s² sideways): how tight they can turn at speed. */
+  grip = 0;
+  /** Sideways acceleration this step (m/s², + = turning left), for leaning into turns. */
+  lean = 0;
+  /** The goal celebration they're doing (picked by the match for each goal). */
+  celebration: Celebration;
 
   constructor(info: RosterPlayer, team: 0 | 1, model: PlayerModel) {
     this.info = info;
-    this.stats = info.stats;
+    this.base = info.stats;
+    this.stats = { ...info.stats };
     this.team = team;
     this.model = model;
     this.anim = new Animator(this.model);
+    this.derive();
+    this.celebration = info.celebration;
+  }
+
+  /** Tiredness at this much energy: 1 = fresh, down to 0.8 running on empty. */
+  static wear(energy: number) {
+    return energy >= 0.6 ? 1 : 0.8 + (0.2 * energy) / 0.6;
+  }
+
+  /** Set their energy and wear their stats down to match (story mode). */
+  tire(energy: number) {
+    this.energy = clamp(energy, 0, 1);
+    const k = Player.wear(this.energy);
+    for (const key of STAT_KEYS) this.stats[key] = this.base[key] * k;
+    this.derive();
+  }
+
+  private derive() {
     const s = this.stats;
+    // Running on empty: a little slower, and the sprint tank runs dry sooner.
+    const legs = clamp(this.energy / 0.5, 0, 1);
     // Pace: real sprint speeds, 6.6 m/s (pace 70) to 7.0 m/s (pace 92), and the burst off the mark.
-    this.topSpeed = 5.95 + rate(s.pace) * 1.2;
+    this.topSpeed = (5.95 + rate(s.pace) * 1.2) * (0.9 + 0.1 * legs);
     this.accel = 9.5 + rate(s.pace) * 3.5;
     // Dribbling: radians per second (a 180° turn in about a third of a second) and
     // how little the ball slows them down.
     this.turnRate = 5.6 + rate(s.dribbling) * 3;
     this.dribbleSpeed = 0.85 + rate(s.dribbling) * 0.1;
     // Physical: how long they can sprint for, and how quickly they get it back.
-    this.sprintSeconds = 3.5 + rate(s.physical) * 4;
+    this.sprintSeconds = (3.5 + rate(s.physical) * 4) * (0.55 + 0.45 * legs);
     this.recovery = 0.12 + rate(s.physical) * 0.08;
+    // Braking and cornering: quick feet (dribbling) and a burst (pace) stop and turn sharper.
+    this.brake = 15 + rate(s.pace) * 4 + rate(s.dribbling) * 2;
+    this.grip = 16 + rate(s.dribbling) * 4;
   }
 
   get name() { return this.info.name; }
@@ -213,11 +264,17 @@ export class Player {
 
     const wl = len(wantX, wantZ);
     if (wl > top) { wantX *= top / wl; wantZ *= top / wl; }
-    const dx = wantX - this.vel.x, dz = wantZ - this.vel.z;
-    const dl = len(dx, dz);
-    const step = accel * dt;
-    if (dl <= step) { this.vel.x = wantX; this.vel.z = wantZ; }
-    else { this.vel.x += (dx / dl) * step; this.vel.z += (dz / dl) * step; }
+    // Tricks, tackles and tumbles steer themselves; so does shuffling side-on (jockeying) and
+    // setting off from a standstill. Otherwise people run like people: see `steer`.
+    const scripted = !!a && a.kind !== "kick";
+    if (scripted || (this.jockeying && !this.sprint)) {
+      const dx = wantX - this.vel.x, dz = wantZ - this.vel.z;
+      const dl = len(dx, dz);
+      const step = (scripted ? accel : Math.max(accel, this.brake * (wl < 0.2 ? 1 : 0))) * dt;
+      if (dl <= step) { this.vel.x = wantX; this.vel.z = wantZ; }
+      else { this.vel.x += (dx / dl) * step; this.vel.z += (dz / dl) * step; }
+      this.lean = 0;
+    } else this.lean = this.locomote(this.vel, wantX, wantZ, run, accel, dt, withBall, this.sprinting);
 
     this.pos.x += this.vel.x * dt;
     this.pos.z += this.vel.z * dt;
@@ -237,16 +294,84 @@ export class Player {
     if (this.stamina <= 0) this.winded = true;
     else if (this.winded && this.stamina >= 0.33) this.winded = false;
 
-    // Face where we're going (slower to turn with the ball, and flat out); hold facing during tricks/tackles.
+    // Face where we're running (the run already turns at a human rate); side-on to the ball when
+    // jockeying; toward `look` when stood still; held during tricks and tackles.
     const locked = a && a.kind !== "kick";
     if (!locked) {
-      const rate = (withBall ? this.turnRate * 0.75 : this.turnRate * 1.3) * (this.sprinting ? (withBall ? 0.7 : 0.85) : 1) * dt;
-      if (sp > 0.6 && len(wantX, wantZ) > 0.3) this.facing = turnToward(this.facing, angleOf(this.vel.x, this.vel.z), rate);
+      const rate = (withBall ? this.turnRate * 0.9 : this.turnRate * 1.3) * dt;
+      const shuffle = this.jockeying && !this.sprint && this.look !== null;
+      if (shuffle) this.facing = turnToward(this.facing, this.look!, rate);
+      // Running, the body follows the run closely (the run itself turns at a human rate).
+      else if (sp > 1.2 && len(wantX, wantZ) > 0.3) this.facing = turnToward(this.facing, angleOf(this.vel.x, this.vel.z), rate * (sp > 3 ? 2.5 : 1));
       else if (this.look !== null) this.facing = turnToward(this.facing, this.look, rate * 0.7);
     }
     // One cycle = two steps. Longer strides as speed rises, so the feet match the
     // ground: ~1.5 steps/s walking, ~2.4 jogging, ~3.4 sprinting.
     this.runPhase += (sp * dt * Math.PI * 2) / (1.4 + 0.38 * sp);
+  }
+
+  /**
+   * Running on two legs, not skating: the run has a heading that turns only as
+   * fast as their grip allows at that speed (tighter when slower), they ease off
+   * into tight turns, and anything sharper than about 110° means planting a foot
+   * and braking before going the new way. Speeding up tails off near top speed.
+   * From (nearly) standing they just set off the way they want. Updates `vel`;
+   * returns the sideways acceleration (+ = turning left).
+   */
+  private locomote(vel: V2, wantX: number, wantZ: number, runSp: number, accel: number, dt: number, withBall: boolean, sprinting: boolean) {
+    const sp = len(vel.x, vel.z);
+    const wl = len(wantX, wantZ);
+    if (sp < 0.8) {
+      const dx = wantX - vel.x, dz = wantZ - vel.z;
+      const dl = len(dx, dz);
+      const step = Math.max(accel, wl < 0.2 ? this.brake : 0) * dt;
+      if (dl <= step) { vel.x = wantX; vel.z = wantZ; }
+      else { vel.x += (dx / dl) * step; vel.z += (dz / dl) * step; }
+      return 0;
+    }
+    const h0 = angleOf(vel.x, vel.z);
+    let h = h0;
+    const turn = wl > 0.2 ? wrapAngle(angleOf(wantX, wantZ) - h) : 0;
+    const grip = this.grip * (withBall ? 0.85 : 1) * (sprinting ? 0.9 : 1);
+    const maxTurn = Math.min(this.turnRate * 1.25, grip / sp) * dt;
+    let next: number;
+    if (wl < 0.2 || Math.abs(turn) > 1.9) {
+      // Stop, or plant and cut back: brake hard (and start turning once slow).
+      next = Math.max(0, sp - this.brake * dt);
+      h += clamp(turn, -maxTurn, maxTurn);
+    } else {
+      h += clamp(turn, -maxTurn, maxTurn);
+      const target = wl * (1 - 0.3 * clamp(Math.abs(turn) / 1.6, 0, 1));
+      next = target > sp
+        ? Math.min(target, sp + accel * (1.25 - 0.6 * Math.min(1, sp / runSp)) * dt)
+        : Math.max(target, sp - this.brake * dt);
+    }
+    vel.x = dirX(h) * next;
+    vel.z = dirZ(h) * next;
+    return (wrapAngle(h - h0) / Math.max(dt, 1e-4)) * sp;
+  }
+
+  /**
+   * Where they'll be in `T` seconds, and how they'll be moving, if they keep
+   * wanting what they want now (the dribble uses it to knock the ball into their path).
+   */
+  predict(T: number, now: number, speedMul: number, withBall: boolean) {
+    const sprint = this.sprint && !this.winded;
+    const runSp = this.topSpeed * speedMul;
+    const top = runSp * (sprint ? 1 : JOG) * (now < this.burstUntil ? 1.15 : 1);
+    let wantX = this.want.x, wantZ = this.want.z;
+    const wl = len(wantX, wantZ);
+    if (wl > top) { wantX *= top / wl; wantZ *= top / wl; }
+    const vel = { x: this.vel.x, z: this.vel.z };
+    let x = this.pos.x, z = this.pos.z;
+    const n = Math.max(1, Math.ceil(T * 30));
+    const h = T / n;
+    for (let i = 0; i < n; i++) {
+      this.locomote(vel, wantX, wantZ, runSp, this.accel, h, withBall, this.sprinting);
+      x = clamp(x + vel.x * h, -HALF_L + 0.3, HALF_L - 0.3);
+      z = clamp(z + vel.z * h, -HALF_W + 0.3, HALF_W - 0.3);
+    }
+    return { x, z, vx: vel.x, vz: vel.z };
   }
 
   /** Pose the model for this frame. */
@@ -256,7 +381,7 @@ export class Player {
     const s = clamp(this.speed / 7, 0, 1);
     const yaw = this.facing;
 
-    if (this.mood === "celebrate") celebrate(p, this.info.celebration, this.moodT, this.runPhase, s);
+    if (this.mood === "celebrate") celebrate(p, this.celebration, this.moodT, this.runPhase, s);
     else if (this.mood === "cheer") cheer(p, this.moodT);
     else if (this.mood === "dejected") dejected(p, this.moodT);
     else if (a) {
@@ -274,8 +399,12 @@ export class Player {
         case "stumble": stumble(p, k); break;
       }
     } else if (this.jockeying && s < 0.75) jockey(p, this.runPhase, s);
-    else if (s > 0.05) run(p, this.runPhase, s, false);
-    else idle(p, t + this.runPhase);
+    else if (s > 0.05) {
+      run(p, this.runPhase, s, false);
+      // Lean into the turn (the body pivots at the feet).
+      this.leanT += (clamp(-this.lean * 0.022, -0.32, 0.32) - this.leanT) * Math.min(1, dt * 10);
+      p.tilt(0, 0, this.leanT);
+    } else idle(p, t + this.runPhase);
 
     // Look at the ball.
     if (this.mood === "play" && a?.kind !== "floored") {
@@ -292,4 +421,5 @@ export class Player {
     if (this.glow !== this.lastGlow) { this.model.setGlow(this.glow); this.lastGlow = this.glow; }
   }
   private lastGlow = false;
+  private leanT = 0;
 }

@@ -1,5 +1,5 @@
 /** In-match HUD, pause menu and the full-time screen (DOM over the canvas). */
-import type { Match } from "../game/match";
+import { FIVE_MODE, type Match } from "../game/match";
 import type { Player } from "../game/player";
 import { KITS, type KitId } from "../rig/kits";
 
@@ -32,12 +32,18 @@ export class Hud {
   private bannerEl: HTMLElement;
   private linkEl: HTMLElement;
 
-  /** `labels`: names for the two sides on the scoreboard (online), else the kit names. */
-  constructor(parent: HTMLElement, kits: [KitId, KitId], onPause: () => void, labels?: [string, string]) {
+  private subsBtn: HTMLElement | null = null;
+
+  /**
+   * `labels`: names for the two sides on the scoreboard (online), else the kit names.
+   * `onSubs`: story mode's Subs button.
+   */
+  constructor(parent: HTMLElement, kits: [KitId, KitId], onPause: () => void, labels?: [string, string], onSubs?: () => void) {
     const [l0, l1] = labels ?? [KITS[kits[0]].label, KITS[kits[1]].label];
     this.root = el(`
       <div class="layer" id="hud">
         <button class="pause" aria-label="Pause">II</button>
+        ${onSubs ? `<button class="subs display" aria-label="Substitutions">SUBS</button>` : ""}
         <div class="score display">
           <div class="team home"><span>${esc(l0)}</span><span class="goals" data-h>0</span></div>
           <div class="clock" data-c>3:00</div>
@@ -45,7 +51,7 @@ export class Hud {
         </div>
         <div class="banner display hidden"></div>
         <div class="link hidden"></div>
-        <div class="meters"><div class="meter" data-mh><i></i></div><div class="meter away" data-ma><i></i></div></div>
+        <div class="meters${FIVE_MODE ? "" : " hidden"}"><div class="meter" data-mh><i></i></div><div class="meter away" data-ma><i></i></div></div>
         <div class="onball display hidden"></div>
         <div class="me display hidden"><span></span><i class="tank"><b></b></i></div>
       </div>`);
@@ -62,6 +68,36 @@ export class Hud {
     this.bannerEl = this.root.querySelector(".banner")!;
     this.linkEl = this.root.querySelector(".link")!;
     this.root.querySelector(".pause")!.addEventListener("click", onPause);
+    if (onSubs) {
+      this.subsBtn = this.root.querySelector(".subs");
+      this.subsBtn!.addEventListener("click", onSubs);
+    }
+    // A club in its own colours (story mode) rather than the black kit's.
+    const away = KITS[kits[1]];
+    if (kits[1] !== "black" && away) {
+      const t = this.root.querySelector(".team.away") as HTMLElement;
+      t.style.background = `linear-gradient(90deg, ${away.pattern}, ${away.shirt})`;
+      t.style.color = away.trim;
+    }
+  }
+
+  /** Story mode: the name tag goes red when the player you control is running on empty. */
+  meTired(on: boolean) {
+    this.me.classList.toggle("tired", on);
+  }
+
+  /** Story mode: the Subs button nags when someone's out on their feet. */
+  subsAlert(on: boolean) {
+    this.subsBtn?.classList.toggle("warn", on);
+  }
+
+  /** A short message near the bottom (subs coming on, someone tiring). */
+  note(text: string) {
+    const t = el(`<div class="toast display"></div>`);
+    t.textContent = text;
+    this.root.querySelector(".toast")?.remove();
+    this.root.appendChild(t);
+    setTimeout(() => t.remove(), 2600);
   }
 
   /** A message across the middle that stays until cleared (online: waiting, connection trouble). */
@@ -160,7 +196,8 @@ export function pauseSheet(
   parent: HTMLElement,
   muted: boolean,
   autoSwitch: boolean,
-  actions: { resume(): void; restart(): void; quit(): void; menu?(): void; mute(m: boolean): void; autoSwitch(on: boolean): void },
+  /** `subs`: story mode (Subs instead of Restart, and quitting means playing the game again later). */
+  actions: { resume(): void; restart(): void; quit(): void; menu?(): void; mute(m: boolean): void; autoSwitch(on: boolean): void; subs?(): void },
   /** Online there's no pausing the other player: the menu is just settings and leaving. */
   online = false,
 ) {
@@ -169,20 +206,22 @@ export function pauseSheet(
     <div class="layer"><div class="sheet"><div class="panel">
       <h2 class="display">${online ? "Menu" : "Paused"}</h2>
       ${online ? `<div style="color:#a1a1aa;font-size:13px">The match carries on while this is open</div>` : ""}
-      <div class="row"><button class="btn" data-r>${online ? "Back to the match" : "Resume"}</button></div>
+      ${actions.subs ? `<div style="color:#a1a1aa;font-size:13px">Quit and this game doesn't count: you play it again from the start</div>` : ""}
+      <div class="row"><button class="btn" data-r>${online ? "Back to the match" : "Resume"}</button>${actions.subs ? `<button class="btn ghost" data-sub>Subs</button>` : ""}</div>
       <div class="row">
-        ${online ? "" : `<button class="btn ghost" data-s>Restart</button>`}
-        <button class="btn ghost" data-q>${online ? "Leave match" : "Change teams"}</button>
+        ${online || actions.subs ? "" : `<button class="btn ghost" data-s>Restart</button>`}
+        <button class="btn ghost" data-q>${online ? "Leave match" : actions.subs ? "Quit match" : "Change teams"}</button>
         <button class="btn ghost" data-m>${muted ? "Sound off" : "Sound on"}</button>
         <button class="btn ghost" data-auto>${autoLabel(autoSwitch)}</button>
       </div>
-      ${online || !actions.menu ? "" : `<div class="row"><button class="btn ghost" data-menu>Back to menu</button></div>`}
+      ${online || !actions.menu || actions.subs ? "" : `<div class="row"><button class="btn ghost" data-menu>Back to menu</button></div>`}
       <p style="color:#a1a1aa;font-size:12px;margin:14px 0 0">Stick: half push to walk, right out to sprint (the ring is your stamina) · Pass (hold to drive it through) / Switch · Shoot (hold for power) / Tackle: anything goes, no fouls · Skill: auto trick · Auto switch hands you the defender nearest the ball when yours is out of the play</p>
     </div></div></div>`);
   parent.appendChild(s);
   const close = (fn: () => void) => () => { s.remove(); fn(); };
   s.querySelector("[data-r]")!.addEventListener("click", close(actions.resume));
   s.querySelector("[data-s]")?.addEventListener("click", close(actions.restart));
+  s.querySelector("[data-sub]")?.addEventListener("click", close(() => actions.subs?.()));
   s.querySelector("[data-q]")!.addEventListener("click", close(actions.quit));
   s.querySelector("[data-menu]")?.addEventListener("click", close(() => actions.menu?.()));
   const mb = s.querySelector("[data-m]") as HTMLElement;

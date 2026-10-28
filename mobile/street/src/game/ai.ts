@@ -18,6 +18,13 @@ export class TeamAI {
 
   constructor(private m: Match, readonly team: 0 | 1) {}
 
+  /** A sub came on: drop anything held about who's who. */
+  forget() {
+    this.presser = null;
+    this.nextThink.clear();
+    this.stuck.clear();
+  }
+
   private get cpu() { return this.m.isCpu(this.team) || this.m.autopilot; }
   /** The player a person is controlling on this side (the AI leaves them be), if any. */
   private get human() { return this.m.autopilot ? null : this.m.humans[this.team]?.user ?? null; }
@@ -35,7 +42,8 @@ export class TeamAI {
     if (!ai.length) return;
     const owner = b.owner;
 
-    for (const p of ai) { p.jockeying = false; p.sprint = false; p.look = angleOf(b.pos.x - p.pos.x, b.pos.z - p.pos.z); }
+    // Everyone watches the ball (the carrier looks where they're going).
+    for (const p of ai) { p.jockeying = false; p.sprint = false; p.look = p === owner ? null : angleOf(b.pos.x - p.pos.x, b.pos.z - p.pos.z); }
 
     if (owner && owner.team === this.team) this.attack(ai, owner, dt);
     else if (owner) this.defend(ai, owner);
@@ -55,24 +63,19 @@ export class TeamAI {
     p.want = { x: (dx / d) * speed, z: (dz / d) * speed };
   }
 
-  /** Where `p` can first reach the moving ball. */
+  /**
+   * Where `p` can first reach the moving ball: its predicted flight (spin,
+   * bounces and all) against how long they take to get there. Low enough to
+   * control, that is: a ball over their head doesn't count until it comes down.
+   */
   intercept(p: Player): V2 {
-    const b = this.m.ball;
-    let x = b.pos.x, z = b.pos.z, vx = b.vel.x, vz = b.vel.z;
-    let airT = b.airborne ? Math.max(0, (b.vel.y + Math.sqrt(Math.max(0, b.vel.y ** 2 + 2 * 11.5 * (b.pos.y - 0.13)))) / 11.5) : 0;
+    const path = this.m.ballPath();
     const top = p.topSpeed * 0.95;
-    for (let t = 0; t <= 2.6; t += 0.1) {
-      if (dist(p.pos, { x, z }) / top + 0.12 <= t) return { x, z };
-      x += vx * 0.1; z += vz * 0.1;
-      if (airT > 0) airT -= 0.1;
-      else {
-        const s = len(vx, vz);
-        if (s > 0) { const ns = Math.max(0, s - (1.5 + 0.25 * s) * 0.1); vx *= ns / s; vz *= ns / s; }
-      }
-      if (Math.abs(z) > HALF_W - 0.2) { vz = -vz * 0.7; z = Math.sign(z) * (HALF_W - 0.2); }
-      if (Math.abs(x) > HALF_L - 0.2) { vx = -vx * 0.7; x = Math.sign(x) * (HALF_L - 0.2); }
+    for (const q of path) {
+      if (q.y < 1.5 && Math.max(0, dist(p.pos, q) - 0.5) / top + 0.1 <= q.t) return { x: q.x, z: q.z };
     }
-    return { x, z };
+    const last = path[path.length - 1];
+    return { x: last.x, z: last.z };
   }
 
   // ── Phases ────────────────────────────────────────────────────────────────
@@ -184,12 +187,12 @@ export class TeamAI {
     const dir = this.dir;
     const t = this.m.t;
     const flank = ball.z > 0 ? -1 : 1;
-    const nearGoal = (attackX(this.team) - ball.x) * dir < 9;
-    const wobble = Math.sin(t * 0.7 + this.team) * 1.2;
+    const nearGoal = (attackX(this.team) - ball.x) * dir < 10;
+    const wobble = Math.sin(t * 0.7 + this.team) * 1.3;
     const ahead: V2 = nearGoal
-      ? { x: attackX(this.team) - dir * 3.2, z: flank * (1.8 + wobble * 0.4) }
-      : { x: clamp(ball.x + dir * 6, -HALF_L + 2, HALF_L - 2.5), z: flank * (4.5 + wobble) };
-    const trail: V2 = { x: ball.x - dir * 4.2, z: clamp(ball.z * 0.2 - flank * 2 + wobble * 0.5, -HALF_W + 1.5, HALF_W - 1.5) };
+      ? { x: attackX(this.team) - dir * 3.4, z: flank * (2 + wobble * 0.4) }
+      : { x: clamp(ball.x + dir * 6.8, -HALF_L + 2, HALF_L - 2.5), z: flank * (5 + wobble) };
+    const trail: V2 = { x: ball.x - dir * 4.6, z: clamp(ball.z * 0.2 - flank * 2.2 + wobble * 0.5, -HALF_W + 1.5, HALF_W - 1.5) };
     this.assign(players, [ahead, trail], 0.85, 5, 0.45);
   }
 
@@ -251,19 +254,20 @@ export class TeamAI {
     const stuck = pinned ? (this.stuck.get(p) ?? 0) + dt : 0;
     this.stuck.set(p, stuck);
 
-    if (p.busy || p.action?.kind === "kick") return;
+    // Strike it only when it's at their feet (not mid-knock).
+    if (p.busy || p.action?.kind === "kick" || dist(b.pos, p.pos) > m.touchReach(p)) return;
     const react = this.cpu ? m.difficulty.react : 0.3;
     if (!this.think(p, react)) return;
 
     // Shoot?
     const toGoal = dist(p.pos, goal);
     const facingGoal = Math.abs(wrapAngle(angleOf(goal.x - p.pos.x, goal.z - p.pos.z) - p.facing)) < 1.3;
-    if (toGoal < 10 + p.stats.shooting / 25 && facingGoal) {
+    if (toGoal < 12 + p.stats.shooting / 25 && facingGoal) {
       const blockers = opp.filter((o) => {
         const s = segDist(o.pos, b.pos, goal);
         return s.d < 0.75 && s.t > 0.08;
       }).length;
-      let chance = toGoal < 5.5 ? 0.85 : toGoal < 9 ? 0.45 : 0.15;
+      let chance = toGoal < 6.5 ? 0.9 : toGoal < 10 ? 0.55 : 0.22;
       if (blockers) chance *= 0.2;
       if (Math.random() < chance) {
         m.shoot(p, clamp(0.4 + toGoal / 22 + Math.random() * 0.15, 0.3, 0.95), null);
@@ -297,7 +301,7 @@ export class TeamAI {
       return;
     }
     // Under real pressure with nothing on: shoot from distance or knock it into space.
-    if (squeezed && toGoal < 12 && facingGoal && Math.random() < 0.12) {
+    if (squeezed && toGoal < 14 && facingGoal && Math.random() < 0.18) {
       m.shoot(p, 0.8, null);
     }
   }
