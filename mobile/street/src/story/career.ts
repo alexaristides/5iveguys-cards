@@ -117,6 +117,8 @@ export const YOU = "you";
 /** Oscar: player-manager, always in the squad and never for sale. */
 export const MANAGER = "oscar";
 export const SEASON_GAMES = 5;
+/** Story matches are two minutes (a normal match is three): a career is 20-odd games. */
+export const STORY_SECONDS = 120;
 /** Starting players' overall, and their first signings. */
 const START_OVR = 55;
 /** Four to start with, plus Oscar. */
@@ -323,10 +325,10 @@ function poisson(lambda: number, r: () => number) {
   return k - 1;
 }
 
-/** A street 3v3 score between two clubs of these strengths (the 3-minute game averages about 8 goals). */
+/** A street 3v3 score between two clubs of these strengths (a 2-minute story match averages about 5–6 goals). */
 function simScore(a: number, b: number, r: () => number): [number, number] {
-  const la = Math.min(7, Math.max(0.7, 4 + (a - b) * 0.18));
-  const lb = Math.min(7, Math.max(0.7, 4 + (b - a) * 0.18));
+  const la = Math.min(5, Math.max(0.5, 2.8 + (a - b) * 0.12));
+  const lb = Math.min(5, Math.max(0.5, 2.8 + (b - a) * 0.12));
   return [poisson(la, r), poisson(lb, r)];
 }
 
@@ -457,7 +459,7 @@ export interface Settled {
   others: { a: string; b: string; ga: number; gb: number }[];
 }
 
-export const XP = { played: 15, goal: 25, assist: 15, tackle: 4, win: 25, draw: 10, cleanSheet: 20, motm: 25, revenge: 20, training: 6 };
+export const XP = { played: 15, goal: 30, assist: 15, tackle: 4, win: 25, draw: 10, cleanSheet: 20, motm: 25, revenge: 20, training: 6 };
 /** XP from one level to the next: a bit more each time, so stars grow but don't run away. */
 export const levelXp = (level: number) => 100 + 15 * (level - 1);
 /** Seconds on the pitch to count as having played. */

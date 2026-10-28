@@ -228,7 +228,7 @@ function startMatch(home: RosterPlayer[], away: RosterPlayer[], d: Difficulty, n
   for (const p of [...away, ...(s?.awayBench ?? [])]) model(p).setKit(kits[1]);
   for (const p of [...home, ...away]) model(p).root.visible = true;
   match = new Match(scene, home, away, d, model,
-    net ? { humans: [true, true], userTeam: net.side } : s ? { bench: [s.homeBench, s.awayBench], fatigue: true } : {});
+    net ? { humans: [true, true], userTeam: net.side } : s ? { bench: [s.homeBench, s.awayBench], fatigue: true, seconds: s.seconds } : {});
   match.autoSwitch = autoSwitch;
   setView(match.camSide(match.userTeam));
   markerRing.color.set(net?.side === 1 ? KITS.black.hud : KITS.home.hud);

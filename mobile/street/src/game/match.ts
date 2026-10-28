@@ -12,8 +12,8 @@ import { aimKick, Ball, flight, rollingSpin, type BallEvent, type KickKind } fro
 import { attackDir, attackX, BALL_R, GOAL_H, GOAL_HALF, GRAVITY, HALF_L, HALF_W, rollDecel, rollSpeedFor, rollTime } from "./field";
 import { JOG, Player, PLAYER_R, rate } from "./player";
 
+/** A match's clock (story mode plays shorter ones: `opts.seconds`). Golden goal is a third of it. */
 export const MATCH_SECONDS = 180;
-const GOLDEN_GOAL_SECONDS = 60;
 const FIVE_MODE_SECONDS = 15;
 /**
  * 5IVE MODE (style fills a meter that powers your team up for a while) is
@@ -147,7 +147,9 @@ export class Controller {
 
 export class Match {
   t = 0;
-  clock = MATCH_SECONDS;
+  /** Length of the match (s). */
+  readonly length: number;
+  clock: number;
   goldenGoal = false;
   state: MatchState = "kickoff";
   stateT = 0;
@@ -202,10 +204,12 @@ export class Match {
     model: (p: RosterPlayer) => PlayerModel,
     /**
      * Online both sides are people; `userTeam` is the one playing on this screen.
-     * Story mode: `bench` (subs for each side) and `fatigue`.
+     * Story mode: `bench` (subs for each side), `fatigue` and a shorter match (`seconds`).
      */
-    opts: { humans?: [boolean, boolean]; userTeam?: 0 | 1; bench?: [RosterPlayer[], RosterPlayer[]]; fatigue?: boolean } = {},
+    opts: { humans?: [boolean, boolean]; userTeam?: 0 | 1; bench?: [RosterPlayer[], RosterPlayer[]]; fatigue?: boolean; seconds?: number } = {},
   ) {
+    this.length = opts.seconds ?? MATCH_SECONDS;
+    this.clock = this.length;
     this.teams = [
       home.map((r) => new Player(r, 0, model(r))),
       away.map((r) => new Player(r, 1, model(r))),
@@ -318,7 +322,7 @@ export class Match {
         if (this.clock <= 0) {
           if (!this.goldenGoal && this.score[0] === this.score[1]) {
             this.goldenGoal = true;
-            this.clock = GOLDEN_GOAL_SECONDS;
+            this.clock = Math.round(this.length / 3);
             this.emit({ type: "style", team: this.userTeam, text: "GOLDEN GOAL" });
             this.sound("whistle");
           } else {
@@ -832,7 +836,7 @@ export class Match {
     this.score[team]++;
     this.lastGoalTeam = team;
     this.lastScorer = og ? null : scorer;
-    this.scorers.push({ team, name: scorer?.name ?? "?", og, second: Math.round(MATCH_SECONDS - this.clock) });
+    this.scorers.push({ team, name: scorer?.name ?? "?", og, second: Math.round(this.length - this.clock) });
     this.state = "goal";
     this.stateT = 0;
     b.owner = null;
@@ -1487,14 +1491,14 @@ export class Match {
   private tireOut(dt: number) {
     for (const p of this.players) {
       p.secs += dt;
-      const drain = ((0.62 - 0.3 * rate(p.base.physical)) / MATCH_SECONDS) * (p.sprinting ? 2.2 : 1);
+      const drain = ((0.62 - 0.3 * rate(p.base.physical)) / this.length) * (p.sprinting ? 2.2 : 1);
       p.tire(p.energy - drain * dt);
       if (p.energy < 0.35 && !this.warned.has(p) && !this.isCpu(p.team) && this.bench[p.team].length) {
         this.warned.add(p);
         this.emit({ type: "tired", player: p });
       }
     }
-    for (const t of [0, 1] as const) for (const p of this.bench[t]) if (p.energy < 1) p.tire(p.energy + dt / 200);
+    for (const t of [0, 1] as const) for (const p of this.bench[t]) if (p.energy < 1) p.tire(p.energy + dt / (this.length * 1.1));
     // The CPU also brings on a sub mid-play for someone out on their feet and away from the ball.
     if (this.t >= this.nextCpuSub) {
       this.nextCpuSub = this.t + 5;
