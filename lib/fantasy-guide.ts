@@ -4,6 +4,9 @@
  */
 import { CHIPS, FANTASY_POINTS as P, FANTASY_RULES as R, formatPrice } from "./fantasy";
 
+/** "+3" or "−2" (a real minus sign). */
+const signed = (n: number) => (n < 0 ? `−${-n}` : `+${n}`);
+
 export function fantasyGuide(season: { budget: number; secondHalfFrom: number | null }) {
   const sections: { title: string; body: string }[] = [
     {
@@ -52,10 +55,10 @@ export function fantasyGuide(season: { budget: number; secondHalfFrom: number | 
     { label: `Defensive contributions (DEF ${P.defensiveThreshold.DEF}, MID/FWD ${P.defensiveThreshold.MID})`, points: `+${P.defensiveContribution}` },
     { label: "Bonus", points: `+${P.bonus.at(-1)} to +${P.bonus[0]}` },
     { label: `Every ${P.goalsConcededPerPoint} goals conceded (GK/DEF)`, points: "−1" },
-    { label: "Penalty miss", points: `${P.penaltyMiss}` },
-    { label: "Yellow card", points: `${P.yellowCard}` },
-    { label: "Red card", points: `${P.redCard}` },
-    { label: "Own goal", points: `${P.ownGoal}` },
+    { label: "Penalty miss", points: signed(P.penaltyMiss) },
+    { label: "Yellow card", points: signed(P.yellowCard) },
+    { label: "Red card", points: signed(P.redCard) },
+    { label: "Own goal", points: signed(P.ownGoal) },
   ];
 
   return { sections, chips: CHIPS, scoring };
