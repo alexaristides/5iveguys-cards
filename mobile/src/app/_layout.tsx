@@ -62,7 +62,16 @@ function RootStack() {
       <Stack.Protected guard={signedIn && FEATURES.fantasy}>
         <Stack.Screen name="fantasy/edit" options={{ gestureEnabled: false }} />
         <Stack.Screen name="fantasy/gameweek/[number]" />
-        <Stack.Screen name="fantasy/leaderboard" />
+        <Stack.Screen name="fantasy/league/[id]" />
+        <Stack.Screen name="fantasy/history" />
+        <Stack.Screen
+          name="fantasy/player/[id]"
+          options={{ presentation: "formSheet", sheetAllowedDetents: [0.7, 0.95], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
+        />
+        <Stack.Screen
+          name="fantasy/join"
+          options={{ presentation: "formSheet", sheetAllowedDetents: [0.7], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
+        />
         <Stack.Screen
           name="fantasy/rules"
           options={{ presentation: "formSheet", sheetAllowedDetents: [0.92], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
