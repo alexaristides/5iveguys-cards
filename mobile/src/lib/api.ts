@@ -27,12 +27,13 @@ export function authHeader(): Record<string, string> {
 /** JSON request to the website's API, authenticated with the app's session token. */
 export async function api<T = unknown>(
   path: string,
-  opts: { method?: string; body?: unknown } = {},
+  opts: { method?: string; body?: unknown; headers?: Record<string, string> } = {},
 ): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     method: opts.method ?? (opts.body === undefined ? "GET" : "POST"),
     headers: {
       ...authHeader(),
+      ...opts.headers,
       ...(opts.body === undefined ? {} : { "Content-Type": "application/json" }),
     },
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
