@@ -51,13 +51,22 @@ New users receive 100 free starting points (via the `createUser` NextAuth event 
 ### iOS app architecture
 
 - Tabs over the **same API and database** as the website. Channels covered: `CHANNELS` in `mobile/src/lib/config.ts`.
-  - Tabs shown: **YouTube · Players · Game** (Game re-added 2026-10-14 with 5IVE STREET). Cards (packs/collection) and Fantasy are held back by `FEATURES` in `mobile/src/lib/config.ts`: each flag hides its tab and guards its stack screens in `src/app/_layout.tsx`, so flipping it to `true` brings the feature back.
+  - Tabs shown: **YouTube · Players · Fantasy · Game** (Game re-added 2026-10-14 with 5IVE STREET, Fantasy 2026-11-08). Cards (packs/collection) are held back by `FEATURES` in `mobile/src/lib/config.ts`: each flag hides its tab and guards its stack screens in `src/app/_layout.tsx`, so flipping it to `true` brings the feature back.
+  - Signing the Simulator in for testing: Google sign-in can't be automated there, so dev builds take `xcrun simctl openurl booted "fiveguys://dev-sign-in?token=<64-hex Session token>"` (`lib/auth.tsx`, `__DEV__` only). Make a temp `User` + `Session` for it.
   - Players lists one tile per player (`buildSquad` from `lib/motm.ts`, Home Kit card preferred) and opens the card sheet to rate them.
 - **Auth:** the app holds the token of a real NextAuth database `Session` row and sends `Authorization: Bearer <token>`. `middleware.ts` rewrites that into the NextAuth session cookie, so every route's `getServerSession()` works unchanged.
   - Google: the app opens `/api/mobile/auth/web-start` in the iOS auth sheet → `/mobile-auth` runs the normal NextAuth Google flow → `/api/mobile/auth/web-finish` redirects to `fiveguys://auth?token=…`. A `link-ticket` lets an Apple user link Google (Connect YouTube).
   - Apple: `/api/mobile/auth/apple` verifies the identity token (needs `APPLE_*` env vars).
   - `DELETE /api/account` deletes the user (App Store requirement).
 - Game logic is shared, not copied: the app imports `lib/match-engine.ts`, `lib/football.ts`, `lib/exhibition.ts` etc. via the `@shared/*` alias (see `mobile/metro.config.js`). Keep those files free of Next/Prisma imports.
+
+### Fantasy Div 1 (FPL rules for 7-a-side)
+
+- Fans pick **7 players** (1 GK, 2-4 DEF, 1-3 MID, 1-3 FWD; no bench) from the 5ive Guys squad; everything else follows Fantasy Premier League 2025/26: budget (£50m default), captain ×2 / vice if the captain doesn't play, 1 free transfer a gameweek saved up to 5 and −4 per extra, prices that move with net transfers after each gameweek (≤ £0.3m) and sell at purchase price + half the rise, FPL points by position (incl. 60-min appearance, saves, goals conceded, defensive contributions) and 3-2-1 bonus from BPS. Chips: Wildcard, Free Hit (team reverts next week), Triple Captain, and Double Points in Bench Boost's slot; once per half if the season's `secondHalfFrom` is set, otherwise once a season. Private classic leagues join by 6-character code (`/fantasy/join/CODE` on the web).
+- Code: rules and scoring `lib/fantasy.ts` (pure, shared with the app via `@shared/fantasy`, tests in `lib/__tests__/fantasy.test.ts`), editing helpers `lib/fantasy-lineup.ts`, "How it works" copy `lib/fantasy-guide.ts`, DB side `lib/fantasy-db.ts` (team state, bank, Free Hit revert, finalize = bonus + prices + ranks, leagues, history). API under `app/api/fantasy/**`; app screens `mobile/src/app/(tabs)/fantasy.tsx` + `mobile/src/app/fantasy/**`; website `app/fantasy/**`.
+- Running a season (`/admin/fantasy`, `x-admin-secret` = `ADMIN_SECRET`): create the season (imports the squad from the kit cards), add gameweeks with deadlines (FPL: 90 min before kickoff). After each match: save the score on the gameweek row, enter stats (ticking Played assumes most of the match and fills goals conceded from the score), then **Save & finalise** — that scores every team, carries over teams nobody touched, awards bonus, moves prices once and updates ranks. Saving stats again re-scores. Player status/news (FPL flags) are set in the Players table.
+- `FantasyEntry.picks` are `{ playerId, price paid }`; `bank` is the money left after that entry. Teams saved before the 7-player rules had 2 subs after the 7: everything reads the first 7.
+- Test against a local Postgres (`createdb …; DATABASE_URL=… npx prisma db push`, then `.env.development.local` with that `DATABASE_URL` so `next dev` uses it) rather than prod — the API serves whichever season is active.
 
 ### 5IVE STREET (3D 3v3 game, `mobile/street/`)
 

@@ -5,23 +5,23 @@ import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  CHIPS, entryError, formatPrice, POSITION_LABEL, priceSquad, squadCost, transferCostFor, transfersBetween,
-  type Chip, type FantasyPosition, type SquadPlayer,
+  buySquad, CHIP_IDS, CHIPS, entryError, FANTASY_RULES, formatPrice, PLAYER_STATUS, POSITION_LABEL, seasonHalf,
+  transferCostFor, transfersBetween, type Chip, type FantasyPosition, type SquadPlayer,
 } from "@shared/fantasy";
 import { FantasyPitch, POSITION_COLOR, type PitchSlot } from "@/components/fantasy/FantasyPitch";
 import { GameScreen } from "@/components/game/GameScreen";
 import { Button, Chip as ChipButton, ErrorText, Loading } from "@/components/ui";
 import { api } from "@/lib/api";
 import {
-  autoComplete, changeFormation, EMPTY_LINEUP, formatCountdown, formatDeadline, FORMATIONS, formationLabel, inLineup, lineupFromIds,
-  lineupIds, placePlayer, removePlayer, slotPositions, swapWithBench, type Lineup, type Slot,
+  autoComplete, changeFormation, EMPTY_LINEUP, formatCountdown, formatDeadline, FORMATIONS, formationLabel, inLineup,
+  lineupFromIds, lineupIds, placePlayer, removePlayer, slotPositions, type Lineup,
 } from "@/lib/fantasy";
 import { imageUri } from "@/lib/images";
 import { useFantasy } from "@/lib/queries";
 import { colors } from "@/lib/theme";
 import type { FantasyOverview, FantasyPlayer } from "@/lib/types";
 
-/** Pick your team for the next gameweek: squad, formation, captain, subs, transfers and chips. */
+/** Pick your 7 for the next gameweek: transfers, formation, captain and chips. */
 export default function FantasyEditScreen() {
   const fantasy = useFantasy();
   if (!fantasy.data) {
@@ -32,6 +32,8 @@ export default function FantasyEditScreen() {
   }
   return <Editor data={fantasy.data} />;
 }
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 function Editor({ data }: { data: FantasyOverview }) {
   const queryClient = useQueryClient();
@@ -45,64 +47,65 @@ function Editor({ data }: { data: FantasyOverview }) {
   );
   const baseline = team?.baseline ?? null;
   const draft = team?.draft ?? null;
+  const opts = { budget: season.budget, from: baseline, draft: draft?.saved ? draft.picks : null };
+  const available = team?.availableChips ?? CHIP_IDS;
 
-  const [lineup, setLineup] = useState<Lineup>(() =>
-    draft ? lineupFromIds(draft.picks.map((p) => p.playerId), players) : EMPTY_LINEUP);
+  const [start] = useState<Lineup>(() => (draft ? lineupFromIds(draft.picks.map((p) => p.playerId), players) : EMPTY_LINEUP));
+  const [lineup, setLineup] = useState<Lineup>(start);
   const [captain, setCaptain] = useState<string | null>(draft?.captainId ?? null);
   const [vice, setVice] = useState<string | null>(draft?.viceCaptainId ?? null);
   const [chip, setChip] = useState<Chip | null>(draft?.chip ?? null);
   const [name, setName] = useState("");
-  const [picking, setPicking] = useState<Slot | null>(null);
+  const [picking, setPicking] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [touched, setTouched] = useState(false);
   const [openedAt] = useState(() => Date.now());
 
   const change = (next: Lineup) => { setLineup(next); setTouched(true); };
 
-  // Captain and vice default to the priciest starters until chosen.
-  const starters = lineup.starters.filter((id): id is string => !!id);
-  const byPrice = [...starters].sort((a, b) => (players.get(b)?.price ?? 0) - (players.get(a)?.price ?? 0));
-  const captainId = captain && starters.includes(captain) ? captain : byPrice[0] ?? null;
-  const viceId = vice && starters.includes(vice) && vice !== captainId ? vice : byPrice.find((id) => id !== captainId) ?? null;
-
+  // Captain and vice default to the priciest players until chosen.
   const chosen = [...inLineup(lineup)];
+  const byPrice = [...chosen].sort((a, b) => (players.get(b)?.price ?? 0) - (players.get(a)?.price ?? 0));
+  const captainId = captain && chosen.includes(captain) ? captain : byPrice[0] ?? null;
+  const viceId = vice && chosen.includes(vice) && vice !== captainId ? vice : byPrice.find((id) => id !== captainId) ?? null;
+
   const ids = lineupIds(lineup);
-  const cost = squadCost(priceSquad(chosen, squad, baseline));
-  const bank = season.budget - cost;
+  const { bank } = buySquad(chosen, squad, opts);
   const made = transfersBetween(chosen, baseline);
   const free = team?.freeTransfers ?? null;
   const transferCost = transferCostFor(made, free, chip);
+  const missing = FANTASY_RULES.squadSize - chosen.length;
   const error = ids
-    ? entryError({ playerIds: ids, captainId: captainId ?? "", viceCaptainId: viceId ?? "", chip }, squad,
-        { budget: season.budget, baseline, usedChips: team?.usedChips ?? [] })
-    : `Pick ${9 - chosen.length} more player${9 - chosen.length === 1 ? "" : "s"}.`;
+    ? entryError({ playerIds: ids, captainId: captainId ?? "", viceCaptainId: viceId ?? "", chip }, squad, { ...opts, availableChips: available })
+    : `Pick ${plural(missing, "more player")}.`;
+  const needsName = !team && name.trim().length < 2;
 
-  const salePrice = (id: string | null) => (id ? (baseline?.find((p) => p.playerId === id)?.price ?? players.get(id)?.price ?? 0) : 0);
-  const slotPlayer = (s: Slot) => (s.kind === "starter" ? lineup.starters[s.index] : lineup.bench[s.index]);
-  const slotPosition = (s: Slot): FantasyPosition | null => (s.kind === "starter" ? slotPositions(lineup.formation)[s.index] : null);
+  const before = new Set(baseline?.picks.map((p) => p.playerId) ?? []);
+  const transfersOut = baseline ? baseline.picks.map((p) => p.playerId).filter((id) => !chosen.includes(id)) : [];
+  const transfersIn = baseline ? chosen.filter((id) => !before.has(id)) : [];
+  /** Money to spend on a slot: the bank with that slot's player sold. */
+  const moneyFor = (index: number) => {
+    const current = lineup.slots[index];
+    return current ? buySquad(chosen.filter((id) => id !== current), squad, opts).bank : bank;
+  };
 
-  function onSlot(slot: Slot) {
-    const id = slotPlayer(slot);
-    if (!id) { setPicking(slot); return; }
+  function onSlot(index: number) {
+    const id = lineup.slots[index];
+    if (!id) { setPicking(index); return; }
     const p = players.get(id)!;
     const actions: { label: string; run: () => void; destructive?: boolean }[] = [];
-    if (slot.kind === "starter") {
-      if (id !== captainId) actions.push({ label: "Make captain", run: () => { setCaptain(id); if (vice === id) setVice(captainId); setTouched(true); } });
-      if (id !== viceId) actions.push({ label: "Make vice-captain", run: () => { setVice(id); if (captain === id) setCaptain(viceId); setTouched(true); } });
-      lineup.bench.forEach((sub, b) => {
-        const swapped = sub ? swapWithBench(lineup, slot.index, b, players) : null;
-        if (swapped) actions.push({ label: `Swap with ${players.get(sub!)!.name}`, run: () => change(swapped) });
-      });
-    } else if (lineup.bench[1 - slot.index]) {
-      actions.push({ label: "Swap sub order", run: () => change({ ...lineup, bench: [lineup.bench[1], lineup.bench[0]] }) });
-    }
-    actions.push({ label: "Replace…", run: () => setPicking(slot) });
+    if (id !== captainId) actions.push({ label: "Make captain", run: () => { setCaptain(id); if (viceId === id) setVice(captainId); setTouched(true); } });
+    if (id !== viceId) actions.push({ label: "Make vice-captain", run: () => { setVice(id); if (captainId === id) setCaptain(viceId); setTouched(true); } });
+    actions.push({ label: baseline && before.has(id) ? "Transfer out…" : "Replace…", run: () => setPicking(index) });
+    actions.push({ label: "Player details", run: () => router.push({ pathname: "/fantasy/player/[id]", params: { id } }) });
     actions.push({ label: "Remove", destructive: true, run: () => change(removePlayer(lineup, id)) });
 
     ActionSheetIOS.showActionSheetWithOptions(
       {
         title: `${p.name} · ${POSITION_LABEL[p.position]} · ${formatPrice(p.price)}`,
-        message: `${p.totalPoints} pts this season · picked by ${p.selectedBy}%`,
+        message: p.status !== "a"
+          ? `${PLAYER_STATUS[p.status].label}${p.news ? ` — ${p.news}` : ""}`
+          : `${p.totalPoints} pts · form ${p.form} · picked by ${p.selectedBy}%`,
         options: [...actions.map((a) => a.label), "Cancel"],
         destructiveButtonIndex: actions.findIndex((a) => a.destructive),
         cancelButtonIndex: actions.length,
@@ -113,15 +116,10 @@ function Editor({ data }: { data: FantasyOverview }) {
   }
 
   function pick(id: string) {
-    if (!picking) return;
+    if (picking === null) return;
     Haptics.selectionAsync();
     change(placePlayer(lineup, picking, id));
     setPicking(null);
-  }
-
-  function autoFill() {
-    Haptics.selectionAsync();
-    change(autoComplete(lineup, data.players, season.budget, (id) => salePrice(id)));
   }
 
   function toggleChip(c: Chip) {
@@ -130,7 +128,16 @@ function Editor({ data }: { data: FantasyOverview }) {
     setTouched(true);
   }
 
-  async function save() {
+  function reset() {
+    Haptics.selectionAsync();
+    setLineup(start);
+    setCaptain(draft?.captainId ?? null);
+    setVice(draft?.viceCaptainId ?? null);
+    setChip(draft?.chip ?? null);
+    setTouched(false);
+  }
+
+  async function submit() {
     if (!ids || error) return;
     setSaving(true);
     try {
@@ -142,6 +149,7 @@ function Editor({ data }: { data: FantasyOverview }) {
       });
       queryClient.setQueryData(["fantasy"], res);
       queryClient.invalidateQueries({ queryKey: ["fantasy-leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: ["fantasy-leagues"] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     } catch (err) {
@@ -149,6 +157,16 @@ function Editor({ data }: { data: FantasyOverview }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  function save() {
+    if (!transfersIn.length) return submit();
+    const names = (list: string[]) => list.map((id) => players.get(id)?.name ?? "?").join(", ");
+    Alert.alert(
+      `Confirm ${plural(transfersIn.length, "transfer")}?`,
+      `Out: ${names(transfersOut)}\nIn: ${names(transfersIn)}\n\n${transferCost ? `This costs ${transferCost} points.` : "No points deducted."}`,
+      [{ text: "Cancel", style: "cancel" }, { text: "Confirm", onPress: submit }],
+    );
   }
 
   function back() {
@@ -159,34 +177,30 @@ function Editor({ data }: { data: FantasyOverview }) {
     ]);
   }
 
-  const needsName = !team && name.trim().length < 2;
-  const starterSlots: PitchSlot[] = slotPositions(lineup.formation).map((position, i) => {
-    const p = players.get(lineup.starters[i] ?? "") ?? null;
+  const slots: PitchSlot[] = slotPositions(lineup.formation).map((position, i) => {
+    const p = players.get(lineup.slots[i] ?? "") ?? null;
     return {
       key: `s${i}`, position, player: p,
-      caption: p ? formatPrice(salePrice(p.id)) : undefined,
+      caption: p ? formatPrice(p.price) : undefined,
       badge: p && p.id === captainId ? "C" : p && p.id === viceId ? "V" : null,
-      onPress: () => onSlot({ kind: "starter", index: i }),
+      fresh: !!p && !!baseline && !before.has(p.id),
+      onPress: () => onSlot(i),
     };
   });
-  const benchSlots: PitchSlot[] = lineup.bench.map((id, i) => {
-    const p = players.get(id ?? "") ?? null;
-    return { key: `b${i}`, position: null, player: p, caption: p ? formatPrice(salePrice(p.id)) : undefined, onPress: () => onSlot({ kind: "bench", index: i }) };
-  });
+
+  const buttonTitle = !team ? "Create team"
+    : transfersIn.length ? `Confirm ${plural(transfersIn.length, "transfer")}${transferCost ? ` (−${transferCost} pts)` : ""}`
+      : "Save team";
 
   return (
     <GameScreen
       title={team ? team.name : "Pick your team"}
       onBack={back}
+      right={touched ? <Pressable onPress={reset} hitSlop={10}><Text style={styles.reset}>Reset</Text></Pressable> : null}
       footer={
         <View style={{ gap: 8 }}>
-          {(error || needsName) && touched ? <Text style={styles.footerError}>{needsName && !error ? "Give your team a name." : error}</Text> : null}
-          <Button
-            title={team ? (made > 0 && baseline ? `Confirm ${made} transfer${made === 1 ? "" : "s"}` : "Save team") : "Create team"}
-            onPress={save}
-            loading={saving}
-            disabled={!!error || needsName || (!touched && !!draft?.saved)}
-          />
+          {(error || needsName) && touched ? <Text style={styles.footerError}>{error ?? "Give your team a name."}</Text> : null}
+          <Button title={buttonTitle} onPress={save} loading={saving} disabled={!!error || needsName || (!touched && !!draft?.saved)} />
         </View>
       }
     >
@@ -205,15 +219,16 @@ function Editor({ data }: { data: FantasyOverview }) {
           maxLength={30}
           autoCapitalize="words"
           returnKeyType="done"
+          accessibilityLabel="Team name"
         />
       )}
 
       <View style={styles.stats}>
-        <Stat label="Bank" value={formatPrice(bank)} bad={bank < 0} />
+        <Stat label="Money left" value={formatPrice(bank)} bad={bank < 0} />
         <Stat label="Free transfers" value={free === null ? "∞" : String(free)} />
         <Stat
-          label={baseline ? `${made} transfer${made === 1 ? "" : "s"}` : "Transfers"}
-          value={transferCost ? `-${transferCost} pts` : "Free"}
+          label={baseline ? plural(made, "transfer") : "Transfers"}
+          value={transferCost ? `−${transferCost} pts` : "Free"}
           bad={transferCost > 0}
         />
       </View>
@@ -227,41 +242,54 @@ function Editor({ data }: { data: FantasyOverview }) {
             onPress={() => { Haptics.selectionAsync(); change(changeFormation(lineup, f, players)); }}
           />
         ))}
-        {chosen.length < 9 && <ChipButton label="Auto-fill ✨" active={false} onPress={autoFill} />}
+        {missing > 0 && (
+          <ChipButton label="Auto-fill ✨" active={false} onPress={() => { Haptics.selectionAsync(); change(autoComplete(lineup, data.players, bank)); }} />
+        )}
       </View>
 
-      <FantasyPitch starters={starterSlots} bench={benchSlots} />
-      <Text style={styles.hint}>Tap a player to make them captain, swap them with a sub or replace them.</Text>
+      <FantasyPitch slots={slots} />
+      <Text style={styles.hint}>
+        {chosen.length ? "Tap a player to make them captain, transfer them out or see their stats." : "Tap a shirt to pick a player, or auto-fill."}
+      </Text>
 
       <Text style={styles.section}>Chips</Text>
       <View style={styles.chips}>
         {CHIPS.map((c) => {
-          const used = team?.usedChips.includes(c.id) ?? false;
-          const blocked = used || (c.id === "wildcard" && !baseline);
           const active = chip === c.id;
+          const needsTeam = (c.id === "wildcard" || c.id === "free_hit") && !baseline;
+          const playedAt = team?.chipsPlayed.find((p) => p.chip === c.id && seasonHalf(p.gameweek, season.secondHalfFrom) === seasonHalf(gameweek.number, season.secondHalfFrom));
+          const blocked = !active && (needsTeam || !available.includes(c.id));
           return (
             <Pressable
               key={c.id}
               disabled={blocked}
               onPress={() => toggleChip(c.id)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active, disabled: blocked }}
               style={[styles.chip, active && styles.chipActive, blocked && { opacity: 0.4 }]}
             >
               <Text style={styles.chipName}>{c.emoji} {c.name}</Text>
               <Text style={[styles.chipState, active && { color: colors.gold }]}>
-                {used ? "Used" : active ? "Active this week" : c.id === "wildcard" && !baseline ? "After gameweek 1" : "Tap to play"}
+                {active ? "Playing this gameweek" : needsTeam ? "After your first deadline" : playedAt ? `Played in GW${playedAt.gameweek}` : "Available"}
               </Text>
             </Pressable>
           );
         })}
       </View>
-      {chip ? <Text style={styles.hint}>{CHIPS.find((c) => c.id === chip)!.description} You can cancel it until the deadline.</Text> : null}
+      {chip ? (
+        <Text style={styles.hint}>
+          {CHIPS.find((c) => c.id === chip)!.description} You can cancel it until the deadline.
+        </Text>
+      ) : (
+        <Text style={styles.hint}>One chip a gameweek.{season.secondHalfFrom ? ` Chips come back from gameweek ${season.secondHalfFrom}.` : ""}</Text>
+      )}
 
       <PlayerPicker
-        slot={picking}
-        position={picking ? slotPosition(picking) : null}
+        visible={picking !== null}
+        position={picking !== null ? slotPositions(lineup.formation)[picking] : null}
         players={data.players}
         taken={inLineup(lineup)}
-        budgetLeft={picking ? bank + salePrice(slotPlayer(picking)) : bank}
+        money={picking !== null ? moneyFor(picking) : bank}
         onPick={pick}
         onClose={() => setPicking(null)}
       />
@@ -278,34 +306,34 @@ function Stat({ label, value, bad }: { label: string; value: string; bad?: boole
   );
 }
 
-type Sort = "price" | "points" | "selected";
+type Sort = "price" | "points" | "form" | "selected";
+const SORTS: { id: Sort; label: string }[] = [
+  { id: "price", label: "Price" }, { id: "points", label: "Points" }, { id: "form", label: "Form" }, { id: "selected", label: "Most picked" },
+];
 
 function PlayerPicker({
-  slot, position, players, taken, budgetLeft, onPick, onClose,
+  visible, position, players, taken, money, onPick, onClose,
 }: {
-  slot: Slot | null; position: FantasyPosition | null; players: FantasyPlayer[]; taken: Set<string>;
-  budgetLeft: number; onPick: (id: string) => void; onClose: () => void;
+  visible: boolean; position: FantasyPosition | null; players: FantasyPlayer[]; taken: Set<string>;
+  money: number; onPick: (id: string) => void; onClose: () => void;
 }) {
   const [sort, setSort] = useState<Sort>("price");
+  const value = (p: FantasyPlayer) => (sort === "points" ? p.totalPoints : sort === "form" ? p.form : sort === "selected" ? p.selectedBy : p.price);
   const options = players
     .filter((p) => p.isActive && !taken.has(p.id) && (!position || p.position === position))
-    .sort((a, b) =>
-      // Players you can afford first, then by the chosen order.
-      Number(b.price <= budgetLeft) - Number(a.price <= budgetLeft) ||
-      (sort === "points" ? b.totalPoints - a.totalPoints : sort === "selected" ? b.selectedBy - a.selectedBy : b.price - a.price));
+    // Players you can afford first, then by the chosen order.
+    .sort((a, b) => Number(b.price <= money) - Number(a.price <= money) || value(b) - value(a));
 
   return (
-    <Modal visible={!!slot} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={styles.sheet}>
         <View style={styles.sheetHead}>
-          <Text style={styles.sheetTitle}>{position ? `Pick a ${POSITION_LABEL[position].toLowerCase()}` : "Pick a sub"}</Text>
+          <Text style={styles.sheetTitle}>{position ? `Pick a ${POSITION_LABEL[position].toLowerCase()}` : "Pick a player"}</Text>
           <Pressable onPress={onClose} hitSlop={10}><Text style={styles.done}>Cancel</Text></Pressable>
         </View>
-        <Text style={styles.muted}>You can spend up to {formatPrice(budgetLeft)}.</Text>
+        <Text style={styles.muted}>You can spend up to {formatPrice(Math.max(0, money))}.</Text>
         <View style={[styles.formRow, { marginVertical: 12 }]}>
-          <ChipButton label="Price" active={sort === "price"} onPress={() => setSort("price")} />
-          <ChipButton label="Points" active={sort === "points"} onPress={() => setSort("points")} />
-          <ChipButton label="Most picked" active={sort === "selected"} onPress={() => setSort("selected")} />
+          {SORTS.map((s) => <ChipButton key={s.id} label={s.label} active={sort === s.id} onPress={() => setSort(s.id)} />)}
         </View>
         <FlatList
           data={options}
@@ -313,11 +341,13 @@ function PlayerPicker({
           contentContainerStyle={{ gap: 8, paddingBottom: 40 }}
           ListEmptyComponent={<Text style={styles.muted}>Everyone in that position is already in your team.</Text>}
           renderItem={({ item: p }) => {
-            const affordable = p.price <= budgetLeft;
+            const affordable = p.price <= money;
+            const flagged = p.status !== "a";
             return (
               <Pressable
                 onPress={() => onPick(p.id)}
                 disabled={!affordable}
+                accessibilityLabel={`${p.name}, ${formatPrice(p.price)}${affordable ? "" : ", too expensive"}`}
                 style={({ pressed }) => [styles.option, !affordable && { opacity: 0.4 }, pressed && { opacity: 0.7 }]}
               >
                 <Image source={{ uri: imageUri(p.imageUrl) }} style={styles.optionArt} contentFit="cover" />
@@ -327,10 +357,22 @@ function PlayerPicker({
                     <View style={[styles.posPill, { backgroundColor: POSITION_COLOR[p.position] }]}>
                       <Text style={styles.posPillText}>{p.position}</Text>
                     </View>
-                    <Text style={styles.optionSub}>{p.totalPoints} pts · picked by {p.selectedBy}%</Text>
+                    <Text style={styles.optionSub}>{p.totalPoints} pts · form {p.form} · {p.selectedBy}%</Text>
                   </View>
+                  {flagged ? (
+                    <Text style={[styles.news, { color: PLAYER_STATUS[p.status].color }]} numberOfLines={2}>
+                      {PLAYER_STATUS[p.status].label}{p.news ? ` — ${p.news}` : ""}
+                    </Text>
+                  ) : null}
                 </View>
-                <Text style={[styles.optionPrice, !affordable && { color: colors.danger }]}>{formatPrice(p.price)}</Text>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={[styles.optionPrice, !affordable && { color: colors.danger }]}>{formatPrice(p.price)}</Text>
+                  {p.priceChange ? (
+                    <Text style={[styles.priceMove, { color: p.priceChange > 0 ? colors.greenHi : colors.danger }]}>
+                      {p.priceChange > 0 ? "▲" : "▼"} {(Math.abs(p.priceChange) / 10).toFixed(1)}
+                    </Text>
+                  ) : null}
+                </View>
               </Pressable>
             );
           }}
@@ -343,6 +385,7 @@ function PlayerPicker({
 const styles = StyleSheet.create({
   muted: { color: colors.text2, fontSize: 14, lineHeight: 20 },
   deadline: { color: colors.text2, fontSize: 13, marginBottom: 12 },
+  reset: { color: colors.accentHi, fontSize: 16, fontWeight: "600" },
   nameInput: {
     height: 48, borderRadius: 14, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
     paddingHorizontal: 14, color: colors.text, fontSize: 17, fontWeight: "700", marginBottom: 12,
@@ -355,7 +398,7 @@ const styles = StyleSheet.create({
   statValue: { color: colors.text, fontSize: 17, fontWeight: "900", fontVariant: ["tabular-nums"] },
   statLabel: { color: colors.text3, fontSize: 11, fontWeight: "600" },
   formRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
-  hint: { color: colors.text3, fontSize: 12, textAlign: "center", marginTop: 10 },
+  hint: { color: colors.text3, fontSize: 12, textAlign: "center", marginTop: 10, lineHeight: 17 },
   section: { color: colors.text, fontSize: 20, fontWeight: "800", marginTop: 24, marginBottom: 10 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
@@ -376,7 +419,9 @@ const styles = StyleSheet.create({
   optionArt: { width: 40, aspectRatio: 785 / 1085, borderRadius: 5, backgroundColor: colors.cardHi },
   optionName: { color: colors.text, fontSize: 16, fontWeight: "800" },
   optionSub: { color: colors.text3, fontSize: 12 },
+  news: { fontSize: 12, fontWeight: "600" },
   optionPrice: { color: colors.text, fontSize: 16, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  priceMove: { fontSize: 11, fontWeight: "800" },
   posPill: { borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 },
   posPillText: { color: "#fff", fontSize: 10, fontWeight: "900" },
 });

@@ -5,7 +5,7 @@ import { api } from "./api";
 import { useChannel } from "./channel";
 import { ROSTER, type FanAverages } from "../../street/src/roster";
 import type {
-  Account, CollectionItem, DbCard, FantasyGameweekResult, FantasyLeaderboard, FantasyOverview, Me, MotmResults, Record3,
+  Account, CollectionItem, DbCard, FantasyGameweekResult, FantasyHistory, FantasyLeaderboard, FantasyLeagueStandings, FantasyLeagueSummary, FantasyOverview, FantasyPlayerDetail, Me, MotmResults, Record3,
   Video, VotesResponse,
 } from "./types";
 
@@ -134,9 +134,35 @@ export function useFantasyLeaderboard(limit = 50) {
 }
 
 /** A team's points for a locked gameweek (yours unless teamId is given). */
-export function useFantasyGameweek(number: number, teamId?: string) {
+export function useFantasyGameweek(number: number | null, teamId?: string) {
   return useQuery({
     queryKey: ["fantasy-gameweek", number, teamId ?? "me"],
     queryFn: () => api<FantasyGameweekResult>(`/api/fantasy/gameweeks/${number}${teamId ? `?teamId=${teamId}` : ""}`),
+    enabled: number !== null,
   });
+}
+
+/** A team's season gameweek by gameweek (yours without a teamId). */
+export function useFantasyHistory(teamId?: string) {
+  return useQuery({
+    queryKey: ["fantasy-history", teamId ?? "me"],
+    queryFn: () => api<FantasyHistory>(`/api/fantasy/history${teamId ? `?teamId=${teamId}` : ""}`),
+  });
+}
+
+export function useFantasyPlayer(id: string) {
+  return useQuery({ queryKey: ["fantasy-player", id], queryFn: () => api<FantasyPlayerDetail>(`/api/fantasy/players/${id}`) });
+}
+
+/** Your private leagues. */
+export function useFantasyLeagues(enabled = true) {
+  return useQuery({
+    queryKey: ["fantasy-leagues"],
+    queryFn: () => api<{ leagues: FantasyLeagueSummary[] }>("/api/fantasy/leagues"),
+    enabled,
+  });
+}
+
+export function useFantasyLeague(id: string) {
+  return useQuery({ queryKey: ["fantasy-league", id], queryFn: () => api<FantasyLeagueStandings>(`/api/fantasy/leagues/${id}`) });
 }

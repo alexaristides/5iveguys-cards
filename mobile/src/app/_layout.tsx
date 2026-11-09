@@ -52,7 +52,7 @@ function RootStack() {
         />
         <Stack.Screen
           name="settings"
-          options={{ presentation: "formSheet", sheetAllowedDetents: [0.55], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
+          options={{ presentation: "formSheet", sheetAllowedDetents: [0.62], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
         />
       </Stack.Protected>
       {/* Held back for launch (FEATURES in lib/config.ts); guarded so deep links can't reach them either. */}
@@ -62,7 +62,18 @@ function RootStack() {
       <Stack.Protected guard={signedIn && FEATURES.fantasy}>
         <Stack.Screen name="fantasy/edit" options={{ gestureEnabled: false }} />
         <Stack.Screen name="fantasy/gameweek/[number]" />
-        <Stack.Screen name="fantasy/leaderboard" />
+        <Stack.Screen name="fantasy/league/[id]" />
+        <Stack.Screen name="fantasy/admin/index" />
+        <Stack.Screen name="fantasy/admin/[id]" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="fantasy/history" />
+        <Stack.Screen
+          name="fantasy/player/[id]"
+          options={{ presentation: "formSheet", sheetAllowedDetents: [0.7, 0.95], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
+        />
+        <Stack.Screen
+          name="fantasy/join"
+          options={{ presentation: "formSheet", sheetAllowedDetents: [0.7], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
+        />
         <Stack.Screen
           name="fantasy/rules"
           options={{ presentation: "formSheet", sheetAllowedDetents: [0.92], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
