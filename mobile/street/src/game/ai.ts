@@ -133,13 +133,17 @@ export class TeamAI {
   /** Close down the carrier from the goal side and nick the ball. */
   private press(p: Player, carrier: Player) {
     const m = this.m;
-    const b = m.ball;
     const g = this.ownGoal;
-    const gd = Math.max(0.01, dist(b.pos, g));
     const d = dist(p.pos, carrier.pos);
-    // Goal side of the ball, then once tight, step in at it to nick it.
-    const close = d < 2 ? 0.15 : 0.5 + (this.cpu ? 0 : 0.1);
-    const spot = { x: b.pos.x + ((g.x - b.pos.x) / gd) * close, z: b.pos.z + ((g.z - b.pos.z) / gd) * close };
+    // Goal side of the carrier, a step off them (close enough to poke at the ball), backing
+    // off as they come, and a little to the middle so they're shown down the outside: not
+    // stood on the ball, which just makes them run into you.
+    const cd = Math.max(0.01, dist(carrier.pos, g));
+    const ux = (g.x - carrier.pos.x) / cd, uz = (g.z - carrier.pos.z) / cd;
+    const off = d < 2 ? 1.05 : 1.4;
+    // Sideways (of their line to goal) toward the middle of the pitch.
+    const inside = -Math.sign(carrier.pos.z || 1) * Math.sign(ux || 1);
+    const spot = { x: carrier.pos.x + ux * off - uz * inside * 0.55, z: carrier.pos.z + uz * off + ux * inside * 0.55 };
     this.goTo(p, spot, d > 3 ? 1 : 0.85, 2.5, 1);
     p.jockeying = d < 3;
     // Go in: barge when tight, fly in with a slide or a kick from further out.
