@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { useQueryClient } from "@tanstack/react-query";
-import { POINTS_CONFIG } from "@shared/cards";
 import { AppHeader } from "@/components/AppHeader";
 import { Button, Panel, SectionTitle } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -70,7 +69,7 @@ export default function YouTubeTab() {
         res.pointsEarned > 0 ? `+${res.pointsEarned} points!` : "All synced",
         res.pointsEarned > 0
           ? `Thanks for supporting ${name}.`
-          : "Nothing new yet. Like, subscribe or watch some videos, then sync again.",
+          : "Nothing new yet. Check back soon.",
       );
       queryClient.invalidateQueries({ queryKey: ["me", slug] });
     } catch (err) {
@@ -104,12 +103,10 @@ export default function YouTubeTab() {
 
   const hasYouTube = account.data?.hasYoutubeScope ?? false;
   const lastSynced = me.data?.youtubeSync?.lastSynced;
-  const isSubscribed = me.data?.youtubeSync?.isSubscribed ?? false;
   const nextDaily = me.data?.lastDailyReward ? new Date(me.data.lastDailyReward).getTime() + DAY_MS : 0;
   const dailyReady = !!me.data && nextDaily <= now;
   const msLeft = Math.max(0, nextDaily - now);
   const countdown = `${Math.floor(msLeft / 3_600_000)}h ${String(Math.floor((msLeft % 3_600_000) / 60_000)).padStart(2, "0")}m ${String(Math.floor((msLeft % 60_000) / 1000)).padStart(2, "0")}s`;
-  const channelUrl = me.data?.youtubeChannelId ? `https://www.youtube.com/channel/${me.data.youtubeChannelId}` : null;
 
   return (
     <View style={styles.screen}>
@@ -120,11 +117,12 @@ export default function YouTubeTab() {
         refreshControl={<RefreshControl refreshing={false} onRefresh={refreshAll} tintColor={colors.text2} />}
       >
         <Panel style={styles.syncPanel}>
-          <Text style={styles.syncTitle}>Support {name}, earn points</Text>
+          <Text style={styles.syncTitle}>Fan points</Text>
           <Text style={styles.syncSub}>
+            You get points for being a fan of {name}.{" "}
             {hasYouTube
-              ? lastSynced ? `Last synced ${timeAgo(lastSynced)}` : "Sync to collect points for your likes and subscription."
-              : "Connect your YouTube account to earn points for liking and subscribing."}
+              ? lastSynced ? `Last synced ${timeAgo(lastSynced)}.` : "Sync to collect them."
+              : "Connect YouTube to collect them."}
           </Text>
           {hasYouTube ? (
             <Button title="Sync YouTube" onPress={sync} loading={syncing} color={colors.youtube} />
@@ -139,28 +137,6 @@ export default function YouTubeTab() {
             <Text style={styles.rowSub}>{dailyReady ? "+50 points ready to claim" : `Next in ${countdown}`}</Text>
           </View>
           <Button title="Claim" onPress={claimDaily} disabled={!dailyReady} loading={claiming} style={{ height: 40 }} />
-        </Panel>
-
-        <SectionTitle>Ways to earn</SectionTitle>
-        <Panel style={{ paddingVertical: 4 }}>
-          <EarnRow
-            icon="🔔" title="Subscribe" points={`+${POINTS_CONFIG.subscribe}`} sub="One-time bonus"
-            done={isSubscribed}
-            onPress={channelUrl ? () => Linking.openURL(`${channelUrl}?sub_confirmation=1`) : undefined}
-          />
-          <EarnRow
-            icon="⚡" title="Like within 24h" points={`+${POINTS_CONFIG.earlyLike}`} sub="Per new video, liked on release day"
-            onPress={channelUrl ? () => Linking.openURL(`${channelUrl}/videos`) : undefined}
-          />
-          <EarnRow
-            icon="👍" title="Like any video" points={`+${POINTS_CONFIG.like}`} sub="Per video"
-            onPress={channelUrl ? () => Linking.openURL(`${channelUrl}/videos`) : undefined}
-          />
-          <EarnRow icon="▶️" title="Watch in the app" points={`+${POINTS_CONFIG.watchMinute}/min`} sub="Pick a video below" />
-          <EarnRow
-            icon="⭐" title="Rate a player" points="+10" sub="First rating of each player"
-            onPress={() => router.navigate("/players")} last
-          />
         </Panel>
 
         <SectionTitle>Latest videos</SectionTitle>
@@ -191,21 +167,6 @@ export default function YouTubeTab() {
   );
 }
 
-function EarnRow({
-  icon, title, sub, points, done, onPress, last,
-}: { icon: string; title: string; sub: string; points: string; done?: boolean; onPress?: () => void; last?: boolean }) {
-  return (
-    <Pressable onPress={onPress} disabled={!onPress} style={[styles.earnRow, !last && styles.earnBorder]}>
-      <Text style={styles.earnIcon}>{icon}</Text>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowTitle}>{title}</Text>
-        <Text style={styles.rowSub}>{sub}</Text>
-      </View>
-      <Text style={[styles.earnPoints, done && { color: colors.greenHi }]}>{done ? "✓ Done" : points}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, paddingBottom: 40 },
@@ -215,10 +176,6 @@ const styles = StyleSheet.create({
   dailyPanel: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12 },
   rowTitle: { color: colors.text, fontSize: 16, fontWeight: "700" },
   rowSub: { color: colors.text3, fontSize: 13, marginTop: 2 },
-  earnRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
-  earnBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  earnIcon: { fontSize: 22, width: 30, textAlign: "center" },
-  earnPoints: { color: colors.gold, fontWeight: "900", fontSize: 15 },
   video: { flexDirection: "row", gap: 12, alignItems: "center" },
   thumb: { width: 132, height: 74, borderRadius: 10, backgroundColor: colors.card },
   videoTitle: { color: colors.text, fontSize: 14, fontWeight: "600", lineHeight: 19 },

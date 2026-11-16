@@ -72,7 +72,7 @@ export default function SignIn() {
         )}
         <Text style={styles.title}>5iveG Cards</Text>
         <Text style={styles.sub}>
-          Earn points by supporting the channel on YouTube and rate the players.
+          Be a fan of 5ive Guys or Other Guys, get points and rate the players.
         </Text>
       </View>
 
@@ -94,7 +94,7 @@ export default function SignIn() {
           variant="secondary"
         />
         <Text style={styles.note}>
-          Sign in with Google to earn points for subscribing, liking and watching on YouTube.
+          Sign in with Google to connect YouTube and collect your fan points.
         </Text>
       </View>
     </View>

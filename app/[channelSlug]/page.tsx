@@ -7,6 +7,7 @@ import CardDisplay from "@/components/CardDisplay";
 import PointsActivity from "@/components/PointsActivity";
 import { SkeletonBox } from "@/components/Skeleton";
 import { PACKS, dbCardToCard } from "@/lib/cards";
+import { worldName } from "@/lib/worlds";
 import Link from "next/link";
 
 interface DbCard {
@@ -33,12 +34,6 @@ interface UserData {
   watchTimeSeconds: number;
   cardCount: number;
   cards: UserCard[];
-  youtubeSync: {
-    isSubscribed: boolean;
-    likedVideoIds: string;
-    earlyLikedVideoIds: string;
-  } | null;
-  youtubeChannelId?: string;
   fanRank?: number;
   totalFanCount?: number;
   lastDailyReward?: string | null;
@@ -108,7 +103,7 @@ export default function ChannelDashboard() {
       });
       const data = await res.json();
       if (res.ok) {
-        setSyncMessage(data.pointsEarned > 0 ? `+${data.pointsEarned} points earned!` : "All caught up — keep engaging!");
+        setSyncMessage(data.pointsEarned > 0 ? `+${data.pointsEarned} points earned!` : "All caught up!");
         fetchUser();
         window.dispatchEvent(new Event("pointsUpdated"));
       } else if (data.error === "reauth_required") {
@@ -246,12 +241,9 @@ export default function ChannelDashboard() {
 
           <div>
             <PointsActivity
-              sync={userData.youtubeSync}
+              channelName={worldName(channelSlug) ?? "the channel"}
               onSync={handleSync}
               syncing={syncing}
-              channelSlug={channelSlug}
-              youtubeChannelId={userData.youtubeChannelId}
-              watchTimeSeconds={userData.watchTimeSeconds}
               lastDailyReward={userData.lastDailyReward}
               onClaimDaily={handleClaimDaily}
               claimingDaily={claimingDaily}

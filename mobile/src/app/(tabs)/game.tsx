@@ -26,7 +26,7 @@ export default function GameTab() {
 
   return (
     <View style={styles.screen}>
-      <AppHeader />
+      <AppHeader title="Game" />
       <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
         <SectionTitle>Play</SectionTitle>
         {FEATURES.street && <StreetBanner hero />}

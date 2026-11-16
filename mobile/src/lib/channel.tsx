@@ -7,6 +7,8 @@ const KEY = "channel_slug";
 interface ChannelState {
   slug: ChannelSlug;
   name: string;
+  /** Whether the user has entered a world yet: null while the saved choice loads. */
+  chosen: boolean | null;
   setSlug: (slug: ChannelSlug) => void;
 }
 
@@ -20,20 +22,24 @@ export function useChannel() {
 
 export function ChannelProvider({ children }: { children: ReactNode }) {
   const [slug, setSlugState] = useState<ChannelSlug>(CHANNELS[0].slug);
+  const [chosen, setChosen] = useState<boolean | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(KEY)
       .then((saved) => {
-        if (CHANNELS.some((c) => c.slug === saved)) setSlugState(saved as ChannelSlug);
+        const valid = CHANNELS.some((c) => c.slug === saved);
+        if (valid) setSlugState(saved as ChannelSlug);
+        setChosen(valid);
       })
-      .catch(() => {});
+      .catch(() => setChosen(false));
   }, []);
 
   const setSlug = (next: ChannelSlug) => {
     setSlugState(next);
+    setChosen(true);
     AsyncStorage.setItem(KEY, next).catch(() => {});
   };
 
   const name = CHANNELS.find((c) => c.slug === slug)!.name;
-  return <ChannelContext.Provider value={{ slug, name, setSlug }}>{children}</ChannelContext.Provider>;
+  return <ChannelContext.Provider value={{ slug, name, chosen, setSlug }}>{children}</ChannelContext.Provider>;
 }

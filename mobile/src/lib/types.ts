@@ -27,6 +27,14 @@ export interface Me {
   lastDailyReward: string | null;
 }
 
+/** A channel from the public /api/channels list. */
+export interface World {
+  slug: string;
+  name: string;
+  thumbnailUrl: string | null;
+  _count: { userStats: number };
+}
+
 export interface Account {
   id: string;
   name: string | null;
