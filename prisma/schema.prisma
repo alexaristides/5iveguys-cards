@@ -76,6 +76,7 @@ model User {
   lobbiesCreated    Lobby[]             @relation("CreatedLobbies")
   lobbiesJoined     Lobby[]             @relation("JoinedLobbies")
   worldCups         WorldCup[]
+  supportMessages   SupportMessage[]
 }
 
 model VerificationToken {
@@ -712,4 +713,19 @@ model FantasyLeagueMember {
 
   @@id([leagueId, teamId])
   @@index([teamId])
+}
+
+// Messages sent from /support. Read them at /admin/support.
+model SupportMessage {
+  id        String   @id @default(cuid())
+  userId    String? // set when the sender was signed in
+  name      String?
+  email     String
+  message   String
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([handled, createdAt])
 }
