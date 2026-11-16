@@ -74,9 +74,6 @@ export class Player {
   burstUntil = 0;
   /** When they last bumped into someone (match time). */
   bumpedAt = -Infinity;
-  /** Dribbling: when the next touch is due, and when the last one was. */
-  touchAt = 0;
-  lastTouchT = -Infinity;
   /** Time spent pressing the ball carrier, for pokes. */
   pressure = 0;
   /** Wants to sprint this step (sprint button, or the AI). */
@@ -349,29 +346,6 @@ export class Player {
     vel.x = dirX(h) * next;
     vel.z = dirZ(h) * next;
     return (wrapAngle(h - h0) / Math.max(dt, 1e-4)) * sp;
-  }
-
-  /**
-   * Where they'll be in `T` seconds, and how they'll be moving, if they keep
-   * wanting what they want now (the dribble uses it to knock the ball into their path).
-   */
-  predict(T: number, now: number, speedMul: number, withBall: boolean) {
-    const sprint = this.sprint && !this.winded;
-    const runSp = this.topSpeed * speedMul;
-    const top = runSp * (sprint ? 1 : JOG) * (now < this.burstUntil ? 1.15 : 1);
-    let wantX = this.want.x, wantZ = this.want.z;
-    const wl = len(wantX, wantZ);
-    if (wl > top) { wantX *= top / wl; wantZ *= top / wl; }
-    const vel = { x: this.vel.x, z: this.vel.z };
-    let x = this.pos.x, z = this.pos.z;
-    const n = Math.max(1, Math.ceil(T * 30));
-    const h = T / n;
-    for (let i = 0; i < n; i++) {
-      this.locomote(vel, wantX, wantZ, runSp, this.accel, h, withBall, this.sprinting);
-      x = clamp(x + vel.x * h, -HALF_L + 0.3, HALF_L - 0.3);
-      z = clamp(z + vel.z * h, -HALF_W + 0.3, HALF_W - 0.3);
-    }
-    return { x, z, vx: vel.x, vz: vel.z };
   }
 
   /** Pose the model for this frame. */

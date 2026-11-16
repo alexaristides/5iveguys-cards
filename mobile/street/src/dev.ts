@@ -43,7 +43,7 @@ export function installDevTools(roster: RosterPlayer[]) {
     const goalsBy: Record<string, number> = {};
     const total = {
       goals: [0, 0], shots: [0, 0], onTarget: [0, 0], blocks: [0, 0], tackles: [0, 0], takedowns: [0, 0], pokes: [0, 0], tricks: [0, 0],
-      passes: [0, 0], completed: [0, 0], heavyTouches: [0, 0], bodyBlocks: [0, 0], possession: [0, 0], sprint: [0, 0],
+      passes: [0, 0], completed: [0, 0], possession: [0, 0], sprint: [0, 0],
     };
     for (let i = 0; i < n; i++) {
       const sim = newSim(roster, d, keys);
@@ -53,7 +53,7 @@ export function installDevTools(roster: RosterPlayer[]) {
       goalDist.push(...sim.log.goalDist);
       for (const g of sim.scorers) if (!g.og) goalsBy[g.name] = (goalsBy[g.name] ?? 0) + 1;
       total.goals[0] += sim.score[0]; total.goals[1] += sim.score[1];
-      for (const k of ["shots", "onTarget", "blocks", "tackles", "takedowns", "pokes", "tricks", "passes", "completed", "heavyTouches", "bodyBlocks", "possession", "sprint"] as const) {
+      for (const k of ["shots", "onTarget", "blocks", "tackles", "takedowns", "pokes", "tricks", "passes", "completed", "possession", "sprint"] as const) {
         total[k][0] += sim.log[k][0]; total[k][1] += sim.log[k][1];
       }
     }
