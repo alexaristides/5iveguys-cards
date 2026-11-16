@@ -156,6 +156,7 @@ export default function HomePage() {
             <a href="/terms" className="underline hover:text-zinc-500">Terms of Service</a>
             {" "}and{" "}
             <a href="/privacy" className="underline hover:text-zinc-500">Privacy Policy</a>.
+            {" "}Need help? <a href="/support" className="underline hover:text-zinc-500">Support</a>.
           </p>
         </div>
       </div>

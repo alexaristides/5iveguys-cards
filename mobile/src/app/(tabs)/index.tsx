@@ -74,7 +74,7 @@ export default function YouTubeTab() {
       queryClient.invalidateQueries({ queryKey: ["me", slug] });
     } catch (err) {
       if (err instanceof ApiError && (err.status === 403 || err.data.error === "No YouTube access token")) {
-        Alert.alert("Connect YouTube", "Allow access to your YouTube account so we can see your likes and subscription.", [
+        Alert.alert("Connect YouTube", "Allow access to your YouTube account so your fan points can update.", [
           { text: "Not now", style: "cancel" },
           { text: "Connect", onPress: connect },
         ]);

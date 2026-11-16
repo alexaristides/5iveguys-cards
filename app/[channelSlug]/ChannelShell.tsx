@@ -22,7 +22,7 @@ function OnboardingBanner({
   onDismiss: () => void;
 }) {
   const steps = [
-    { num: 1, label: "Sync YouTube", sub: "earn your first points", href: null },
+    { num: 1, label: "Sync YouTube", sub: "get your fan points", href: null },
     { num: 2, label: "Open your first pack", sub: "you have 100 pts to start!", href: `/${channelSlug}/packs` },
     { num: 3, label: "Collect all the cards", sub: "build your collection", href: `/${channelSlug}/collection` },
   ];

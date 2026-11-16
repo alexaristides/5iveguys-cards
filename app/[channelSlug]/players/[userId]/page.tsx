@@ -193,26 +193,6 @@ export default function PlayerPage() {
             )}
           </div>
 
-          {/* Engagement badges */}
-          <div className="flex flex-col items-end gap-1.5 shrink-0">
-            {profile.isSubscribed && (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-900/40 border border-green-700/40 text-green-400 text-xs font-medium">
-                ✓ Subscribed
-              </span>
-            )}
-            <div className="flex items-center gap-2">
-              {profile.likedCount > 0 && (
-                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-400 text-xs">
-                  👍 {profile.likedCount}
-                </span>
-              )}
-              {profile.earlyLikedCount > 0 && (
-                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-900/30 border border-yellow-700/30 text-yellow-500 text-xs">
-                  ⚡ {profile.earlyLikedCount}
-                </span>
-              )}
-            </div>
-          </div>
         </div>
 
         {/* ── Stats grid (mirrors dashboard) ── */}

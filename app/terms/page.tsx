@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export const metadata = { title: "Terms of Service — 5iveguysfc Trading Cards" };
+export const metadata = { title: "Terms of Service — 5iveG" };
 
 export default function TermsPage() {
   return (
@@ -9,13 +9,13 @@ export default function TermsPage() {
         <div>
           <Link href="/" className="text-zinc-600 text-xs hover:text-zinc-400 transition-colors">← Back</Link>
           <h1 className="text-white text-3xl font-bold mt-4">Terms of Service</h1>
-          <p className="text-zinc-600 text-xs mt-1">Last updated: May 2025</p>
+          <p className="text-zinc-600 text-xs mt-1">Last updated: November 2026</p>
         </div>
 
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">Acceptance</h2>
           <p>
-            By accessing or using 5iveguysfc Trading Cards (&ldquo;the App&rdquo;), you agree to these Terms.
+            By accessing or using 5iveG (&ldquo;the App&rdquo;), you agree to these Terms.
             If you do not agree, do not use the App.
           </p>
         </section>
@@ -23,15 +23,15 @@ export default function TermsPage() {
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">The App</h2>
           <p>
-            The App is a free, fan-made digital card collection game tied to the 5iveguysfc YouTube channel.
-            Points and cards have no real-world monetary value and cannot be exchanged for cash or prizes.
+            The App is a free, fan-made app for the 5ive Guys and Other Guys YouTube channels. Points, cards and
+            fantasy scores have no real-world monetary value and cannot be exchanged for cash or prizes.
           </p>
         </section>
 
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">Your account</h2>
           <ul className="space-y-2 list-disc list-inside">
-            <li>You must have a valid Google account to sign in.</li>
+            <li>You sign in with a Google account or, on iPhone, with Sign in with Apple.</li>
             <li>You are responsible for activity on your account.</li>
             <li>We reserve the right to suspend accounts found to be abusing the points system.</li>
           </ul>
@@ -40,9 +40,8 @@ export default function TermsPage() {
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">Points and cards</h2>
           <p>
-            Points are awarded based on verified YouTube activity (subscriptions and likes). We reserve the
-            right to adjust point values, add or remove card types, or modify the rewards system at any time
-            without notice.
+            You get points for being a fan. We reserve the right to adjust point values, add or remove card
+            types, or change how points work at any time without notice.
           </p>
         </section>
 
@@ -72,8 +71,8 @@ export default function TermsPage() {
         </section>
 
         <p className="text-zinc-700 text-xs pt-4 border-t border-zinc-900">
-          5iveguysfc Trading Cards is an independent fan project and is not affiliated with, endorsed by,
-          or sponsored by YouTube, Google LLC, or any related entities.
+          5iveG is an independent fan project and is not affiliated with, endorsed by, or sponsored by
+          YouTube, Google LLC, Apple Inc., or any related entities.
         </p>
       </div>
     </main>

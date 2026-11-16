@@ -327,7 +327,7 @@ export default function DashboardPage() {
                 </div>
                 <h2 className="text-white font-bold text-xl mb-2 group-hover:text-purple-300 transition-colors">Collect</h2>
                 <p className="text-zinc-500 text-sm leading-relaxed">
-                  Earn points by engaging with your favourite channels — subscribe, like videos, and sync your activity. Spend points to open card packs and build your collection.
+                  You get points for being a fan. Spend them on card packs and build your collection.
                 </p>
                 <div className="mt-auto pt-5 flex items-center gap-1.5 text-purple-400 text-sm font-semibold">
                   <span>Enter</span>
