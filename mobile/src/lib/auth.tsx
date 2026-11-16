@@ -86,6 +86,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, [applyToken]);
 
+  // Dev builds only: `xcrun simctl openurl booted "fiveguys://dev-sign-in?token=<Session token>"` signs the
+  // Simulator in as a test user, since Google sign-in can't be automated there. Not compiled into release builds.
+  useEffect(() => {
+    if (!__DEV__) return;
+    const take = (url: string | null) => {
+      const { hostname, path, queryParams } = Linking.parse(url ?? "");
+      if ((hostname ?? path) === "dev-sign-in" && typeof queryParams?.token === "string") void applyToken(queryParams.token);
+    };
+    Linking.getInitialURL().then(take);
+    const sub = Linking.addEventListener("url", ({ url }) => take(url));
+    return () => sub.remove();
+  }, [applyToken]);
+
   const signInWithGoogle = useCallback(async () => {
     const next = await runWebGoogleFlow();
     setApiToken(next);

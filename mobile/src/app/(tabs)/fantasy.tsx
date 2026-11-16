@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
-import { CHIPS, formatPrice } from "@shared/fantasy";
+import { CHIPS, FANTASY_RULES, formatPrice } from "@shared/fantasy";
 import { AppHeader } from "@/components/AppHeader";
 import { FantasyPitch, type PitchSlot } from "@/components/fantasy/FantasyPitch";
-import { LeaderRow } from "@/components/fantasy/LeaderRow";
+import { RankMove } from "@/components/fantasy/LeaderRow";
 import { Button, ErrorText, Loading, Panel, SectionTitle } from "@/components/ui";
-import { formatCountdown, formatDeadline, lineupFromIds } from "@/lib/fantasy";
-import { useFantasy, useFantasyLeaderboard } from "@/lib/queries";
+import { formatCountdown, formatDeadline, lineupFromIds, slotPositions } from "@/lib/fantasy";
+import { useFantasy, useFantasyGameweek, useFantasyLeagues } from "@/lib/queries";
 import { colors } from "@/lib/theme";
+import type { FantasyOverview } from "@/lib/types";
 
 function useNow(intervalMs: number) {
   const [now, setNow] = useState(() => Date.now());
@@ -19,19 +20,22 @@ function useNow(intervalMs: number) {
   return now;
 }
 
-/** Fantasy Div 1: your team, the next deadline, last week's points and the standings. */
+const openGameweek = (number: number) => router.push({ pathname: "/fantasy/gameweek/[number]", params: { number: String(number) } });
+
+/** Fantasy Div 1: this gameweek's points, your rank, the next deadline, your 7 and your leagues. */
 export default function FantasyTab() {
   const fantasy = useFantasy();
-  const board = useFantasyLeaderboard(5);
+  const data = fantasy.data;
+  const hasTeam = !!data?.team;
+  const current = hasTeam ? data!.currentGameweek : null;
+  const gameweek = useFantasyGameweek(current);
+  const leagues = useFantasyLeagues(hasTeam);
   const now = useNow(30_000);
+
   // Native tabs mount up front, so refetch on every visit: deadlines, transfers and points move.
   const { refetch: refetchFantasy } = fantasy;
-  const { refetch: refetchBoard } = board;
-  useFocusEffect(useCallback(() => { refetchFantasy(); refetchBoard(); }, [refetchFantasy, refetchBoard]));
-
-  const data = fantasy.data;
-  const players = useMemo(() => new Map((data?.players ?? []).map((p) => [p.id, p])), [data?.players]);
-  const refresh = () => Promise.all([fantasy.refetch(), board.refetch()]);
+  useFocusEffect(useCallback(() => { refetchFantasy(); }, [refetchFantasy]));
+  const refresh = () => Promise.all([fantasy.refetch(), hasTeam && gameweek.refetch(), hasTeam && leagues.refetch()]);
 
   let body;
   if (!data) {
@@ -41,119 +45,18 @@ export default function FantasyTab() {
       <Panel style={{ gap: 10 }}>
         <Text style={styles.heroTitle}>Kicking off soon ⚽</Text>
         <Text style={styles.body}>
-          When the 5ive Guys start their Division 1 season you&apos;ll pick a team of the real players and score points from every match.
+          When the 5ive Guys&apos; Division 1 season starts you&apos;ll pick 7 of the real players and score points from every match.
         </Text>
         <Button title="How it works" variant="secondary" onPress={() => router.push("/fantasy/rules")} />
       </Panel>
     );
   } else {
-    const team = data.team;
-    const next = data.gameweeks.find((g) => g.number === data.nextGameweek);
-    const live = data.gameweeks.find((g) => g.status === "live");
-    const draft = team?.draft;
-    const lineup = draft ? lineupFromIds(draft.picks.map((p) => p.playerId), players) : null;
-    const chip = draft?.chip ? CHIPS.find((c) => c.id === draft.chip) : null;
-
-    const toSlot = (id: string | null, key: string): PitchSlot => {
-      const p = players.get(id ?? "") ?? null;
-      return {
-        key, position: p?.position ?? null, player: p,
-        caption: p ? (p.lastPoints !== null ? `${p.lastPoints} pts` : formatPrice(p.price)) : undefined,
-        badge: id === draft?.captainId ? "C" : id === draft?.viceCaptainId ? "V" : null,
-        onPress: next ? () => router.push("/fantasy/edit") : undefined,
-      };
-    };
-
-    body = (
-      <>
-        {team ? (
-          <Panel style={{ gap: 12 }}>
-            <View>
-              <Text style={styles.teamName}>{team.name}</Text>
-              <Text style={styles.season}>{data.season.name}</Text>
-            </View>
-            <View style={styles.stats}>
-              <Stat value={String(team.totalPoints)} label="Total points" />
-              <Stat value={`#${team.rank}`} label={`of ${team.teamCount}`} />
-              <Stat value={team.lastGameweek ? String(team.lastGameweek.points) : "–"} label={team.lastGameweek ? `GW${team.lastGameweek.number}` : "Last GW"} />
-            </View>
-          </Panel>
-        ) : (
-          <Panel style={{ gap: 10 }}>
-            <Text style={styles.heroTitle}>Play along this season</Text>
-            <Text style={styles.body}>
-              Pick 9 of the 5ive Guys with {formatPrice(data.season.budget)}. Captain, subs, transfers and chips —
-              points come from their real Division 1 matches.
-            </Text>
-          </Panel>
-        )}
-
-        {next ? (
-          <Panel style={styles.deadline}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={styles.deadlineTitle}>Gameweek {next.number}{next.name ? ` · ${next.name}` : ""}</Text>
-              <Text style={styles.deadlineSub}>Deadline {formatDeadline(next.deadline)}</Text>
-              {team && (
-                <Text style={styles.deadlineSub}>
-                  {team.freeTransfers === null ? "Unlimited changes" : `${team.freeTransfers} free transfer${team.freeTransfers === 1 ? "" : "s"}`}
-                  {chip ? ` · ${chip.name} active` : ""}
-                  {draft && !draft.saved ? " · same team as last week" : ""}
-                </Text>
-              )}
-            </View>
-            <View style={styles.countdown}>
-              <Text style={styles.countdownText}>{formatCountdown(new Date(next.deadline).getTime() - now)}</Text>
-            </View>
-          </Panel>
-        ) : (
-          <Text style={styles.muted}>No gameweek is open for picks right now — check back soon.</Text>
-        )}
-
-        {next && (
-          <Button title={team ? "Pick team & transfers" : "Pick your team"} onPress={() => router.push("/fantasy/edit")} />
-        )}
-
-        {live && team && (
-          <LinkRow label={`Gameweek ${live.number} is live`} detail="Live points" onPress={() => router.push({ pathname: "/fantasy/gameweek/[number]", params: { number: String(live.number) } })} />
-        )}
-        {team?.lastGameweek && (
-          <LinkRow
-            label={`Gameweek ${team.lastGameweek.number}`}
-            detail={`${team.lastGameweek.points} pts`}
-            onPress={() => router.push({ pathname: "/fantasy/gameweek/[number]", params: { number: String(team.lastGameweek!.number) } })}
-          />
-        )}
-
-        {lineup && (
-          <>
-            <SectionTitle>Your team</SectionTitle>
-            <FantasyPitch
-              starters={lineup.starters.map((id, i) => toSlot(id, `s${i}`))}
-              bench={lineup.bench.map((id, i) => toSlot(id, `b${i}`))}
-            />
-          </>
-        )}
-
-        <SectionTitle right={<Pressable onPress={() => router.push("/fantasy/leaderboard")} hitSlop={8}><Text style={styles.link}>See all</Text></Pressable>}>
-          Leaderboard
-        </SectionTitle>
-        {board.data && board.data.teams.length > 0 ? (
-          <View style={{ gap: 6 }}>
-            {board.data.teams.map((t) => <LeaderRow key={t.id} row={t} mine={t.id === board.data!.me?.id} />)}
-            {board.data.me && !board.data.teams.some((t) => t.id === board.data!.me!.id) && <LeaderRow row={board.data.me} mine />}
-          </View>
-        ) : (
-          <Text style={styles.muted}>No teams yet — be the first.</Text>
-        )}
-
-        <Button title="How it works" variant="secondary" onPress={() => router.push("/fantasy/rules")} style={{ marginTop: 20 }} />
-      </>
-    );
+    body = <Home data={data} now={now} gameweek={gameweek.data ?? null} leagues={leagues.data?.leagues ?? null} />;
   }
 
   return (
     <View style={styles.screen}>
-      <AppHeader title="Fantasy Div 1" />
+      <AppHeader title="Fantasy" />
       <ScrollView
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
@@ -162,6 +65,165 @@ export default function FantasyTab() {
         {body}
       </ScrollView>
     </View>
+  );
+}
+
+function Home({ data, now, gameweek, leagues }: {
+  data: FantasyOverview; now: number;
+  gameweek: ReturnType<typeof useFantasyGameweek>["data"] | null;
+  leagues: { id: string; name: string; members: number; rank: number }[] | null;
+}) {
+  const season = data.season!;
+  const team = data.team;
+  const players = useMemo(() => new Map(data.players.map((p) => [p.id, p])), [data.players]);
+  const next = data.gameweeks.find((g) => g.number === data.nextGameweek);
+  const draft = team?.draft;
+  const chip = draft?.chip ? CHIPS.find((c) => c.id === draft.chip) : null;
+
+  if (!team) {
+    return (
+      <>
+        <Panel style={{ gap: 10 }}>
+          <Text style={styles.heroTitle}>Play Fantasy Div 1</Text>
+          <Text style={styles.body}>
+            Pick {FANTASY_RULES.squadSize} of the 5ive Guys with {formatPrice(season.budget)}. Captain, transfers, price changes and chips,
+            just like Fantasy Premier League — and the points come from their real Division 1 matches.
+          </Text>
+        </Panel>
+        {next ? (
+          <>
+            <Deadline gameweek={next} now={now} />
+            <Button title="Pick your team" onPress={() => router.push("/fantasy/edit")} />
+          </>
+        ) : (
+          <Text style={styles.muted}>No gameweek is open for picks right now — check back soon.</Text>
+        )}
+        <Button title="How it works" variant="secondary" onPress={() => router.push("/fantasy/rules")} />
+      </>
+    );
+  }
+
+  const lineup = draft ? lineupFromIds(draft.picks.map((p) => p.playerId), players) : null;
+  const slots: PitchSlot[] = lineup
+    ? slotPositions(lineup.formation).map((position, i) => {
+        const p = players.get(lineup.slots[i] ?? "") ?? null;
+        return {
+          key: `s${i}`, position, player: p,
+          caption: p ? (p.lastPoints !== null ? `${p.lastPoints} pts` : formatPrice(p.price)) : undefined,
+          badge: p?.id === draft?.captainId ? "C" : p?.id === draft?.viceCaptainId ? "V" : null,
+          onPress: p ? () => router.push({ pathname: "/fantasy/player/[id]", params: { id: p.id } }) : undefined,
+        };
+      })
+    : [];
+  const live = gameweek?.gameweek.status === "live";
+
+  return (
+    <>
+      <Text style={styles.teamName}>{team.name}</Text>
+
+      {gameweek?.entry ? (
+        <Pressable onPress={() => openGameweek(gameweek.gameweek.number)} accessibilityRole="button">
+          <Panel style={styles.points}>
+            <View style={{ flex: 1, alignItems: "center" }}>
+              <Text style={styles.pointsLabel}>
+                GAMEWEEK {gameweek.gameweek.number}{live ? " · LIVE" : ""}
+              </Text>
+              <Text style={styles.pointsValue}>{gameweek.score?.total ?? 0}</Text>
+              <Text style={styles.pointsLink}>Points ›</Text>
+            </View>
+            <View style={styles.pointsSide}>
+              <Mini label="Average" value={gameweek.average ?? "–"} />
+              <Mini label="Highest" value={gameweek.highest ?? "–"} />
+              <Mini label="GW rank" value={gameweek.gameweekRank ?? "–"} />
+            </View>
+          </Panel>
+        </Pressable>
+      ) : null}
+
+      <View style={styles.statsRow}>
+        <Stat label="Total points" value={String(team.totalPoints)} />
+        <View style={styles.stat}>
+          <View style={styles.rankRow}>
+            <RankMove rank={team.rank} previous={team.previousRank} />
+            <Text style={styles.statValue}>{team.rank}</Text>
+          </View>
+          <Text style={styles.statLabel}>of {team.teamCount} overall</Text>
+        </View>
+        <Stat label="Team value" value={team.value !== null ? formatPrice(team.value) : "–"} />
+      </View>
+
+      {next ? (
+        <>
+          <Deadline
+            gameweek={next}
+            now={now}
+            detail={[
+              team.freeTransfers === null ? "Unlimited transfers" : `${team.freeTransfers} free transfer${team.freeTransfers === 1 ? "" : "s"}`,
+              draft ? `${formatPrice(draft.bank)} in the bank` : null,
+              chip ? `${chip.name} on` : null,
+            ].filter(Boolean).join(" · ")}
+          />
+          <Button title="Transfers & captain" onPress={() => router.push("/fantasy/edit")} />
+        </>
+      ) : (
+        <Text style={styles.muted}>No gameweek is open for transfers right now — check back soon.</Text>
+      )}
+
+      {lineup && (
+        <>
+          <SectionTitle>{next ? `Your team for gameweek ${next.number}` : "Your team"}</SectionTitle>
+          <FantasyPitch slots={slots} />
+        </>
+      )}
+
+      <SectionTitle right={<Pressable onPress={() => router.push("/fantasy/join")} hitSlop={8}><Text style={styles.link}>Create / join</Text></Pressable>}>
+        Leagues
+      </SectionTitle>
+      <View style={{ gap: 6 }}>
+        <LeagueRow name="Overall" detail={`${team.teamCount} teams`} rank={team.rank} onPress={() => router.push({ pathname: "/fantasy/league/[id]", params: { id: "overall" } })} />
+        {(leagues ?? []).map((l) => (
+          <LeagueRow key={l.id} name={l.name} detail={`${l.members} team${l.members === 1 ? "" : "s"}`} rank={l.rank}
+            onPress={() => router.push({ pathname: "/fantasy/league/[id]", params: { id: l.id } })} />
+        ))}
+        {leagues && leagues.length === 0 && (
+          <Pressable onPress={() => router.push("/fantasy/join")} style={({ pressed }) => [styles.emptyLeague, pressed && { opacity: 0.7 }]}>
+            <Text style={styles.emptyLeagueText}>Start a league for your mates, or join one with a code ›</Text>
+          </Pressable>
+        )}
+      </View>
+
+      <View style={styles.links}>
+        <Button title="Points history" variant="secondary" onPress={() => router.push("/fantasy/history")} style={{ flex: 1 }} />
+        <Button title="How it works" variant="secondary" onPress={() => router.push("/fantasy/rules")} style={{ flex: 1 }} />
+      </View>
+    </>
+  );
+}
+
+function Deadline({ gameweek, now, detail }: { gameweek: { number: number; name: string | null; deadline: string }; now: number; detail?: string }) {
+  return (
+    <Panel style={styles.deadline}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={styles.deadlineTitle}>Gameweek {gameweek.number}{gameweek.name ? ` · ${gameweek.name}` : ""}</Text>
+        <Text style={styles.deadlineSub}>Deadline {formatDeadline(gameweek.deadline)}</Text>
+        {detail ? <Text style={styles.deadlineSub}>{detail}</Text> : null}
+      </View>
+      <View style={styles.countdown}>
+        <Text style={styles.countdownText}>{formatCountdown(new Date(gameweek.deadline).getTime() - now)}</Text>
+      </View>
+    </Panel>
+  );
+}
+
+function LeagueRow({ name, detail, rank, onPress }: { name: string; detail: string; rank: number; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [styles.leagueRow, pressed && { opacity: 0.7 }]}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.leagueName} numberOfLines={1}>{name}</Text>
+        <Text style={styles.leagueDetail}>{detail}</Text>
+      </View>
+      <Text style={styles.leagueRank}>#{rank}  ›</Text>
+    </Pressable>
   );
 }
 
@@ -174,12 +236,12 @@ function Stat({ value, label }: { value: string; label: string }) {
   );
 }
 
-function LinkRow({ label, detail, onPress }: { label: string; detail: string; onPress: () => void }) {
+function Mini({ label, value }: { label: string; value: number | string }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.7 }]}>
-      <Text style={styles.linkLabel}>{label}</Text>
-      <Text style={styles.linkDetail}>{detail}  ›</Text>
-    </Pressable>
+    <View style={{ alignItems: "center" }}>
+      <Text style={styles.miniValue}>{value}</Text>
+      <Text style={styles.miniLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -189,22 +251,33 @@ const styles = StyleSheet.create({
   heroTitle: { color: colors.text, fontSize: 26, fontWeight: "900" },
   body: { color: colors.text2, fontSize: 15, lineHeight: 21 },
   muted: { color: colors.text3, fontSize: 14, textAlign: "center" },
-  teamName: { color: colors.text, fontSize: 22, fontWeight: "900" },
-  season: { color: colors.text3, fontSize: 13, marginTop: 2 },
-  stats: { flexDirection: "row", gap: 8 },
-  stat: { flex: 1, backgroundColor: colors.cardHi, borderRadius: 12, paddingVertical: 10, alignItems: "center", gap: 2 },
-  statValue: { color: colors.text, fontSize: 22, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  teamName: { color: colors.text, fontSize: 24, fontWeight: "900" },
+  points: { flexDirection: "row", alignItems: "center", paddingVertical: 16, backgroundColor: "#1f1530", borderColor: colors.accent },
+  pointsLabel: { color: colors.gold, fontSize: 12, fontWeight: "900", letterSpacing: 1 },
+  pointsValue: { color: colors.text, fontSize: 56, fontWeight: "900", fontVariant: ["tabular-nums"], lineHeight: 64 },
+  pointsLink: { color: colors.accentHi, fontSize: 13, fontWeight: "800" },
+  pointsSide: { gap: 10, paddingLeft: 16, borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.border, paddingRight: 8 },
+  miniValue: { color: colors.text, fontSize: 18, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  miniLabel: { color: colors.text3, fontSize: 11, fontWeight: "600" },
+  statsRow: { flexDirection: "row", gap: 8 },
+  stat: { flex: 1, backgroundColor: colors.card, borderRadius: 14, paddingVertical: 10, alignItems: "center", gap: 2, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  rankRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  statValue: { color: colors.text, fontSize: 20, fontWeight: "900", fontVariant: ["tabular-nums"] },
   statLabel: { color: colors.text3, fontSize: 11, fontWeight: "600" },
   deadline: { flexDirection: "row", alignItems: "center", gap: 12 },
   deadlineTitle: { color: colors.text, fontSize: 17, fontWeight: "800" },
   deadlineSub: { color: colors.text2, fontSize: 13 },
   countdown: { backgroundColor: "rgba(251,191,36,0.15)", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
   countdownText: { color: colors.gold, fontSize: 15, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  linkRow: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: colors.card,
-    borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, padding: 14,
+  leagueRow: {
+    flexDirection: "row", alignItems: "center", backgroundColor: colors.card, borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12,
   },
-  linkLabel: { color: colors.text, fontSize: 16, fontWeight: "700" },
-  linkDetail: { color: colors.accentHi, fontSize: 15, fontWeight: "800" },
+  leagueName: { color: colors.text, fontSize: 16, fontWeight: "800" },
+  leagueDetail: { color: colors.text3, fontSize: 12 },
+  leagueRank: { color: colors.accentHi, fontSize: 16, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  emptyLeague: { borderRadius: 14, borderWidth: 1, borderStyle: "dashed", borderColor: colors.border, padding: 14 },
+  emptyLeagueText: { color: colors.text2, fontSize: 14, textAlign: "center" },
+  links: { flexDirection: "row", gap: 8, marginTop: 12 },
   link: { color: colors.accentHi, fontSize: 15, fontWeight: "700" },
 });

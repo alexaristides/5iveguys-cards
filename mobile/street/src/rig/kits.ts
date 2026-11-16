@@ -1,6 +1,8 @@
 import * as THREE from "three";
+import { hashString } from "../math";
 
-export type KitId = "home" | "black";
+/** "home" and "black" are the 5ive Guys kits; story mode adds a kit per club (`defineKit`). */
+export type KitId = string;
 
 export interface Kit {
   id: KitId;
@@ -14,10 +16,12 @@ export interface Kit {
   socks: string;
   /** HUD colour for this side. */
   hud: string;
+  /** Across the chest (default "5IVE"). */
+  chest?: string;
 }
 
 // Colours from the Home Kit and Black Kit cards.
-export const KITS: Record<KitId, Kit> = {
+export const KITS: Record<"home" | "black", Kit> & Record<KitId, Kit> = {
   home: {
     id: "home", label: "5IVE", shirt: "#a326d6", pattern: "#9020c0", trim: "#ffffff", text: "#ffffff",
     shorts: "#f4f4f5", socks: "#141414", hud: "#a855f7",
@@ -27,6 +31,11 @@ export const KITS: Record<KitId, Kit> = {
     shorts: "#141414", socks: "#141414", hud: "#fbbf24",
   },
 };
+
+/** Add (or replace) a kit, e.g. a story-mode club's. */
+export function defineKit(kit: Kit) {
+  KITS[kit.id] = kit;
+}
 
 const W = 512;
 const H = 256;
@@ -84,15 +93,17 @@ export function shirtTexture(kit: Kit, name: string): THREE.CanvasTexture {
 
   // Front: "5IVE" across the chest and a little crest on the left chest.
   g.fillStyle = kit.text;
-  g.font = "900 46px Arial Black, Impact, sans-serif";
-  g.fillText("5IVE", frontX, 112);
+  const chest = kit.chest ?? "5IVE";
+  g.font = `900 ${chest.length > 5 ? 34 : 46}px Arial Black, Impact, sans-serif`;
+  g.fillText(chest, frontX, 112, 190);
   drawCrest(g, frontX + 46, 62, kit);
 
   // Back: player name and a big 5.
   g.font = "900 34px Arial Black, Impact, sans-serif";
   g.fillText(name.toUpperCase(), backX, 58, 150);
   g.font = "900 96px Arial Black, Impact, sans-serif";
-  g.fillText("5", backX, 140);
+  // The 5ive Guys all wear 5; everyone else gets a number of their own.
+  g.fillText(kit.chest ? String(2 + (hashString(name) % 22)) : "5", backX, 140);
 
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -114,6 +125,6 @@ function drawCrest(g: CanvasRenderingContext2D, x: number, y: number, kit: Kit) 
   g.fill();
   g.fillStyle = kit.shirt;
   g.font = "900 13px Arial Black, sans-serif";
-  g.fillText("5", 0, 1);
+  g.fillText((kit.chest ?? "5")[0], 0, 1);
   g.restore();
 }

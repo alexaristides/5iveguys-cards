@@ -563,15 +563,18 @@ model DraftEntry {
 // Rules and scoring live in lib/fantasy.ts. Prices are tenths of £1m (65 = £6.5m).
 
 model FantasySeason {
-  id        String   @id @default(cuid())
-  name      String
-  isActive  Boolean  @default(true)
-  budget    Int      @default(600)
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  name           String
+  isActive       Boolean  @default(true)
+  budget         Int      @default(500) // tenths of £1m
+  /// First gameweek of the second half: chips can be played again from here (FPL). Null = once a season.
+  secondHalfFrom Int?
+  createdAt      DateTime @default(now())
 
   players   FantasyPlayer[]
   gameweeks FantasyGameweek[]
   teams     FantasyTeam[]
+  leagues   FantasyLeague[]
 }
 
 model FantasyPlayer {
@@ -582,6 +585,8 @@ model FantasyPlayer {
   price     Int
   imageUrl  String?
   isActive  Boolean  @default(true) // false = left the squad: owners keep them, nobody can buy them
+  status    String   @default("a") // FPL availability: a(vailable) d(oubtful) i(njured) s(uspended) u(navailable)
+  news      String? // e.g. "Hamstring — 50% chance of playing"
   createdAt DateTime @default(now())
 
   season FantasySeason        @relation(fields: [seasonId], references: [id], onDelete: Cascade)
@@ -591,13 +596,16 @@ model FantasyPlayer {
 }
 
 model FantasyGameweek {
-  id          String    @id @default(cuid())
-  seasonId    String
-  number      Int
-  name        String? // e.g. "vs Hackney Wick"
-  deadline    DateTime // teams lock at kickoff
-  finalizedAt DateTime? // set once results are scored
-  createdAt   DateTime  @default(now())
+  id           String    @id @default(cuid())
+  seasonId     String
+  number       Int
+  name         String? // e.g. "vs Hackney Wick"
+  deadline     DateTime // teams lock at kickoff
+  finalizedAt  DateTime? // set once results are scored
+  goalsFor     Int? // the 5ive Guys' score
+  goalsAgainst Int?
+  priceChanges Json? // { playerId: change } applied when the gameweek was first scored
+  createdAt    DateTime  @default(now())
 
   season  FantasySeason        @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   stats   FantasyPlayerStats[]
@@ -607,21 +615,26 @@ model FantasyGameweek {
 }
 
 model FantasyPlayerStats {
-  id            String  @id @default(cuid())
-  gameweekId    String
-  playerId      String
-  played        Boolean @default(false)
-  goals         Int     @default(0)
-  assists       Int     @default(0)
-  cleanSheet    Boolean @default(false)
-  yellowCards   Int     @default(0)
-  redCard       Boolean @default(false)
-  ownGoals      Int     @default(0)
-  penaltySaves  Int     @default(0)
-  penaltyMisses Int     @default(0)
-  motm          Boolean @default(false)
-  bonus         Int     @default(0)
-  points        Int     @default(0)
+  id                     String  @id @default(cuid())
+  gameweekId             String
+  playerId               String
+  played                 Boolean @default(false)
+  playedMost             Boolean @default(false) // most of the match (FPL's 60 minutes)
+  goals                  Int     @default(0)
+  assists                Int     @default(0)
+  cleanSheet             Boolean @default(false)
+  yellowCards            Int     @default(0)
+  redCard                Boolean @default(false)
+  ownGoals               Int     @default(0)
+  penaltySaves           Int     @default(0)
+  penaltyMisses          Int     @default(0)
+  motm                   Boolean @default(false) // unused since the FPL rules (bonus comes from BPS)
+  goalsConceded          Int     @default(0)
+  saves                  Int     @default(0)
+  defensiveContributions Int     @default(0)
+  bps                    Int     @default(0)
+  bonus                  Int     @default(0) // 0-3 from BPS
+  points                 Int     @default(0)
 
   gameweek FantasyGameweek @relation(fields: [gameweekId], references: [id], onDelete: Cascade)
   player   FantasyPlayer   @relation(fields: [playerId], references: [id], onDelete: Cascade)
@@ -638,9 +651,10 @@ model FantasyTeam {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  season  FantasySeason  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  season  FantasySeason         @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   entries FantasyEntry[]
+  leagues FantasyLeagueMember[]
 
   @@unique([userId, seasonId])
   @@index([seasonId, totalPoints])
@@ -652,14 +666,18 @@ model FantasyEntry {
   id            String   @id @default(cuid())
   teamId        String
   gameweekId    String
-  picks         Json // [{ playerId, price }]: 7 starters then 2 subs in bench order; price = what was paid
+  picks         Json // [{ playerId, price }]: the 7 players; price = what was paid (teams before Nov 2026 had 2 subs after them)
   captainId     String
   viceCaptainId String
-  chip          String? // double_points | triple_captain | bench_boost | wildcard
+  chip          String? // wildcard | free_hit | triple_captain | double_points
   transfersMade Int      @default(0)
   transferCost  Int      @default(0)
+  bank          Int? // money left after this entry's transfers (null on old entries = budget - picks)
   points        Int? // set when the gameweek is scored
   breakdown     Json? // EntryScore from lib/fantasy.ts
+  gameweekRank  Int? // rank for this gameweek's points, set when scored
+  overallPoints Int? // season total after this gameweek
+  overallRank   Int?
   updatedAt     DateTime @updatedAt
 
   team     FantasyTeam     @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -667,4 +685,31 @@ model FantasyEntry {
 
   @@unique([teamId, gameweekId])
   @@index([gameweekId])
+}
+
+// A private classic league: fans join with its code and are ranked on season points.
+model FantasyLeague {
+  id        String   @id @default(cuid())
+  seasonId  String
+  name      String
+  code      String   @unique
+  createdBy String // FantasyTeam id
+  createdAt DateTime @default(now())
+
+  season  FantasySeason         @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  members FantasyLeagueMember[]
+
+  @@index([seasonId])
+}
+
+model FantasyLeagueMember {
+  leagueId String
+  teamId   String
+  joinedAt DateTime @default(now())
+
+  league FantasyLeague @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  team   FantasyTeam   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@id([leagueId, teamId])
+  @@index([teamId])
 }

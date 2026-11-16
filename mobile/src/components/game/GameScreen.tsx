@@ -6,8 +6,8 @@ import { colors } from "@/lib/theme";
 
 /** Full-screen chrome for game flows (pushed over the tabs). */
 export function GameScreen({
-  title, children, onBack, hideBack, footer,
-}: { title: string; children: ReactNode; onBack?: () => void; hideBack?: boolean; footer?: ReactNode }) {
+  title, children, onBack, hideBack, footer, right,
+}: { title: string; children: ReactNode; onBack?: () => void; hideBack?: boolean; footer?: ReactNode; right?: ReactNode }) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -18,7 +18,7 @@ export function GameScreen({
           </Pressable>
         )}
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
-        <View style={styles.side} />
+        <View style={[styles.side, styles.right]}>{right}</View>
       </View>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + (footer ? 124 : 32) }]}>
         {children}
@@ -32,6 +32,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   bar: { height: 48, flexDirection: "row", alignItems: "center", paddingHorizontal: 12 },
   side: { width: 72 },
+  right: { alignItems: "flex-end" },
   back: { color: colors.accentHi, fontSize: 17, fontWeight: "600" },
   title: { flex: 1, textAlign: "center", color: colors.text, fontSize: 17, fontWeight: "800" },
   content: { paddingHorizontal: 16, paddingTop: 4 },

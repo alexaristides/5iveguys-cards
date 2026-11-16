@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import { Image } from "expo-image";
 import { useAuth } from "@/lib/auth";
 import { useAccount } from "@/lib/queries";
-import { PRIVACY_URL, TERMS_URL } from "@/lib/config";
+import { FEATURES, PRIVACY_URL, TERMS_URL } from "@/lib/config";
 import { colors } from "@/lib/theme";
 
 export default function Settings() {
@@ -38,6 +38,7 @@ export default function Settings() {
       <View style={styles.group}>
         <Row label="Privacy Policy" onPress={() => Linking.openURL(PRIVACY_URL)} />
         <Row label="Terms of Service" onPress={() => Linking.openURL(TERMS_URL)} />
+        {FEATURES.fantasy && <Row label="Fantasy admin" onPress={() => { router.back(); router.push("/fantasy/admin"); }} />}
         <Row label="Sign out" onPress={() => { router.back(); signOut(); }} />
       </View>
 

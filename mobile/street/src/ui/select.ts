@@ -118,6 +118,7 @@ export class Select {
     onExit: () => void,
     private onTap: () => void,
     onOnline: () => void,
+    onStory: () => void,
   ) {
     this.root = document.createElement("div");
     this.root.className = "layer hidden";
@@ -136,7 +137,8 @@ export class Select {
       <button class="arrow next" aria-label="More players">›</button>
       <div class="bar">
         <div class="seg diff"></div>
-        <div style="display:flex;gap:10px;align-items:center">
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn ghost go-story" style="padding:10px 14px;font-size:15px">Story</button>
           <button class="btn ghost go-online" style="padding:10px 14px;font-size:15px">Online</button>
           <button class="btn ghost random" style="padding:10px 14px;font-size:15px">Random CPU</button>
           <button class="btn play">Play</button>
@@ -150,6 +152,7 @@ export class Select {
     this.exitLabel = inApp ? "Exit" : "Back";
     this.exit.addEventListener("click", () => (this.online ? this.online.leave() : onExit()));
     this.root.querySelector(".go-online")!.addEventListener("click", () => { onTap(); onOnline(); });
+    this.root.querySelector(".go-story")!.addEventListener("click", () => { onTap(); onStory(); });
 
     const savedDiff = load<string>(DIFF_KEY, "pro");
     this.diff = DIFFICULTIES.find((d) => d.id === savedDiff) ?? DIFFICULTIES[1];

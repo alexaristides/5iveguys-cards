@@ -10,9 +10,16 @@
  */
 import type { PeerSignal } from "./peer";
 
+/**
+ * The game itself (pitch size, physics…). Two phones on different versions
+ * can't play each other: the host's match wouldn't fit the guest's cage. Bump
+ * it whenever the match changes in a way the other side would see.
+ */
+export const GAME_VERSION = 2;
+
 export type RoomMsg =
-  /** Guest → host on joining (their name and last picks); host → guest in reply. */
-  | { t: "hello"; name: string; prefs?: string[] }
+  /** Guest → host on joining (their name and last picks); host → guest in reply. `v`: GAME_VERSION (missing = 1). */
+  | { t: "hello"; name: string; prefs?: string[]; v?: number }
   /** Host → guest: the teams being picked (the host settles any clash). */
   | { t: "lineup"; v: number; home: string[]; away: string[]; ready: [boolean, boolean] }
   /** Guest → host: tap a player (on or off the guest's side). */
@@ -35,9 +42,9 @@ export interface Snap {
   /** Host's clock (s) and how often it's sending (s). */
   h: number;
   r: number;
-  /** Match: state, stateT, clock, score ×2, golden goal, meters ×2, 5IVE MODE ×2, controlled ×2, owner, last scorer, kick kind/by/target. */
+  /** Match: state, stateT, clock, score ×2, golden goal, meters ×2, 5IVE MODE ×2, controlled ×2, owner, last scorer, kick kind/by/target, celebration. */
   g: number[];
-  /** Ball: x y z vx vy vz. */
+  /** Ball: x y z vx vy vz, spin x y z. */
   b: number[];
   /** Players: x z vx vz facing air flags stamina mood moodT, then action kind t dur power flip (kind -1 = none). */
   p: number[][];

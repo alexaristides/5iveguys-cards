@@ -3,14 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  EMPTY_STATS, FANTASY_RULES, gameweekStatus, playerPoints, POSITIONS,
-  type FantasyPosition, type PlayerStats,
+  awardBonus, EMPTY_STATS, FANTASY_RULES, gameweekStatus, PLAYER_STATUS, playerPoints, POSITIONS,
+  type FantasyPosition, type PlayerStats, type PlayerStatus,
 } from "@/lib/fantasy";
 
-interface Season { id: string; name: string; isActive: boolean; budget: number; teams?: number }
-interface Player { id: string; name: string; position: FantasyPosition; price: number; imageUrl: string | null; isActive: boolean }
+interface Season { id: string; name: string; isActive: boolean; budget: number; secondHalfFrom?: number | null; teams?: number }
+interface Player { id: string; name: string; position: FantasyPosition; price: number; imageUrl: string | null; isActive: boolean; status: PlayerStatus; news: string | null }
 interface StatRow extends PlayerStats { playerId: string; points: number }
-interface Gameweek { id: string; number: number; name: string | null; deadline: string; finalizedAt: string | null; entries: number; stats: StatRow[] }
+interface Gameweek {
+  id: string; number: number; name: string | null; deadline: string; finalizedAt: string | null; entries: number; stats: StatRow[];
+  goalsFor: number | null; goalsAgainst: number | null;
+}
 interface AdminData { seasons: Season[]; season: Season | null; players: Player[]; gameweeks: Gameweek[] }
 
 const input = "px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white text-sm outline-none focus:border-purple-500";
@@ -107,7 +110,10 @@ function SeasonPanel({ data, busy, act, onSwitch }: { data: AdminData; busy: boo
   const [importPlayers, setImportPlayers] = useState(true);
   const season = data.season;
   const [editBudget, setEditBudget] = useState(season ? String(season.budget / 10) : "");
-  useEffect(() => { if (season) setEditBudget(String(season.budget / 10)); }, [season]);
+  const [half, setHalf] = useState(season?.secondHalfFrom ? String(season.secondHalfFrom) : "");
+  useEffect(() => {
+    if (season) { setEditBudget(String(season.budget / 10)); setHalf(season.secondHalfFrom ? String(season.secondHalfFrom) : ""); }
+  }, [season]);
 
   return (
     <section className={card}>
@@ -133,7 +139,27 @@ function SeasonPanel({ data, busy, act, onSwitch }: { data: AdminData; busy: boo
               Make active
             </button>
           )}
+          {!season.isActive && (
+            <button disabled={busy} className={`${button} text-red-400`} onClick={() => {
+              if (confirm(`Delete "${season.name}" with all its teams, gameweeks and leagues? This can't be undone.`)) {
+                act({ action: "deleteSeason", seasonId: season.id }, "Season deleted");
+              }
+            }}>
+              Delete season
+            </button>
+          )}
           {season.isActive && <span className="text-green-400">● Live in the app</span>}
+        </div>
+      )}
+      {season && (
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <label className="text-zinc-400">Chips come back from gameweek</label>
+          <input value={half} onChange={(e) => setHalf(e.target.value.replace(/\D/g, ""))} placeholder="never" className={`${input} w-24`} />
+          <button disabled={busy} className={button}
+            onClick={() => act({ action: "updateSeason", seasonId: season.id, secondHalfFrom: half ? Number(half) : null }, "Saved")}>
+            Save
+          </button>
+          <span className="text-zinc-500">FPL gives everyone a second set of chips for the second half. Set it to the first gameweek of the second half (blank = one set).</span>
         </div>
       )}
       <details className="text-sm" open={!season}>
@@ -178,13 +204,14 @@ function PlayersPanel({ season, players, busy, act }: { season: Season; players:
         </button>
       </div>
       <p className="text-zinc-500 text-sm">
-        Prices are in £m. Changing a price only affects new signings — fans keep players at what they paid.
+        Prices are in £m and also move by themselves after each gameweek with transfers (up to £0.3m). Fans who own a player sell
+        at what they paid plus half of any rise. Status and news show as a flag in the app (FPL style).
         Untick &quot;In squad&quot; when someone leaves: owners keep them, nobody else can buy them.
       </p>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-zinc-500 text-left">
-            <tr><th className="py-2">Name</th><th>Position</th><th>Price £m</th><th>In squad</th><th /></tr>
+            <tr><th className="py-2">Name</th><th>Position</th><th>Price £m</th><th>Status</th><th>News</th><th>In squad</th><th /></tr>
           </thead>
           <tbody>
             {players.map((p) => {
@@ -199,7 +226,16 @@ function PlayersPanel({ season, players, busy, act }: { season: Season; players:
                     </select>
                   </td>
                   <td className="pr-2">
-                    <input type="number" step="0.5" min="1" value={d.price / 10} onChange={(e) => edit(p.id, { price: Math.round(Number(e.target.value) * 10) })} className={`${input} w-24`} />
+                    <input type="number" step="0.1" min="1" value={d.price / 10} onChange={(e) => edit(p.id, { price: Math.round(Number(e.target.value) * 10) })} className={`${input} w-24`} />
+                  </td>
+                  <td className="pr-2">
+                    <select value={d.status} onChange={(e) => edit(p.id, { status: e.target.value as PlayerStatus })} className={input}>
+                      {(Object.keys(PLAYER_STATUS) as PlayerStatus[]).map((st) => <option key={st} value={st}>{PLAYER_STATUS[st].label}</option>)}
+                    </select>
+                  </td>
+                  <td className="pr-2">
+                    <input value={d.news ?? ""} disabled={d.status === "a"} placeholder={d.status === "a" ? "" : "e.g. Hamstring — 50% chance"}
+                      onChange={(e) => edit(p.id, { news: e.target.value })} className={`${input} w-52 disabled:opacity-40`} />
                   </td>
                   <td className="pr-2"><input type="checkbox" checked={d.isActive} onChange={(e) => edit(p.id, { isActive: e.target.checked })} /></td>
                   <td>
@@ -225,7 +261,7 @@ function PlayersPanel({ season, players, busy, act }: { season: Season; players:
                 </select>
               </td>
               <td className="pr-2"><input type="number" step="0.5" value={adding.price} onChange={(e) => setAdding({ ...adding, price: e.target.value })} className={`${input} w-24`} /></td>
-              <td />
+              <td /><td /><td />
               <td>
                 <button
                   disabled={busy || !adding.name.trim()}
@@ -258,7 +294,10 @@ function GameweeksPanel({ season, gameweeks, players, busy, act }: { season: Sea
   return (
     <section className={card}>
       <h2 className="text-white font-semibold">Gameweeks</h2>
-      <p className="text-zinc-500 text-sm">Teams lock at the deadline (set it to kickoff). After the match, enter stats and finalise to score every team.</p>
+      <p className="text-zinc-500 text-sm">
+        Teams lock at the deadline (FPL uses 90 minutes before kickoff). After the match, enter the score and stats, then finalise:
+        that scores every team, awards bonus points and moves prices.
+      </p>
       <div className="space-y-2">
         {gameweeks.map((g) => (
           <GameweekRow key={g.id} gw={g} busy={busy} act={act} selected={g.id === selected} onSelect={() => setSelected(g.id === selected ? null : g.id)} />
@@ -290,8 +329,11 @@ function GameweeksPanel({ season, gameweeks, players, busy, act }: { season: Sea
 function GameweekRow({ gw, busy, act, selected, onSelect }: { gw: Gameweek; busy: boolean; act: Act; selected: boolean; onSelect: () => void }) {
   const [name, setName] = useState(gw.name ?? "");
   const [deadline, setDeadline] = useState(toLocalInput(gw.deadline));
+  const [goalsFor, setGoalsFor] = useState(gw.goalsFor === null ? "" : String(gw.goalsFor));
+  const [goalsAgainst, setGoalsAgainst] = useState(gw.goalsAgainst === null ? "" : String(gw.goalsAgainst));
   const status = gameweekStatus(gw);
-  const dirty = name !== (gw.name ?? "") || deadline !== toLocalInput(gw.deadline);
+  const dirty = name !== (gw.name ?? "") || deadline !== toLocalInput(gw.deadline)
+    || goalsFor !== (gw.goalsFor === null ? "" : String(gw.goalsFor)) || goalsAgainst !== (gw.goalsAgainst === null ? "" : String(gw.goalsAgainst));
   const badge = { upcoming: "bg-blue-900/50 text-blue-300", live: "bg-amber-900/50 text-amber-300", finished: "bg-green-900/50 text-green-300" }[status];
 
   return (
@@ -300,11 +342,19 @@ function GameweekRow({ gw, busy, act, selected, onSelect }: { gw: Gameweek; busy
       <span className={`px-2 py-0.5 rounded-md text-xs ${badge}`}>{status}</span>
       <input value={name} placeholder="Opponent" onChange={(e) => setName(e.target.value)} className={`${input} w-44`} />
       <input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={input} />
+      <span className="flex items-center gap-1 text-zinc-400" title="Final score: 5ive Guys – opponent">
+        <input value={goalsFor} onChange={(e) => setGoalsFor(e.target.value.replace(/\D/g, ""))} placeholder="–" className={`${input} w-12 text-center`} />
+        –
+        <input value={goalsAgainst} onChange={(e) => setGoalsAgainst(e.target.value.replace(/\D/g, ""))} placeholder="–" className={`${input} w-12 text-center`} />
+      </span>
       <span className="text-zinc-500">{gw.entries} teams · {gw.stats.length} stat rows</span>
       <div className="flex gap-2 ml-auto">
         {dirty && (
           <button disabled={busy} className={button}
-            onClick={() => act({ action: "saveGameweek", id: gw.id, number: gw.number, name, deadline: new Date(deadline).toISOString() }, `Gameweek ${gw.number} saved`)}>
+            onClick={() => act({
+              action: "saveGameweek", id: gw.id, number: gw.number, name, deadline: new Date(deadline).toISOString(),
+              goalsFor: goalsFor === "" ? null : Number(goalsFor), goalsAgainst: goalsAgainst === "" ? null : Number(goalsAgainst),
+            }, `Gameweek ${gw.number} saved`)}>
             Save
           </button>
         )}
@@ -319,12 +369,12 @@ function GameweekRow({ gw, busy, act, selected, onSelect }: { gw: Gameweek; busy
   );
 }
 
-const COUNT_FIELDS: { key: keyof PlayerStats; label: string }[] = [
-  { key: "goals", label: "G" }, { key: "assists", label: "A" }, { key: "yellowCards", label: "YC" },
-  { key: "ownGoals", label: "OG" }, { key: "penaltySaves", label: "PS" }, { key: "penaltyMisses", label: "PM" },
-];
-const FLAG_FIELDS: { key: keyof PlayerStats; label: string }[] = [
-  { key: "cleanSheet", label: "CS" }, { key: "redCard", label: "RC" }, { key: "motm", label: "MOTM" },
+const COUNT_FIELDS: { key: keyof PlayerStats; label: string; title: string }[] = [
+  { key: "goals", label: "G", title: "Goals" }, { key: "assists", label: "A", title: "Assists" },
+  { key: "goalsConceded", label: "GC", title: "Goals conceded while on the pitch" }, { key: "saves", label: "Sv", title: "Saves" },
+  { key: "penaltySaves", label: "PS", title: "Penalties saved" }, { key: "penaltyMisses", label: "PM", title: "Penalties missed" },
+  { key: "yellowCards", label: "YC", title: "Yellow cards" }, { key: "ownGoals", label: "OG", title: "Own goals" },
+  { key: "defensiveContributions", label: "DC", title: "Defensive contributions: tackles, blocks, interceptions, clearances (+ recoveries for MID/FWD)" },
 ];
 
 function StatsEditor({ gw, players, busy, act }: { gw: Gameweek; players: Player[]; busy: boolean; act: Act }) {
@@ -338,6 +388,11 @@ function StatsEditor({ gw, players, busy, act }: { gw: Gameweek; players: Player
   const [rows, setRows] = useState(initial);
   const status = gameweekStatus(gw);
   const set = (id: string, patch: Partial<PlayerStats>) => setRows((r) => ({ ...r, [id]: { ...r[id], ...patch } }));
+  // Ticking "Played" assumes most of the match and the team's goals against, as most players do in 7-a-side.
+  const setPlayed = (id: string, played: boolean) => set(id, played
+    ? { played, playedMost: true, goalsConceded: rows[id].goalsConceded || (gw.goalsAgainst ?? 0) }
+    : { ...EMPTY_STATS });
+  const bonus = awardBonus(players.map((p) => ({ id: p.id, position: p.position, stats: rows[p.id] })));
   const save = (finalize: boolean) =>
     act(
       {
@@ -352,38 +407,36 @@ function StatsEditor({ gw, players, busy, act }: { gw: Gameweek; players: Player
     <div className="border-t border-zinc-800 pt-4 space-y-3">
       <h3 className="text-white font-semibold">Gameweek {gw.number} stats{gw.name ? ` — ${gw.name}` : ""}</h3>
       <p className="text-zinc-500 text-sm">
-        Tick &quot;Played&quot; for everyone who got on the pitch. CS = clean sheet (only scores for GK/DEF), YC/RC = cards,
-        OG = own goals, PS/PM = penalties saved/missed. Bonus can be negative.
+        Tick &quot;Played&quot; for everyone who got on the pitch; untick &quot;Most&quot; for anyone who played less than most of the match
+        (FPL&apos;s 60 minutes — no clean sheet, 1 point for appearing). GC = goals conceded while they were on (keepers and defenders lose 1 per 2;
+        0 with &quot;Most&quot; = clean sheet). Hover a column for what it means. Bonus (3-2-1) is worked out from FPL&apos;s BPS.
+        {gw.goalsAgainst === null && " Save the match score above first so goals conceded fill in."}
       </p>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-zinc-500 text-left">
             <tr>
-              <th className="py-2">Player</th><th>Played</th>
-              {COUNT_FIELDS.map((f) => <th key={f.key}>{f.label}</th>)}
-              {FLAG_FIELDS.map((f) => <th key={f.key}>{f.label}</th>)}
-              <th>Bonus</th><th className="text-right">Pts</th>
+              <th className="py-2">Player</th><th>Played</th><th title="Played most of the match (FPL's 60 mins)">Most</th>
+              {COUNT_FIELDS.map((f) => <th key={f.key} title={f.title}>{f.label}</th>)}
+              <th title="Red card">RC</th><th title="Bonus from BPS">BP</th><th className="text-right">Pts</th>
             </tr>
           </thead>
           <tbody>
             {players.map((p) => {
-              const r = rows[p.id];
+              const r = { ...rows[p.id], bonus: bonus.get(p.id) ?? 0 };
               return (
                 <tr key={p.id} className={`border-t border-zinc-800 ${r.played ? "" : "opacity-50"}`}>
                   <td className="py-1.5 pr-2 text-white whitespace-nowrap">{p.name} <span className="text-zinc-500">{p.position}</span></td>
-                  <td><input type="checkbox" checked={r.played} onChange={(e) => set(p.id, { played: e.target.checked })} /></td>
+                  <td><input type="checkbox" checked={r.played} onChange={(e) => setPlayed(p.id, e.target.checked)} /></td>
+                  <td><input type="checkbox" checked={r.playedMost} disabled={!r.played} onChange={(e) => set(p.id, { playedMost: e.target.checked })} /></td>
                   {COUNT_FIELDS.map((f) => (
                     <td key={f.key} className="pr-1">
                       <input type="number" min="0" value={r[f.key] as number} onChange={(e) => set(p.id, { [f.key]: Math.max(0, Number(e.target.value) || 0) })}
                         className={`${input} w-14 px-2 py-1`} />
                     </td>
                   ))}
-                  {FLAG_FIELDS.map((f) => (
-                    <td key={f.key}><input type="checkbox" checked={r[f.key] as boolean} onChange={(e) => set(p.id, { [f.key]: e.target.checked })} /></td>
-                  ))}
-                  <td className="pr-1">
-                    <input type="number" value={r.bonus} onChange={(e) => set(p.id, { bonus: Number(e.target.value) || 0 })} className={`${input} w-14 px-2 py-1`} />
-                  </td>
+                  <td><input type="checkbox" checked={r.redCard} onChange={(e) => set(p.id, { redCard: e.target.checked })} /></td>
+                  <td className="text-amber-400 font-bold text-center">{r.bonus || ""}</td>
                   <td className="text-right text-white font-semibold">{playerPoints(r, p.position)}</td>
                 </tr>
               );

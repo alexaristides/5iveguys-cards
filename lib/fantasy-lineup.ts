@@ -1,18 +1,15 @@
 /**
- * Fantasy Div 1 — line-up editing shared by the website and the iOS app: formations,
- * slots, swaps and auto-fill. Pure TypeScript; rules live in lib/fantasy.ts.
+ * Fantasy Div 1 — team editing shared by the website and the iOS app: formations, slots and
+ * auto-fill for the 7 picks. Pure TypeScript; rules live in lib/fantasy.ts.
  */
-import { isValidStartingSeven, type FantasyPosition } from "./fantasy";
+import { FANTASY_RULES, type FantasyPosition } from "./fantasy";
 
 export interface LineupPlayer { id: string; position: FantasyPosition; price: number; isActive: boolean }
 
-/** A starting or bench slot. */
-export type Slot = { kind: "starter" | "bench"; index: number };
-
-/** Outfield shape of the starting 7 (always one keeper). */
+/** Outfield shape of the 7 (always one keeper). */
 export interface Formation { DEF: number; MID: number; FWD: number }
 
-/** Every legal 7-a-side shape: at least 2 defenders, a midfielder and a forward. */
+/** Every legal 7-a-side shape: 2-4 defenders, 1-3 midfielders and 1-3 forwards. */
 export const FORMATIONS: Formation[] = [
   { DEF: 3, MID: 2, FWD: 1 }, { DEF: 2, MID: 3, FWD: 1 }, { DEF: 2, MID: 2, FWD: 2 },
   { DEF: 3, MID: 1, FWD: 2 }, { DEF: 2, MID: 1, FWD: 3 }, { DEF: 4, MID: 1, FWD: 1 },
@@ -21,118 +18,93 @@ export const FORMATIONS: Formation[] = [
 export const formationLabel = (f: Formation) => `${f.DEF}-${f.MID}-${f.FWD}`;
 const sameFormation = (a: Formation, b: Formation) => a.DEF === b.DEF && a.MID === b.MID && a.FWD === b.FWD;
 
-/** Positions of the 7 starting slots in display order: keeper, defenders, midfielders, forwards. */
+/** Positions of the 7 slots in display order: keeper, defenders, midfielders, forwards. */
 export function slotPositions(f: Formation): FantasyPosition[] {
   return ["GK", ...Array<FantasyPosition>(f.DEF).fill("DEF"), ...Array<FantasyPosition>(f.MID).fill("MID"), ...Array<FantasyPosition>(f.FWD).fill("FWD")];
 }
 
 const ORDER: Record<FantasyPosition, number> = { GK: 0, DEF: 1, MID: 2, FWD: 3 };
 
-/** A team being edited: starting slots follow the formation, the 2 subs are in bench order. */
+/** A team being edited: 7 slots following the formation. */
 export interface Lineup {
   formation: Formation;
-  starters: (string | null)[];
-  bench: (string | null)[];
+  slots: (string | null)[];
 }
 
-export const EMPTY_LINEUP: Lineup = { formation: FORMATIONS[0], starters: Array(7).fill(null), bench: [null, null] };
+export const EMPTY_LINEUP: Lineup = { formation: FORMATIONS[0], slots: Array(FANTASY_RULES.squadSize).fill(null) };
 
-/** Lay out a saved team (7 starters then 2 subs). */
+/** Lay out a saved team (teams saved with 2 subs under the old rules show their first 7). */
 export function lineupFromIds(ids: string[], players: Map<string, LineupPlayer>): Lineup {
   const pos = (id: string) => players.get(id)?.position ?? "MID";
-  const starters = ids.slice(0, 7).sort((a, b) => ORDER[pos(a)] - ORDER[pos(b)]);
-  const count = (p: FantasyPosition) => starters.filter((id) => pos(id) === p).length;
-  return { formation: { DEF: count("DEF"), MID: count("MID"), FWD: count("FWD") }, starters, bench: ids.slice(7, 9) };
+  const slots = ids.slice(0, FANTASY_RULES.squadSize).sort((a, b) => ORDER[pos(a)] - ORDER[pos(b)]);
+  const count = (p: FantasyPosition) => slots.filter((id) => pos(id) === p).length;
+  const formation = { DEF: count("DEF"), MID: count("MID"), FWD: count("FWD") };
+  return { formation: FORMATIONS.find((f) => sameFormation(f, formation)) ?? formation, slots };
 }
 
-/** 7 starters then 2 subs, or null while there are empty slots. */
+/** The 7 picks, or null while there are empty slots. */
 export function lineupIds(l: Lineup): string[] | null {
-  const ids = [...l.starters, ...l.bench];
-  return ids.every(Boolean) ? (ids as string[]) : null;
+  return l.slots.every(Boolean) ? (l.slots as string[]) : null;
 }
 
 export function inLineup(l: Lineup) {
-  return new Set([...l.starters, ...l.bench].filter((id): id is string => !!id));
+  return new Set(l.slots.filter((id): id is string => !!id));
 }
 
-/**
- * Switch formation: starters who still fit stay; the rest drop to an empty bench slot,
- * or out of the team if the bench is full.
- */
+/** Switch formation: players who still fit stay, the rest leave the team. */
 export function changeFormation(l: Lineup, f: Formation, players: Map<string, LineupPlayer>): Lineup {
   if (sameFormation(l.formation, f)) return l;
-  const slots = slotPositions(f);
-  const starters: (string | null)[] = Array(7).fill(null);
-  const leftover: string[] = [];
-  for (const id of l.starters) {
+  const positions = slotPositions(f);
+  const slots: (string | null)[] = Array(FANTASY_RULES.squadSize).fill(null);
+  for (const id of l.slots) {
     if (!id) continue;
-    const i = slots.findIndex((p, j) => p === players.get(id)?.position && !starters[j]);
-    if (i >= 0) starters[i] = id; else leftover.push(id);
+    const i = positions.findIndex((p, j) => p === players.get(id)?.position && !slots[j]);
+    if (i >= 0) slots[i] = id;
   }
-  const bench = [...l.bench];
-  for (const id of leftover) {
-    const free = bench.indexOf(null);
-    if (free >= 0) bench[free] = id;
-  }
-  return { formation: f, starters, bench };
+  return { formation: f, slots };
 }
 
 /** Put a player in a slot (replacing whoever was there). */
-export function placePlayer(l: Lineup, slot: Slot, id: string): Lineup {
-  const starters = l.starters.map((s) => (s === id ? null : s));
-  const bench = l.bench.map((s) => (s === id ? null : s));
-  if (slot.kind === "starter") starters[slot.index] = id; else bench[slot.index] = id;
-  return { ...l, starters, bench };
+export function placePlayer(l: Lineup, index: number, id: string): Lineup {
+  const slots = l.slots.map((s) => (s === id ? null : s));
+  slots[index] = id;
+  return { ...l, slots };
 }
 
 export function removePlayer(l: Lineup, id: string): Lineup {
-  return { ...l, starters: l.starters.map((s) => (s === id ? null : s)), bench: l.bench.map((s) => (s === id ? null : s)) };
-}
-
-/** Swap a starter with a sub. The formation follows the new 7; null if that 7 isn't legal. */
-export function swapWithBench(l: Lineup, starterIndex: number, benchIndex: number, players: Map<string, LineupPlayer>): Lineup | null {
-  const incoming = l.bench[benchIndex];
-  const outgoing = l.starters[starterIndex];
-  if (!incoming || !outgoing) return null;
-  const starters = l.starters.map((s, i) => (i === starterIndex ? incoming : s)) as string[];
-  if (starters.some((s) => !s)) return null;
-  const positions = starters.map((id) => players.get(id)?.position ?? "MID");
-  if (!isValidStartingSeven(positions)) return null;
-  const bench = l.bench.map((s, i) => (i === benchIndex ? outgoing : s));
-  return { ...lineupFromIds([...starters, ...(bench as string[])], players) };
+  return { ...l, slots: l.slots.map((s) => (s === id ? null : s)) };
 }
 
 /**
  * Fill the empty slots: for each one take the priciest player who still leaves enough money
- * to fill the rest with the cheapest available.
+ * to fill the rest with the cheapest available. `moneyLeft` is the bank with the current picks in.
  */
-export function autoComplete(lineup: Lineup, players: LineupPlayer[], budget: number, salePrice: (id: string) => number): Lineup {
+export function autoComplete(lineup: Lineup, players: LineupPlayer[], moneyLeft: number): Lineup {
   let next = lineup;
-  const slots: { slot: Slot; position: FantasyPosition | null }[] = [
-    ...slotPositions(lineup.formation).map((position, index) => ({ slot: { kind: "starter" as const, index }, position })),
-    ...[0, 1].map((index) => ({ slot: { kind: "bench" as const, index }, position: null })),
-  ];
-  const isEmpty = (s: Slot) => !(s.kind === "starter" ? next.starters[s.index] : next.bench[s.index]);
-  const empty = slots.filter((s) => isEmpty(s.slot));
+  let bank = moneyLeft;
+  const positions = slotPositions(lineup.formation);
+  const empty = positions.map((position, index) => ({ position, index })).filter(({ index }) => !next.slots[index]);
 
-  empty.forEach(({ slot, position }, n) => {
+  empty.forEach(({ position, index }, n) => {
     const taken = inLineup(next);
-    const spent = [...taken].reduce((sum, id) => sum + salePrice(id), 0);
     const pool = players.filter((p) => p.isActive && !taken.has(p.id));
     const rest = empty.slice(n + 1);
     const cheapestRest = (exclude: string) => {
       const used = new Set([exclude]);
       return rest.reduce((sum, r) => {
-        const c = pool.filter((p) => !used.has(p.id) && (!r.position || p.position === r.position)).sort((a, b) => a.price - b.price)[0];
+        const c = pool.filter((p) => !used.has(p.id) && p.position === r.position).sort((a, b) => a.price - b.price)[0];
         if (c) used.add(c.id);
         return sum + (c?.price ?? 0);
       }, 0);
     };
     const choice = pool
-      .filter((p) => !position || p.position === position)
+      .filter((p) => p.position === position)
       .sort((a, b) => b.price - a.price)
-      .find((p) => spent + p.price + cheapestRest(p.id) <= budget);
-    if (choice) next = placePlayer(next, slot, choice.id);
+      .find((p) => p.price + cheapestRest(p.id) <= bank);
+    if (choice) {
+      next = placePlayer(next, index, choice.id);
+      bank -= choice.price;
+    }
   });
   return next;
 }

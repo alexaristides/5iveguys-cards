@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { overallFromVotes, STAT_FIELDS, type StatsMap } from "@/lib/card-rating";
 import { buildSquad } from "@/lib/motm";
-import { EMPTY_STATS, FANTASY_RULES, playerPoints, POSITIONS, suggestPrices, toFantasyPosition, type FantasyPosition, type PlayerStats } from "@/lib/fantasy";
-import { FantasyError, finalizeGameweek } from "@/lib/fantasy-db";
+import { EMPTY_STATS, FANTASY_RULES, isPlayerStatus, POSITIONS, suggestPrices, toFantasyPosition, type FantasyPosition, type PlayerStats } from "@/lib/fantasy";
+import { FantasyError, finalizeGameweek, scoreGameweekStats } from "@/lib/fantasy-db";
 
 const isAdmin = (req: NextRequest) =>
   !!process.env.ADMIN_SECRET && req.headers.get("x-admin-secret") === process.env.ADMIN_SECRET;
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   ]);
   return NextResponse.json({
     seasons: seasons.map((s) => ({ id: s.id, name: s.name, isActive: s.isActive, budget: s.budget, teams: s._count.teams })),
-    season: { id: season.id, name: season.name, isActive: season.isActive, budget: season.budget },
+    season: { id: season.id, name: season.name, isActive: season.isActive, budget: season.budget, secondHalfFrom: season.secondHalfFrom },
     players,
     gameweeks: gameweeks.map(({ _count, ...g }) => ({ ...g, entries: _count.entries })),
   });
@@ -37,7 +37,7 @@ type Body = Record<string, unknown>;
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 const int = (v: unknown, min = 0) => {
   const n = Number(v);
-  return Number.isInteger(n) && n >= min ? n : null;
+  return v !== null && v !== "" && Number.isInteger(n) && n >= min ? n : null;
 };
 
 export async function POST(req: NextRequest) {
@@ -59,7 +59,7 @@ async function handle(body: Body) {
       const budget = int(body.budget, 1) ?? FANTASY_RULES.defaultBudget;
       // One active season at a time.
       await prisma.fantasySeason.updateMany({ where: { isActive: true }, data: { isActive: false } });
-      const season = await prisma.fantasySeason.create({ data: { name, budget } });
+      const season = await prisma.fantasySeason.create({ data: { name, budget, secondHalfFrom: int(body.secondHalfFrom, 2) } });
       const imported = body.importPlayers ? await importSquad(season.id) : 0;
       return { season, imported };
     }
@@ -73,9 +73,19 @@ async function handle(body: Body) {
           ...(str(body.name) ? { name: str(body.name) } : {}),
           ...(int(body.budget, 1) !== null ? { budget: int(body.budget, 1)! } : {}),
           ...(typeof body.isActive === "boolean" ? { isActive: body.isActive } : {}),
+          ...("secondHalfFrom" in body ? { secondHalfFrom: int(body.secondHalfFrom, 2) } : {}),
         },
       });
       return { season };
+    }
+
+    case "deleteSeason": {
+      const id = str(body.seasonId);
+      const season = await prisma.fantasySeason.findUnique({ where: { id } });
+      if (!season) throw new FantasyError("Season not found.", 404);
+      if (season.isActive) throw new FantasyError("Make another season active before deleting this one.");
+      await prisma.fantasySeason.delete({ where: { id } });
+      return { ok: true };
     }
 
     case "importPlayers":
@@ -86,7 +96,11 @@ async function handle(body: Body) {
       const position = str(body.position) as FantasyPosition;
       const price = int(body.price, 1);
       if (!name || !POSITIONS.includes(position) || price === null) throw new FantasyError("A player needs a name, position and price.");
-      const data = { name, position, price, imageUrl: str(body.imageUrl) || null, isActive: body.isActive !== false };
+      const status = isPlayerStatus(body.status) ? body.status : "a";
+      const data = {
+        name, position, price, imageUrl: str(body.imageUrl) || null, isActive: body.isActive !== false,
+        status, news: status === "a" ? null : str(body.news) || null,
+      };
       const player = body.id
         ? await prisma.fantasyPlayer.update({ where: { id: str(body.id) }, data })
         : await prisma.fantasyPlayer.create({ data: { ...data, seasonId: str(body.seasonId) } });
@@ -97,7 +111,7 @@ async function handle(body: Body) {
       const number = int(body.number, 1);
       const deadline = new Date(str(body.deadline));
       if (number === null || Number.isNaN(deadline.getTime())) throw new FantasyError("A gameweek needs a number and a deadline.");
-      const data = { number, name: str(body.name) || null, deadline };
+      const data = { number, name: str(body.name) || null, deadline, goalsFor: int(body.goalsFor), goalsAgainst: int(body.goalsAgainst) };
       const gameweek = body.id
         ? await prisma.fantasyGameweek.update({ where: { id: str(body.id) }, data })
         : await prisma.fantasyGameweek.create({ data: { ...data, seasonId: str(body.seasonId) } });
@@ -124,14 +138,14 @@ async function handle(body: Body) {
       for (const row of rows) {
         const player = players.get(str(row.playerId));
         if (!player) throw new FantasyError("Unknown player in stats.");
-        const stats = parseStats(row);
-        const data = { ...stats, points: playerPoints(stats, player.position as FantasyPosition) };
+        const { bonus: _bonus, ...data } = parseStats(row); // bonus comes from BPS below
         await prisma.fantasyPlayerStats.upsert({
           where: { gameweekId_playerId: { gameweekId, playerId: player.id } },
           create: { gameweekId, playerId: player.id, ...data },
           update: data,
         });
       }
+      await scoreGameweekStats(gameweekId);
       // Corrections to a scored gameweek re-score it straight away.
       const rescored = gw.finalizedAt ? await finalizeGameweek(gameweekId) : null;
       return { saved: rows.length, rescored };
@@ -147,25 +161,25 @@ async function handle(body: Body) {
 
 function parseStats(row: Body): PlayerStats {
   const count = (k: keyof PlayerStats) => {
-    const n = int(row[k]);
+    const n = int(row[k] ?? 0);
     if (n === null) throw new FantasyError(`Invalid ${k}.`);
     return n;
   };
-  const bonus = Number(row.bonus ?? 0);
-  if (!Number.isInteger(bonus)) throw new FantasyError("Invalid bonus.");
+  const played = row.played === true;
   return {
     ...EMPTY_STATS,
-    played: row.played === true,
+    played,
+    playedMost: played && row.playedMost === true,
     goals: count("goals"),
     assists: count("assists"),
-    cleanSheet: row.cleanSheet === true,
+    goalsConceded: count("goalsConceded"),
+    saves: count("saves"),
+    penaltySaves: count("penaltySaves"),
+    penaltyMisses: count("penaltyMisses"),
     yellowCards: count("yellowCards"),
     redCard: row.redCard === true,
     ownGoals: count("ownGoals"),
-    penaltySaves: count("penaltySaves"),
-    penaltyMisses: count("penaltyMisses"),
-    motm: row.motm === true,
-    bonus,
+    defensiveContributions: count("defensiveContributions"),
   };
 }
 

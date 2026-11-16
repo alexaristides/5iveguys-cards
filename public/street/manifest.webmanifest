@@ -1,0 +1,15 @@
+{
+  "name": "5IVE STREET",
+  "short_name": "5IVE STREET",
+  "description": "3v3 street football in 3D with the 5ive Guys squad.",
+  "start_url": "/street",
+  "scope": "/street",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0614",
+  "theme_color": "#0b0614",
+  "icons": [
+    { "src": "/street/icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/street/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

@@ -40,6 +40,8 @@ export interface PlayerModel {
   applyFace(img: HTMLImageElement, crop: FaceCrop): void;
   /** Hip height at rest, for posing. */
   hipHeight: number;
+  /** Take it out of the scene and free what it doesn't share with other players. */
+  dispose(): void;
 }
 
 const HEAD_R = 0.125;
@@ -730,5 +732,22 @@ export function buildPlayer(name: string, look: Look, kitId: KitId): PlayerModel
     head.add(decal);
   };
 
-  return { root, head, body, joints, setKit, setGlow, applyFace, hipHeight };
+  const dispose = () => {
+    root.removeFromParent();
+    const shared = new Set<THREE.Material>(matCache.values());
+    root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      m.geometry.dispose();
+      for (const mt of [m.material].flat()) {
+        if (shared.has(mt)) continue;
+        const map = (mt as THREE.MeshStandardMaterial).map;
+        if (map && map !== strandTex) map.dispose();
+        mt.dispose();
+      }
+    });
+    for (const t of Object.values(shirtTex)) t?.dispose();
+  };
+
+  return { root, head, body, joints, setKit, setGlow, applyFace, hipHeight, dispose };
 }

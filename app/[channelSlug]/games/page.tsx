@@ -16,7 +16,18 @@ const GAMES = [
     cta: "bg-purple-600 hover:bg-purple-500 shadow-purple-600/20",
   },
   {
-    href: "/game?tab=sp",
+    href: "/street?story",
+    emoji: "🏆",
+    title: "5IVE STREET · Story mode",
+    description: "You're Oscar, player-manager. Take Five Guys FC from Division 4 to the Golden Cage",
+    color: "from-amber-700/40 via-[#1a1206] to-[#1a1206]",
+    border: "border-amber-500/40 hover:border-amber-400/70",
+    badge: "bg-amber-500/20 text-amber-200",
+    badgeText: "New · Story",
+    cta: "bg-amber-600 hover:bg-amber-500 shadow-amber-600/20",
+  },
+  {
+    href: "/game/single",
     emoji: "⚽",
     title: "Single Player",
     description: "Pick your best squad and play a 7v7 match vs CPU",
@@ -77,7 +88,7 @@ export default function GamesPage() {
               </>
             );
             // 5IVE STREET is a static page (public/street), so it needs a full page load.
-            return game.href === "/street"
+            return game.href.startsWith("/street")
               ? <a key={game.href} href={game.href} className={className}>{body}</a>
               : <Link key={game.href} href={game.href} className={className}>{body}</Link>;
           })}
