@@ -356,16 +356,13 @@ export async function POST(req: NextRequest) {
   await prisma.$transaction(ops);
 
   // Notify user of points earned
+  // Just the total: the site doesn't say what earns points, only that fans get them.
   if (pointsDelta > 0) {
-    const parts: string[] = [];
-    if (isSubscribed && !wasSubscribed) parts.push(`subscribed (+${POINTS_CONFIG.subscribe} pts)`);
-    if (newEarlyLikes.length > 0) parts.push(`${newEarlyLikes.length} early like${newEarlyLikes.length > 1 ? "s" : ""} (+${newEarlyLikes.length * POINTS_CONFIG.earlyLike} pts)`);
-    if (newRegularLikes.length > 0) parts.push(`${newRegularLikes.length} like${newRegularLikes.length > 1 ? "s" : ""} (+${newRegularLikes.length * POINTS_CONFIG.like} pts)`);
     await createNotification({
       userId,
       type: "points_earned",
-      title: `You earned ${pointsDelta} points from YouTube! ⚡`,
-      body: parts.join(", "),
+      title: `You got ${pointsDelta} fan points! ⚡`,
+      body: "Thanks for being a fan.",
       link: channelSlug ? `/${channelSlug}` : "/",
     });
   }

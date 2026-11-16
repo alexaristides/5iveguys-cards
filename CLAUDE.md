@@ -134,6 +134,12 @@ Schema changes: use `npm run db:push` (no migration files; direct push to DB).
 
 `GET /api/admin/stats` requires `x-admin-secret` header matching `ADMIN_SECRET` env var.
 
+Support: `/support` (FAQ + contact form → `SupportMessage` rows; it's the App Store Support URL and the app's Settings → Help & Support). There's no email on 5iveg.com, so messages are read at `/admin/support` (same admin secret).
+
+### Points wording (YouTube policy)
+
+The site and app only say "you get points for being a fan". Don't show what earns points (no per-like, per-subscribe or per-minute amounts, no 👍/⚡ like counts on leaderboards, no "+N pts" while watching): YouTube's API policies forbid rewarding likes, subscribes or views. The points engine itself is unchanged. The privacy policy still discloses which YouTube data is read, as Google requires.
+
 ### Environment variables
 
 ```

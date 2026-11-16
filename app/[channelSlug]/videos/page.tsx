@@ -14,15 +14,6 @@ interface Video {
   watchedByMe: boolean;
 }
 
-function formatWatchTime(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  const mins = Math.floor(seconds / 60);
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  const rem = mins % 60;
-  return rem > 0 ? `${hrs}h ${rem}m` : `${hrs}h`;
-}
-
 function timeAgo(dateStr: string) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
   if (diff < 86400) return "Today";
@@ -44,13 +35,11 @@ export default function VideosPage() {
   const [loading, setLoading] = useState(true);
 
   const [activeVideo, setActiveVideo] = useState<Video | null>(null);
-  const [sessionPts, setSessionPts] = useState(0);         // pts earned this modal session
-  const [pendingSeconds, setPendingSeconds] = useState(0); // qualifying seconds not yet sent
   const [watchedIds, setWatchedIds] = useState<Set<string>>(new Set());
 
   const playerRef = useRef<YouTubePlayer | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pendingRef = useRef(0);  // mirror of pendingSeconds for use inside interval closure
+  const pendingRef = useRef(0);  // qualifying seconds not yet sent
   const channelSlugRef = useRef(channelSlug);
   channelSlugRef.current = channelSlug;
 
@@ -99,7 +88,6 @@ export default function VideosPage() {
     if (res.ok) {
       const data = await res.json();
       if (data.pointsEarned > 0) {
-        setSessionPts((p) => p + data.pointsEarned);
         setWatchedIds((prev) => new Set([...prev, videoId]));
       }
     }
@@ -108,7 +96,6 @@ export default function VideosPage() {
   function startTracking() {
     if (intervalRef.current) clearInterval(intervalRef.current);
     pendingRef.current = 0;
-    setPendingSeconds(0);
 
     intervalRef.current = setInterval(async () => {
       const player = playerRef.current;
@@ -126,13 +113,11 @@ export default function VideosPage() {
 
       if (isVisible && isPlaying && volumeOk) {
         pendingRef.current += 5;
-        setPendingSeconds(pendingRef.current);
 
         // Flush every full 60 seconds
         if (pendingRef.current >= 60) {
           const toSend = Math.floor(pendingRef.current / 60) * 60;
           pendingRef.current -= toSend;
-          setPendingSeconds(pendingRef.current);
           await flushSeconds(toSend);
         }
       }
@@ -149,20 +134,16 @@ export default function VideosPage() {
       flushSeconds(pendingRef.current);
     }
     pendingRef.current = 0;
-    setPendingSeconds(0);
   }
 
   function openVideo(video: Video) {
     setActiveVideo(video);
-    setSessionPts(0);
-    setPendingSeconds(0);
     pendingRef.current = 0;
   }
 
   function closeModal() {
     stopTracking();
     setActiveVideo(null);
-    setSessionPts(0);
   }
 
   // Pause tracking when tab loses focus
@@ -200,10 +181,6 @@ export default function VideosPage() {
           <div>
             <h1 className="text-2xl font-bold text-white">Videos</h1>
             {total > 0 && <p className="text-zinc-500 text-sm mt-0.5">{total} videos</p>}
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-1.5">
-            <span className="text-purple-400">▶</span>
-            <span>2 pts / min watched</span>
           </div>
         </div>
 
@@ -330,26 +307,7 @@ export default function VideosPage() {
                   <p className="text-white text-sm font-semibold leading-snug line-clamp-2 mb-1">
                     {activeVideo.title ?? "Untitled video"}
                   </p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-zinc-500 text-xs">
-                      {isWatched(activeVideo.videoId) ? "Already watched" : "2 pts / min"}
-                    </span>
-                    <span className="text-zinc-700 text-xs">·</span>
-                    <span className="text-zinc-500 text-xs">volume &gt; 10% · tab active</span>
-                    {(sessionPts > 0 || pendingSeconds > 0) && (
-                      <>
-                        <span className="text-zinc-700 text-xs">·</span>
-                        <span className="text-green-400 text-xs font-semibold">
-                          +{sessionPts} pts earned
-                          {pendingSeconds > 0 && (
-                            <span className="text-zinc-500 font-normal">
-                              {" "}({formatWatchTime(pendingSeconds)} buffering)
-                            </span>
-                          )}
-                        </span>
-                      </>
-                    )}
-                  </div>
+                  {isWatched(activeVideo.videoId) && <span className="text-zinc-500 text-xs">✓ Watched</span>}
                 </div>
                 <button
                   onClick={closeModal}

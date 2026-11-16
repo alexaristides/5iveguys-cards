@@ -138,8 +138,8 @@ export default function SettingsPage() {
               </p>
               <p className="text-zinc-500 text-xs mt-0.5">
                 {account.hasYoutubeScope
-                  ? "Your likes and subscription can be synced to earn points."
-                  : "Without YouTube access, syncing won't detect your likes or subscription."}
+                  ? "Your fan points update when you sync."
+                  : "Connect YouTube so your fan points can update."}
               </p>
             </div>
           </div>

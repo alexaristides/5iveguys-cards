@@ -17,7 +17,6 @@ export default function VideoSheet() {
   const queryClient = useQueryClient();
   const { width } = useWindowDimensions();
   const [playing, setPlaying] = useState(false);
-  const [earned, setEarned] = useState(0);
   const [cappedOut, setCappedOut] = useState(false);
   const pending = useRef(0);
   const playingRef = useRef(false);
@@ -30,10 +29,7 @@ export default function VideoSheet() {
         `/api/channels/${slug}/videos/${videoId}/watch-time`,
         { body: { seconds: Math.min(120, Math.round(seconds)) } },
       );
-      if (res.pointsEarned > 0) {
-        setEarned((e) => e + res.pointsEarned);
-        queryClient.invalidateQueries({ queryKey: ["me", slug] });
-      }
+      if (res.pointsEarned > 0) queryClient.invalidateQueries({ queryKey: ["me", slug] });
       if (res.cappedOut) setCappedOut(true);
     } catch { /* best effort */ }
   }, [slug, videoId, queryClient]);
@@ -72,15 +68,14 @@ export default function VideoSheet() {
         <View style={[styles.dot, { backgroundColor: playing ? colors.greenHi : colors.text3 }]} />
         <Text style={styles.statusText}>
           {cappedOut
-            ? "Max watch points reached for this video"
+            ? "Watched"
             : playing
               ? "Watching"
               : "Press play to watch"}
         </Text>
       </View>
-      {earned > 0 && <Text style={styles.earned}>+{earned} points earned</Text>}
       <Button
-        title="👍  Like on YouTube"
+        title="▶  Open on YouTube"
         variant="secondary"
         onPress={() => Linking.openURL(`https://www.youtube.com/watch?v=${videoId}`)}
         style={{ marginTop: 8 }}
@@ -100,5 +95,4 @@ const styles = StyleSheet.create({
   status: { flexDirection: "row", alignItems: "center", gap: 8 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { color: colors.text2, fontSize: 14 },
-  earned: { color: colors.gold, fontSize: 16, fontWeight: "900" },
 });

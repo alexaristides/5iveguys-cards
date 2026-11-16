@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export const metadata = { title: "Privacy Policy — 5iveguysfc Trading Cards" };
+export const metadata = { title: "Privacy Policy — 5iveG" };
 
 export default function PrivacyPage() {
   return (
@@ -9,77 +9,88 @@ export default function PrivacyPage() {
         <div>
           <Link href="/" className="text-zinc-600 text-xs hover:text-zinc-400 transition-colors">← Back</Link>
           <h1 className="text-white text-3xl font-bold mt-4">Privacy Policy</h1>
-          <p className="text-zinc-600 text-xs mt-1">Last updated: May 2025</p>
+          <p className="text-zinc-600 text-xs mt-1">Last updated: November 2026</p>
         </div>
 
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">Overview</h2>
           <p>
-            5iveguysfc Trading Cards (&ldquo;the App&rdquo;) is a fan-made digital card collection game.
-            By signing in with Google you allow the App to read limited data from your Google and YouTube
-            accounts solely to calculate points. We do not sell, share, or monetise your data.
+            5iveG (&ldquo;the App&rdquo;, on the web and on iPhone) is a fan-made app for the 5ive Guys and Other Guys
+            YouTube channels. Fans get points for being fans, rate players, play games and run a fantasy team. We only
+            use your data to run the App. We do not sell, share, or monetise it.
           </p>
         </section>
 
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">Data we collect</h2>
           <ul className="space-y-2 list-disc list-inside">
-            <li><span className="text-white font-medium">Google account info</span> — your name, email address, and profile picture, used to identify your account and display your name on the leaderboard.</li>
-            <li><span className="text-white font-medium">YouTube subscription status</span> — whether you are subscribed to the 5iveguysfc channel, to award subscription points.</li>
-            <li><span className="text-white font-medium">YouTube video ratings</span> — which 5iveguysfc videos you have liked, to award like points.</li>
+            <li><span className="text-white font-medium">Account info</span> — your name, email address and profile picture from Google, or the name and email (which may be an Apple private relay address) from Sign in with Apple. Used to identify your account and show your name on leaderboards.</li>
+            <li><span className="text-white font-medium">YouTube channel activity</span> — if you connect YouTube: whether you subscribe to the channels in the App and which of their videos you have rated. Used to show your fan activity and work out your fan points.</li>
+            <li><span className="text-white font-medium">Activity in the App</span> — your points, cards, player ratings, fantasy team, game results, and time spent watching channel videos in the App&rsquo;s player.</li>
+            <li><span className="text-white font-medium">Support messages</span> — the name, email and message you send through the support form, so we can reply.</li>
           </ul>
-          <p>We do not access your YouTube watch history, private videos, playlists, or any data unrelated to the 5iveguysfc channel.</p>
+          <p>We do not access your YouTube watch history, private videos, playlists, or any data unrelated to the channels in the App.</p>
         </section>
 
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">How we use your data</h2>
           <ul className="space-y-2 list-disc list-inside">
-            <li>Awarding points for subscribing to and liking videos on the 5iveguysfc channel.</li>
-            <li>Displaying your name, avatar, and points on the fan leaderboard.</li>
-            <li>Associating your card collection with your account.</li>
+            <li>Running your account: points, cards, ratings, games and your fantasy team.</li>
+            <li>Showing your name, avatar and points on fan leaderboards.</li>
+            <li>Replying to support requests.</li>
           </ul>
           <p>Your data is never used for advertising, sold to third parties, or shared outside the App.</p>
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-white font-semibold text-base">OAuth scopes used</h2>
+          <h2 className="text-white font-semibold text-base">Google OAuth scopes used</h2>
           <ul className="space-y-2 list-disc list-inside">
             <li><code className="text-purple-400 text-xs">openid</code>, <code className="text-purple-400 text-xs">email</code>, <code className="text-purple-400 text-xs">profile</code> — basic Google identity.</li>
-            <li><code className="text-purple-400 text-xs">https://www.googleapis.com/auth/youtube.force-ssl</code> — read-only access to your YouTube subscription status and video ratings for 5iveguysfc content.</li>
+            <li><code className="text-purple-400 text-xs">https://www.googleapis.com/auth/youtube.force-ssl</code> — used only to read your subscription status and video ratings for the channels in the App. We never post, comment, rate or subscribe on your behalf.</li>
           </ul>
+          <p>
+            The App&rsquo;s use of information received from Google APIs adheres to the{" "}
+            <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer" className="text-purple-400 underline hover:text-purple-300">
+              Google API Services User Data Policy
+            </a>
+            , including the Limited Use requirements.
+          </p>
         </section>
 
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">Data retention and deletion</h2>
           <p>
-            Your account data is stored for as long as you use the App. You can request deletion of your
-            account and all associated data at any time by contacting us at the address below. Revoking
-            access via your{" "}
+            Your data is kept for as long as you have an account. In the iPhone app, Settings → Delete account
+            permanently deletes your account and everything linked to it, and revokes the App&rsquo;s access to your
+            Google and Apple accounts. You can also ask us to delete it through the{" "}
+            <a href="/support" className="text-purple-400 underline hover:text-purple-300">support page</a>. You can
+            remove the App&rsquo;s YouTube access at any time from your{" "}
             <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" className="text-purple-400 underline hover:text-purple-300">
               Google account permissions
             </a>{" "}
-            page will prevent further syncing.
+            page.
           </p>
         </section>
 
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">Security</h2>
           <p>
-            OAuth tokens are stored securely in our database and used only to sync your YouTube activity
-            on your request. We do not store your Google password.
+            Sign-in tokens are stored securely in our database and used only to run the App. We never see or store
+            your Google or Apple password.
           </p>
         </section>
 
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">Contact</h2>
           <p>
-            For questions or data deletion requests, contact us via the 5iveguysfc YouTube channel.
+            For questions or data deletion requests, use the{" "}
+            <a href="/support" className="text-purple-400 underline hover:text-purple-300">support page</a>.
           </p>
         </section>
 
         <p className="text-zinc-700 text-xs pt-4 border-t border-zinc-900">
-          5iveguysfc Trading Cards is an independent fan project and is not affiliated with, endorsed by,
-          or sponsored by YouTube, Google LLC, or any related entities.
+          5iveG is an independent fan project and is not affiliated with, endorsed by, or sponsored by
+          YouTube, Google LLC, Apple Inc., or any related entities.
         </p>
       </div>
     </main>

@@ -36,11 +36,6 @@ interface LeaderboardEntry {
   rankChange: number;
 }
 
-interface PlatformStats {
-  newSubsThisWeek: number;
-  totalLikesThisWeek: number;
-}
-
 function ShareRankButton({ rank, channelName }: { rank: number; channelName: string }) {
   const [copied, setCopied] = useState(false);
   const text = `I'm ranked #${rank} fan of ${channelName} on 5iveG!`;
@@ -83,7 +78,6 @@ export default function FansPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
   const [channelName, setChannelName] = useState<string>("");
-  const [stats, setStats] = useState<PlatformStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [lbLoading, setLbLoading] = useState(false);
   const [period, setPeriod] = useState<Period>("alltime");
@@ -104,13 +98,7 @@ export default function FansPage() {
   useEffect(() => {
     if (status !== "authenticated" || initialLoadDone.current) return;
     initialLoadDone.current = true;
-    Promise.all([
-      fetchLeaderboard("alltime"),
-      fetch(`/api/stats?channelSlug=${channelSlug}`).then((r) => r.ok ? r.json() : null),
-    ]).then(([, statsData]) => {
-      if (statsData) setStats(statsData);
-      setLoading(false);
-    });
+    fetchLeaderboard("alltime").then(() => setLoading(false));
   }, [status, channelSlug, fetchLeaderboard]);
 
   const prevPeriod = useRef<Period | null>(null);
@@ -169,19 +157,6 @@ export default function FansPage() {
           </div>
         </div>
 
-        {stats && (
-          <div className="flex gap-3 mb-6">
-            <div className="flex-1 rounded-xl bg-zinc-900/60 border border-zinc-800 px-4 py-3 text-center">
-              <p className="text-zinc-500 text-xs">New subs this week</p>
-              <p className="text-white font-bold text-lg mt-0.5">{stats.newSubsThisWeek}</p>
-            </div>
-            <div className="flex-1 rounded-xl bg-zinc-900/60 border border-zinc-800 px-4 py-3 text-center">
-              <p className="text-zinc-500 text-xs">Likes added this week</p>
-              <p className="text-white font-bold text-lg mt-0.5">{stats.totalLikesThisWeek}</p>
-            </div>
-          </div>
-        )}
-
         {lbLoading ? (
           <div className="flex justify-center py-16">
             <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
@@ -224,16 +199,6 @@ export default function FansPage() {
                         <span className="text-purple-300 font-bold text-xs">{entry.score.toLocaleString()} pts</span>
                       </div>
                       {period === "alltime" && <RankChange change={entry.rankChange} />}
-                      <div className="flex gap-1.5 mt-2">
-                        <div className="flex items-center gap-0.5 bg-zinc-800/60 rounded-md px-1.5 py-0.5">
-                          <span className="text-[10px]">👍</span>
-                          <span className="text-zinc-400 text-[10px] font-medium">{entry.likedCount}</span>
-                        </div>
-                        <div className="flex items-center gap-0.5 bg-zinc-800/60 rounded-md px-1.5 py-0.5">
-                          <span className="text-[10px]">⚡</span>
-                          <span className="text-zinc-400 text-[10px] font-medium">{entry.earlyLikedCount}</span>
-                        </div>
-                      </div>
                     </Link>
                   );
                 })}
@@ -265,11 +230,6 @@ export default function FansPage() {
                         {entry.name ?? "Fan"}
                         {entry.isCurrentUser && <span className="text-purple-400 text-xs ml-1">(You)</span>}
                       </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {entry.isSubscribed && <span className="text-green-400 text-[10px]">✓ Sub</span>}
-                        <span className="text-zinc-600 text-[10px]">👍 {entry.likedCount}</span>
-                        <span className="text-zinc-600 text-[10px]">⚡ {entry.earlyLikedCount}</span>
-                      </div>
                     </div>
                     <div className="flex flex-col items-end shrink-0">
                       <p className="text-purple-400 font-bold text-sm">
