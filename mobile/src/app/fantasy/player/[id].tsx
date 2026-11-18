@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
-import { formatPrice, PLAYER_STATUS, POSITION_LABEL } from "@shared/fantasy";
+import { FANTASY_RULES, formatPrice, PLAYER_STATUS, POSITION_LABEL } from "@shared/fantasy";
 import { POSITION_COLOR } from "@/components/fantasy/FantasyPitch";
 import { ErrorText, Loading } from "@/components/ui";
 import { imageUri } from "@/lib/images";
@@ -33,8 +33,8 @@ export default function FantasyPlayerScreen() {
           <View style={[styles.pos, { backgroundColor: POSITION_COLOR[player.position] }]}>
             <Text style={styles.posText}>{POSITION_LABEL[player.position]}</Text>
           </View>
-          <Text style={styles.price}>{formatPrice(player.price)}</Text>
-          {seasonChange ? (
+          {FANTASY_RULES.prices && <Text style={styles.price}>{formatPrice(player.price)}</Text>}
+          {FANTASY_RULES.prices && seasonChange ? (
             <Text style={[styles.change, { color: seasonChange > 0 ? colors.greenHi : colors.danger }]}>
               {seasonChange > 0 ? "▲" : "▼"} {formatPrice(Math.abs(seasonChange))} this season
             </Text>

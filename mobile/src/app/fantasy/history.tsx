@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { CHIPS, formatPrice } from "@shared/fantasy";
+import { CHIPS, FANTASY_RULES, formatPrice } from "@shared/fantasy";
 import { RankMove } from "@/components/fantasy/LeaderRow";
 import { GameScreen } from "@/components/game/GameScreen";
 import { ErrorText, Loading, Panel } from "@/components/ui";
@@ -30,7 +30,7 @@ export default function FantasyHistoryScreen() {
             <Text style={[styles.head, styles.num]}>Total</Text>
             <Text style={[styles.head, styles.rank]}>Rank</Text>
             <Text style={[styles.head, styles.tm]}>TM</Text>
-            <Text style={[styles.head, { flex: 1, textAlign: "right" }]}>Value</Text>
+            {FANTASY_RULES.prices && <Text style={[styles.head, { flex: 1, textAlign: "right" }]}>Value</Text>}
           </View>
           <View style={{ gap: 6 }}>
             {[...data.weeks].reverse().map((w, i, all) => {
@@ -55,7 +55,7 @@ export default function FantasyHistoryScreen() {
                   <Text style={[styles.cell, styles.tm, w.transferCost ? { color: colors.danger } : null]}>
                     {w.transfersMade}{w.transferCost ? ` (−${w.transferCost})` : ""}
                   </Text>
-                  <Text style={[styles.cell, { flex: 1, textAlign: "right" }]}>{formatPrice(w.value)}</Text>
+                  {FANTASY_RULES.prices && <Text style={[styles.cell, { flex: 1, textAlign: "right" }]}>{formatPrice(w.value)}</Text>}
                 </Pressable>
               );
             })}

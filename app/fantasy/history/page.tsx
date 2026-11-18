@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { RankMove } from "@/components/fantasy/FantasyLeagues";
 import { FantasyShell, panel, Spinner } from "@/components/fantasy/FantasyShell";
 import type { teamHistory } from "@/lib/fantasy-db";
-import { CHIPS, formatPrice } from "@/lib/fantasy";
+import { CHIPS, FANTASY_RULES, formatPrice } from "@/lib/fantasy";
 
 type History = Awaited<ReturnType<typeof teamHistory>>;
 
@@ -39,7 +39,7 @@ function HistoryView() {
       <div className={`${panel} p-0 overflow-hidden`}>
         <table className="w-full text-sm">
           <thead className="bg-zinc-900 text-zinc-500 text-left">
-            <tr><th className="px-3 py-2">GW</th><th className="text-right">Pts</th><th className="text-right">Total</th><th className="pl-4">Rank</th><th className="text-right">Transfers</th><th className="text-right px-3">Value</th></tr>
+            <tr><th className="px-3 py-2">GW</th><th className="text-right">Pts</th><th className="text-right">Total</th><th className="pl-4">Rank</th><th className="text-right pr-3">Transfers</th>{FANTASY_RULES.prices && <th className="text-right px-3">Value</th>}</tr>
           </thead>
           <tbody>
             {weeks.map((w, i) => {
@@ -50,8 +50,8 @@ function HistoryView() {
                   <td className="text-right text-white font-black tabular-nums">{w.points ?? (w.status === "live" ? "Live" : "–")}</td>
                   <td className="text-right text-zinc-400 tabular-nums">{w.overallPoints ?? "–"}</td>
                   <td className="pl-4"><span className="flex items-center gap-2">{w.overallRank !== null && <RankMove rank={w.overallRank} previous={weeks[i + 1]?.overallRank ?? null} />}<span className="text-zinc-300 tabular-nums">{w.overallRank ?? "–"}</span></span></td>
-                  <td className={`text-right tabular-nums ${w.transferCost ? "text-red-400" : "text-zinc-400"}`}>{w.transfersMade}{w.transferCost ? ` (−${w.transferCost})` : ""}</td>
-                  <td className="text-right px-3 text-zinc-400 tabular-nums">{formatPrice(w.value)}</td>
+                  <td className={`text-right pr-3 tabular-nums ${w.transferCost ? "text-red-400" : "text-zinc-400"}`}>{w.transfersMade}{w.transferCost ? ` (−${w.transferCost})` : ""}</td>
+                  {FANTASY_RULES.prices && <td className="text-right px-3 text-zinc-400 tabular-nums">{formatPrice(w.value)}</td>}
                 </tr>
               );
             })}

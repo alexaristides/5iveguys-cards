@@ -86,7 +86,9 @@ function Home({ data, now, gameweek, leagues }: {
         <Panel style={{ gap: 10 }}>
           <Text style={styles.heroTitle}>Play Fantasy Div 1</Text>
           <Text style={styles.body}>
-            Pick {FANTASY_RULES.squadSize} of the 5ive Guys with {formatPrice(season.budget)}. Captain, transfers, price changes and chips,
+            {FANTASY_RULES.prices
+              ? `Pick ${FANTASY_RULES.squadSize} of the 5ive Guys with ${formatPrice(season.budget)}. Captain, transfers, price changes and chips, `
+              : `Pick any ${FANTASY_RULES.squadSize} of the 5ive Guys, no prices. Captain, transfers and chips, `}
             just like Fantasy Premier League — and the points come from their real Division 1 matches.
           </Text>
         </Panel>
@@ -109,7 +111,7 @@ function Home({ data, now, gameweek, leagues }: {
         const p = players.get(lineup.slots[i] ?? "") ?? null;
         return {
           key: `s${i}`, position, player: p,
-          caption: p ? (p.lastPoints !== null ? `${p.lastPoints} pts` : formatPrice(p.price)) : undefined,
+          caption: p ? (p.lastPoints !== null ? `${p.lastPoints} pts` : FANTASY_RULES.prices ? formatPrice(p.price) : undefined) : undefined,
           badge: p?.id === draft?.captainId ? "C" : p?.id === draft?.viceCaptainId ? "V" : null,
           onPress: p ? () => router.push({ pathname: "/fantasy/player/[id]", params: { id: p.id } }) : undefined,
         };
@@ -149,7 +151,7 @@ function Home({ data, now, gameweek, leagues }: {
           </View>
           <Text style={styles.statLabel}>of {team.teamCount} overall</Text>
         </View>
-        <Stat label="Team value" value={team.value !== null ? formatPrice(team.value) : "–"} />
+        {FANTASY_RULES.prices && <Stat label="Team value" value={team.value !== null ? formatPrice(team.value) : "–"} />}
       </View>
 
       {next ? (
@@ -159,7 +161,7 @@ function Home({ data, now, gameweek, leagues }: {
             now={now}
             detail={[
               team.freeTransfers === null ? "Unlimited transfers" : `${team.freeTransfers} free transfer${team.freeTransfers === 1 ? "" : "s"}`,
-              draft ? `${formatPrice(draft.bank)} in the bank` : null,
+              FANTASY_RULES.prices && draft ? `${formatPrice(draft.bank)} in the bank` : null,
               chip ? `${chip.name} on` : null,
             ].filter(Boolean).join(" · ")}
           />

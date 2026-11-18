@@ -4,7 +4,7 @@
  */
 import { FANTASY_RULES, type FantasyPosition } from "./fantasy";
 
-export interface LineupPlayer { id: string; position: FantasyPosition; price: number; isActive: boolean }
+export interface LineupPlayer { id: string; position: FantasyPosition; price: number; isActive: boolean; totalPoints?: number }
 
 /** Outfield shape of the 7 (always one keeper). */
 export interface Formation { DEF: number; MID: number; FWD: number }
@@ -99,7 +99,7 @@ export function autoComplete(lineup: Lineup, players: LineupPlayer[], moneyLeft:
     };
     const choice = pool
       .filter((p) => p.position === position)
-      .sort((a, b) => b.price - a.price)
+      .sort((a, b) => b.price - a.price || (b.totalPoints ?? 0) - (a.totalPoints ?? 0))
       .find((p) => p.price + cheapestRest(p.id) <= bank);
     if (choice) {
       next = placePlayer(next, index, choice.id);

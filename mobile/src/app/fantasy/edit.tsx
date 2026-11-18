@@ -63,9 +63,10 @@ function Editor({ data }: { data: FantasyOverview }) {
 
   const change = (next: Lineup) => { setLineup(next); setTouched(true); };
 
-  // Captain and vice default to the priciest players until chosen.
+  // Captain and vice default to the priciest (or, without prices, highest-scoring) players until chosen.
   const chosen = [...inLineup(lineup)];
-  const byPrice = [...chosen].sort((a, b) => (players.get(b)?.price ?? 0) - (players.get(a)?.price ?? 0));
+  const byPrice = [...chosen].sort((a, b) => (players.get(b)?.price ?? 0) - (players.get(a)?.price ?? 0)
+    || (players.get(b)?.totalPoints ?? 0) - (players.get(a)?.totalPoints ?? 0));
   const captainId = captain && chosen.includes(captain) ? captain : byPrice[0] ?? null;
   const viceId = vice && chosen.includes(vice) && vice !== captainId ? vice : byPrice.find((id) => id !== captainId) ?? null;
 
@@ -102,7 +103,7 @@ function Editor({ data }: { data: FantasyOverview }) {
 
     ActionSheetIOS.showActionSheetWithOptions(
       {
-        title: `${p.name} · ${POSITION_LABEL[p.position]} · ${formatPrice(p.price)}`,
+        title: `${p.name} · ${POSITION_LABEL[p.position]}${FANTASY_RULES.prices ? ` · ${formatPrice(p.price)}` : ""}`,
         message: p.status !== "a"
           ? `${PLAYER_STATUS[p.status].label}${p.news ? ` — ${p.news}` : ""}`
           : `${p.totalPoints} pts · form ${p.form} · picked by ${p.selectedBy}%`,
@@ -181,7 +182,7 @@ function Editor({ data }: { data: FantasyOverview }) {
     const p = players.get(lineup.slots[i] ?? "") ?? null;
     return {
       key: `s${i}`, position, player: p,
-      caption: p ? formatPrice(p.price) : undefined,
+      caption: p ? (FANTASY_RULES.prices ? formatPrice(p.price) : `${p.totalPoints} pts`) : undefined,
       badge: p && p.id === captainId ? "C" : p && p.id === viceId ? "V" : null,
       fresh: !!p && !!baseline && !before.has(p.id),
       onPress: () => onSlot(i),
@@ -224,7 +225,7 @@ function Editor({ data }: { data: FantasyOverview }) {
       )}
 
       <View style={styles.stats}>
-        <Stat label="Money left" value={formatPrice(bank)} bad={bank < 0} />
+        {FANTASY_RULES.prices && <Stat label="Money left" value={formatPrice(bank)} bad={bank < 0} />}
         <Stat label="Free transfers" value={free === null ? "∞" : String(free)} />
         <Stat
           label={baseline ? plural(made, "transfer") : "Transfers"}
@@ -243,7 +244,7 @@ function Editor({ data }: { data: FantasyOverview }) {
           />
         ))}
         {missing > 0 && (
-          <ChipButton label="Auto-fill ✨" active={false} onPress={() => { Haptics.selectionAsync(); change(autoComplete(lineup, data.players, bank)); }} />
+          <ChipButton label="Auto-fill ✨" active={false} onPress={() => { Haptics.selectionAsync(); change(autoComplete(lineup, data.players, FANTASY_RULES.prices ? bank : Infinity)); }} />
         )}
       </View>
 
@@ -289,7 +290,7 @@ function Editor({ data }: { data: FantasyOverview }) {
         position={picking !== null ? slotPositions(lineup.formation)[picking] : null}
         players={data.players}
         taken={inLineup(lineup)}
-        money={picking !== null ? moneyFor(picking) : bank}
+        money={!FANTASY_RULES.prices ? Infinity : picking !== null ? moneyFor(picking) : bank}
         onPick={pick}
         onClose={() => setPicking(null)}
       />
@@ -308,7 +309,8 @@ function Stat({ label, value, bad }: { label: string; value: string; bad?: boole
 
 type Sort = "price" | "points" | "form" | "selected";
 const SORTS: { id: Sort; label: string }[] = [
-  { id: "price", label: "Price" }, { id: "points", label: "Points" }, { id: "form", label: "Form" }, { id: "selected", label: "Most picked" },
+  ...(FANTASY_RULES.prices ? [{ id: "price" as const, label: "Price" }] : []),
+  { id: "points", label: "Points" }, { id: "form", label: "Form" }, { id: "selected", label: "Most picked" },
 ];
 
 function PlayerPicker({
@@ -317,7 +319,7 @@ function PlayerPicker({
   visible: boolean; position: FantasyPosition | null; players: FantasyPlayer[]; taken: Set<string>;
   money: number; onPick: (id: string) => void; onClose: () => void;
 }) {
-  const [sort, setSort] = useState<Sort>("price");
+  const [sort, setSort] = useState<Sort>(FANTASY_RULES.prices ? "price" : "points");
   const value = (p: FantasyPlayer) => (sort === "points" ? p.totalPoints : sort === "form" ? p.form : sort === "selected" ? p.selectedBy : p.price);
   const options = players
     .filter((p) => p.isActive && !taken.has(p.id) && (!position || p.position === position))
@@ -331,7 +333,7 @@ function PlayerPicker({
           <Text style={styles.sheetTitle}>{position ? `Pick a ${POSITION_LABEL[position].toLowerCase()}` : "Pick a player"}</Text>
           <Pressable onPress={onClose} hitSlop={10}><Text style={styles.done}>Cancel</Text></Pressable>
         </View>
-        <Text style={styles.muted}>You can spend up to {formatPrice(Math.max(0, money))}.</Text>
+        {FANTASY_RULES.prices && <Text style={styles.muted}>You can spend up to {formatPrice(Math.max(0, money))}.</Text>}
         <View style={[styles.formRow, { marginVertical: 12 }]}>
           {SORTS.map((s) => <ChipButton key={s.id} label={s.label} active={sort === s.id} onPress={() => setSort(s.id)} />)}
         </View>
@@ -347,7 +349,7 @@ function PlayerPicker({
               <Pressable
                 onPress={() => onPick(p.id)}
                 disabled={!affordable}
-                accessibilityLabel={`${p.name}, ${formatPrice(p.price)}${affordable ? "" : ", too expensive"}`}
+                accessibilityLabel={FANTASY_RULES.prices ? `${p.name}, ${formatPrice(p.price)}${affordable ? "" : ", too expensive"}` : p.name}
                 style={({ pressed }) => [styles.option, !affordable && { opacity: 0.4 }, pressed && { opacity: 0.7 }]}
               >
                 <Image source={{ uri: imageUri(p.imageUrl) }} style={styles.optionArt} contentFit="cover" />
@@ -365,14 +367,14 @@ function PlayerPicker({
                     </Text>
                   ) : null}
                 </View>
-                <View style={{ alignItems: "flex-end" }}>
+                {FANTASY_RULES.prices && <View style={{ alignItems: "flex-end" }}>
                   <Text style={[styles.optionPrice, !affordable && { color: colors.danger }]}>{formatPrice(p.price)}</Text>
                   {p.priceChange ? (
                     <Text style={[styles.priceMove, { color: p.priceChange > 0 ? colors.greenHi : colors.danger }]}>
                       {p.priceChange > 0 ? "▲" : "▼"} {(Math.abs(p.priceChange) / 10).toFixed(1)}
                     </Text>
                   ) : null}
-                </View>
+                </View>}
               </Pressable>
             );
           }}

@@ -71,7 +71,7 @@ export default function FantasyPage() {
         const p = players.get(lineup.slots[i] ?? "") ?? null;
         return {
           key: `s${i}`, position, player: p,
-          caption: p ? (p.lastPoints !== null ? `${p.lastPoints} pts` : formatPrice(p.price)) : undefined,
+          caption: p ? (p.lastPoints !== null ? `${p.lastPoints} pts` : FANTASY_RULES.prices ? formatPrice(p.price) : undefined) : undefined,
           badge: p?.id === draft?.captainId ? "C" : p?.id === draft?.viceCaptainId ? "V" : null,
         };
       })
@@ -104,13 +104,13 @@ export default function FantasyPage() {
               </div>
             </Link>
           )}
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className={`grid ${FANTASY_RULES.prices ? "grid-cols-3" : "grid-cols-2"} gap-2 text-center`}>
             <Stat value={String(team.totalPoints)} label="Total points" />
             <div className="rounded-xl bg-zinc-800 py-3">
               <div className="flex items-center justify-center gap-2"><RankMove rank={team.rank} previous={team.previousRank} /><span className="text-white text-2xl font-black tabular-nums">{team.rank}</span></div>
               <div className="text-zinc-500 text-xs">of {team.teamCount} overall</div>
             </div>
-            <Stat value={team.value !== null ? formatPrice(team.value) : "–"} label="Team value" />
+            {FANTASY_RULES.prices && <Stat value={team.value !== null ? formatPrice(team.value) : "–"} label="Team value" />}
           </div>
           <Link href="/fantasy/history" className="block text-center text-purple-400 text-sm font-semibold">Points history ›</Link>
         </section>
@@ -118,7 +118,9 @@ export default function FantasyPage() {
         <section className={`${panel} space-y-2`}>
           <h2 className="text-white text-xl font-black">Play along this season</h2>
           <p className="text-zinc-400">
-            Pick {FANTASY_RULES.squadSize} of the 5ive Guys with {formatPrice(data.season.budget)}. Captain, transfers, price changes and chips, just like
+            {FANTASY_RULES.prices
+              ? <>Pick {FANTASY_RULES.squadSize} of the 5ive Guys with {formatPrice(data.season.budget)}. Captain, transfers, price changes and chips, just like</>
+              : <>Pick any {FANTASY_RULES.squadSize} of the 5ive Guys, no prices. Captain, transfers and chips, just like</>}
             Fantasy Premier League — and the points come from their real Division 1 matches.
           </p>
         </section>
@@ -132,7 +134,7 @@ export default function FantasyPage() {
             {team && (
               <div className="text-zinc-400 text-sm">
                 {[team.freeTransfers === null ? "Unlimited transfers" : `${team.freeTransfers} free transfer${team.freeTransfers === 1 ? "" : "s"}`,
-                  draft ? `${formatPrice(draft.bank)} in the bank` : null, chip ? `${chip.name} on` : null].filter(Boolean).join(" · ")}
+                  FANTASY_RULES.prices && draft ? `${formatPrice(draft.bank)} in the bank` : null, chip ? `${chip.name} on` : null].filter(Boolean).join(" · ")}
               </div>
             )}
           </div>
