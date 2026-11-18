@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  availableChips, awardBonus, buySquad, EMPTY_STATS, entryError, freeTransfersFor, isValidTeam, playerPoints,
+  availableChips, awardBonus, buySquad, EMPTY_STATS, entryError, FANTASY_RULES, freeTransfersFor, isValidTeam, playerPoints,
   priceChanges, scoreEntry, sellingPrice, teamValue, transferCostFor,
   type FantasyPosition, type PlayerStats, type SquadPlayer,
 } from "../fantasy";
@@ -89,7 +89,14 @@ describe("team shape", () => {
   });
 });
 
+/** The price rules are switched off for now (FANTASY_RULES.prices); these tests run them switched on. */
+function withPrices() {
+  beforeEach(() => { FANTASY_RULES.prices = true; });
+  afterEach(() => { FANTASY_RULES.prices = false; });
+}
+
 describe("prices and the bank", () => {
+  withPrices();
   it("keeps half of a rise when selling, and all of a fall", () => {
     expect(sellingPrice(70, 73)).toBe(71);
     expect(sellingPrice(70, 71)).toBe(70);
@@ -221,9 +228,17 @@ describe("entryError", () => {
     expect(entryError({ ...ok, captainId: "d3" }, players, o)).toMatch(/captain/);
     expect(entryError({ ...ok, viceCaptainId: "f1" }, players, o)).toMatch(/different/);
     expect(entryError({ ...ok, playerIds: [...team.slice(0, 6), "old"] }, players, o)).toMatch(/left the squad/);
+    FANTASY_RULES.prices = true;
     expect(entryError(ok, players, { ...o, budget: 400 })).toMatch(/over budget/);
+    FANTASY_RULES.prices = false;
     expect(entryError({ ...ok, chip: "wildcard" }, players, o)).toMatch(/first team/);
     expect(entryError({ ...ok, chip: "triple_captain" }, players, { ...o, availableChips: [] })).toMatch(/already played/);
+  });
+
+  it("has no budget while prices are off", () => {
+    const o = { ...opts, availableChips: [...opts.availableChips] };
+    expect(entryError(ok, players, { ...o, budget: 0 })).toBeNull();
+    expect(priceChanges(new Map([["f1", 50]]), 10, new Map([["f1", 0]])).size).toBe(0);
   });
 
   it("lets owners keep a player who has left the squad", () => {

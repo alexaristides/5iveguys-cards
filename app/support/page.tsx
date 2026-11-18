@@ -25,7 +25,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     q: "How does Fantasy work?",
     a: (
       <>
-        Pick 7 players from the squad within the budget, choose a captain, and score points from their real matches.
+        Pick any 7 players from the squad (there are no prices), choose a captain, and score points from their real matches.
         The full rules are on the{" "}
         <a href="/fantasy" className="text-purple-400 underline hover:text-purple-300">
           Fantasy page

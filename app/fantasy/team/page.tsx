@@ -63,7 +63,8 @@ function Editor({ data, onSaved }: { data: FantasyOverview; onSaved: () => void 
   const [openedAt] = useState(() => Date.now());
 
   const chosen = [...inLineup(lineup)];
-  const byPrice = [...chosen].sort((a, b) => (players.get(b)?.price ?? 0) - (players.get(a)?.price ?? 0));
+  const byPrice = [...chosen].sort((a, b) => (players.get(b)?.price ?? 0) - (players.get(a)?.price ?? 0)
+    || (players.get(b)?.totalPoints ?? 0) - (players.get(a)?.totalPoints ?? 0));
   const captainId = captain && chosen.includes(captain) ? captain : byPrice[0] ?? null;
   const viceId = vice && chosen.includes(vice) && vice !== captainId ? vice : byPrice.find((id) => id !== captainId) ?? null;
 
@@ -108,7 +109,7 @@ function Editor({ data, onSaved }: { data: FantasyOverview; onSaved: () => void 
   const slots: PitchSlot[] = slotPositions(lineup.formation).map((position, i) => {
     const p = players.get(lineup.slots[i] ?? "") ?? null;
     return {
-      key: `s${i}`, position, player: p, caption: p ? formatPrice(p.price) : undefined,
+      key: `s${i}`, position, player: p, caption: p ? (FANTASY_RULES.prices ? formatPrice(p.price) : `${p.totalPoints} pts`) : undefined,
       badge: p && p.id === captainId ? "C" : p && p.id === viceId ? "V" : null,
       fresh: !!p && !!baseline && !before.has(p.id),
       onClick: () => (lineup.slots[i] ? setMenu(i) : setPicking(i)),
@@ -134,8 +135,8 @@ function Editor({ data, onSaved }: { data: FantasyOverview; onSaved: () => void 
           className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold outline-none focus:border-purple-500" />
       )}
 
-      <div className="grid grid-cols-3 gap-2 text-center">
-        <Stat value={formatPrice(bank)} label="Money left" bad={bank < 0} />
+      <div className={`grid ${FANTASY_RULES.prices ? "grid-cols-3" : "grid-cols-2"} gap-2 text-center`}>
+        {FANTASY_RULES.prices && <Stat value={formatPrice(bank)} label="Money left" bad={bank < 0} />}
         <Stat value={free === null ? "∞" : String(free)} label="Free transfers" />
         <Stat value={transferCost ? `−${transferCost} pts` : "Free"} label={baseline ? plural(made, "transfer") : "Transfers"} bad={transferCost > 0} />
       </div>
@@ -148,7 +149,7 @@ function Editor({ data, onSaved }: { data: FantasyOverview; onSaved: () => void 
           </button>
         ))}
         {missing > 0 && (
-          <button onClick={() => setLineup(autoComplete(lineup, data.players, bank))}
+          <button onClick={() => setLineup(autoComplete(lineup, data.players, FANTASY_RULES.prices ? bank : Infinity))}
             className="px-3 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:border-zinc-500 text-sm font-semibold">
             Auto-fill ✨
           </button>
@@ -206,7 +207,7 @@ function Editor({ data, onSaved }: { data: FantasyOverview; onSaved: () => void 
           position={slotPositions(lineup.formation)[picking]}
           players={data.players}
           taken={inLineup(lineup)}
-          budgetLeft={moneyFor(picking)}
+          budgetLeft={FANTASY_RULES.prices ? moneyFor(picking) : Infinity}
           onPick={(id) => { setLineup(placePlayer(lineup, picking, id)); setPicking(null); }}
           onClose={() => setPicking(null)}
         />
@@ -240,7 +241,7 @@ function SlotMenu({ player, actions, onClose }: {
   return (
     <Modal onClose={onClose}>
       <div>
-        <div className="text-white font-bold">{player.name} · {POSITION_LABEL[player.position]} · {formatPrice(player.price)}</div>
+        <div className="text-white font-bold">{player.name} · {POSITION_LABEL[player.position]}{FANTASY_RULES.prices ? ` · ${formatPrice(player.price)}` : ""}</div>
         <div className="text-zinc-500 text-sm">{player.totalPoints} pts · form {player.form} · picked by {player.selectedBy}%</div>
         {player.status !== "a" && (
           <div className="text-sm font-semibold" style={{ color: PLAYER_STATUS[player.status].color }}>
@@ -263,7 +264,7 @@ function Picker({ position, players, taken, budgetLeft, onPick, onClose }: {
   position: FantasyPosition | null; players: FantasyPlayerRow[]; taken: Set<string>; budgetLeft: number;
   onPick: (id: string) => void; onClose: () => void;
 }) {
-  const [sort, setSort] = useState<"price" | "points" | "form" | "selected">("price");
+  const [sort, setSort] = useState<"price" | "points" | "form" | "selected">(FANTASY_RULES.prices ? "price" : "points");
   const value = (p: FantasyPlayerRow) => (sort === "points" ? p.totalPoints : sort === "form" ? p.form : sort === "selected" ? p.selectedBy : p.price);
   const options = players
     .filter((p) => p.isActive && !taken.has(p.id) && (!position || p.position === position))
@@ -275,9 +276,9 @@ function Picker({ position, players, taken, budgetLeft, onPick, onClose }: {
         <h3 className="text-white text-lg font-black">{position ? `Pick a ${POSITION_LABEL[position].toLowerCase()}` : "Pick a player"}</h3>
         <button onClick={onClose} className="text-purple-400 font-semibold">Cancel</button>
       </div>
-      <p className="text-zinc-400 text-sm">You can spend up to {formatPrice(Math.max(0, budgetLeft))}.</p>
+      {FANTASY_RULES.prices && <p className="text-zinc-400 text-sm">You can spend up to {formatPrice(Math.max(0, budgetLeft))}.</p>}
       <div className="flex gap-2">
-        {(["price", "points", "form", "selected"] as const).map((s) => (
+        {(FANTASY_RULES.prices ? (["price", "points", "form", "selected"] as const) : (["points", "form", "selected"] as const)).map((s) => (
           <button key={s} onClick={() => setSort(s)}
             className={`px-3 py-1 rounded-full border text-sm ${sort === s ? "bg-purple-600 border-purple-600 text-white" : "border-zinc-700 text-zinc-300"}`}>
             {s === "price" ? "Price" : s === "points" ? "Points" : s === "form" ? "Form" : "Most picked"}
@@ -305,14 +306,14 @@ function Picker({ position, players, taken, budgetLeft, onPick, onClose }: {
                   </div>
                 )}
               </div>
-              <span className="text-right">
+              {FANTASY_RULES.prices && <span className="text-right">
                 <span className={`block font-black tabular-nums ${affordable ? "text-white" : "text-red-400"}`}>{formatPrice(p.price)}</span>
                 {p.priceChange !== 0 && (
                   <span className={`block text-[11px] font-bold ${p.priceChange > 0 ? "text-green-400" : "text-red-400"}`}>
                     {p.priceChange > 0 ? "▲" : "▼"} {(Math.abs(p.priceChange) / 10).toFixed(1)}
                   </span>
                 )}
-              </span>
+              </span>}
             </button>
           );
         })}

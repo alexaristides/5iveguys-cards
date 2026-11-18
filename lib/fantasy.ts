@@ -31,6 +31,11 @@ const FREE_TRANSFER_CHIPS: Chip[] = ["wildcard", "free_hit"];
 
 export const FANTASY_RULES = {
   squadSize: 7,
+  /**
+   * Off: no prices or budget. Fans pick any 7 they like, players cost nothing, prices never move,
+   * and the UI hides prices, money and team value. On: FPL-style prices and budget.
+   */
+  prices: false,
   /** Each season starts with this budget (£50.0m) unless the admin sets another. */
   defaultBudget: 500,
   /** Free transfers gained each gameweek, and how many can be saved up. */
@@ -290,6 +295,7 @@ export function entryError(
     if (!opts.availableChips.includes(chip)) return "You've already played that chip.";
   }
 
+  if (!FANTASY_RULES.prices) return null;
   const { bank } = buySquad(playerIds, players, opts);
   if (bank < 0) return `That team is ${formatPrice(-bank)} over budget.`;
   return null;
@@ -392,6 +398,7 @@ export function scoreEntry(
 export function priceChanges(netTransfers: Map<string, number>, teamCount: number, prices: Map<string, number>) {
   const step = Math.max(2, Math.ceil(teamCount * 0.05));
   const changes = new Map<string, number>();
+  if (!FANTASY_RULES.prices) return changes;
   for (const [id, net] of netTransfers) {
     const steps = Math.min(FANTASY_RULES.maxPriceChange, Math.floor(Math.abs(net) / step)) * Math.sign(net);
     const price = prices.get(id);
@@ -459,6 +466,7 @@ export function toFantasyPosition(cardPosition: string | null | undefined): Fant
  * everyone to the top: best rated £10.0m down to £4.5m in £0.5m steps. Unrated players start at £5.0m.
  */
 export function suggestPrices(players: { id: string; overall: number | null }[]) {
+  if (!FANTASY_RULES.prices) return new Map(players.map((p) => [p.id, 0]));
   const MAX = 100, MIN = 45, UNRATED = 50;
   const rated = players.filter((p) => p.overall !== null).sort((a, b) => b.overall! - a.overall!);
   const prices = new Map(players.map((p) => [p.id, UNRATED]));
