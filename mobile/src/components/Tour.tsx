@@ -5,8 +5,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import Animated, {
-  interpolate, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, Extrapolation, type SharedValue,
+  interpolate, useAnimatedReaction, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, Extrapolation, type SharedValue,
 } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import { useQuery } from "@tanstack/react-query";
 import { isSquadCard } from "@shared/motm";
 import { formatPence, PLAYER_PACK } from "@shared/player-packs";
@@ -89,7 +90,7 @@ function BackAPlayer({ card }: { card: DbCard | null }) {
     <View style={{ alignItems: "center" }}>
       <PackArt playerName={card?.name ?? "Ryan"} imageUrl={card?.imageUrl} width={150} />
       <View style={styles.share}>
-        <Text style={styles.shareText}>{formatPence(PLAYER_PACK.playerSharePence)} to {card?.name ?? "the player"}</Text>
+        <Text style={styles.shareText}>{formatPence(PLAYER_PACK.playerSharePence, { short: true })} to {card?.name ?? "the player"}</Text>
       </View>
     </View>
   );
@@ -176,7 +177,7 @@ export function Tour({ onDone }: { onDone: () => void }) {
     ...(FEATURES.shop ? [{
       key: "packs",
       title: "Back your favourite player",
-      body: `Buy a player's pack: ${PLAYER_PACK.cardCount} cards with at least one of them, and ${formatPence(PLAYER_PACK.playerSharePence)} goes straight to that player.`,
+      body: `Buy a player's pack: ${PLAYER_PACK.cardCount} cards with at least one of them, and ${formatPence(PLAYER_PACK.playerSharePence, { short: true })} goes straight to that player.`,
       art: <BackAPlayer card={cards?.pack ?? null} />,
     }] : []),
     ...(FEATURES.fantasy || FEATURES.street ? [{
@@ -194,6 +195,14 @@ export function Tour({ onDone }: { onDone: () => void }) {
   const onScroll = useAnimatedScrollHandler((e) => {
     scrollX.value = e.contentOffset.x;
   });
+  // The page under the dots and the button follows the scroll, however it got there (swipe or Next).
+  useAnimatedReaction(
+    () => Math.round(scrollX.value / width),
+    (page, previous) => {
+      if (page !== previous) scheduleOnRN(setIndex, page);
+    },
+    [width],
+  );
 
   function finish() {
     if (finishing.current) return;
@@ -225,7 +234,6 @@ export function Tour({ onDone }: { onDone: () => void }) {
         showsHorizontalScrollIndicator={false}
         onScroll={onScroll}
         scrollEventThrottle={16}
-        onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
         style={{ flex: 1 }}
       >
         {pages.map((p, i) => <Page key={p.key} page={p} index={i} scrollX={scrollX} width={width} />)}

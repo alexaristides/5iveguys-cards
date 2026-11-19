@@ -103,6 +103,8 @@ describe("money", () => {
     expect(formatPence(100)).toBe("£1.00");
     expect(formatPence(1250)).toBe("£12.50");
     expect(formatPence(-300)).toBe("−£3.00");
+    expect(formatPence(100, { short: true })).toBe("£1");
+    expect(formatPence(150, { short: true })).toBe("£1.50");
     expect(formatMilli(7990, "GBP")).toBe("£7.99");
     expect(formatMilli(7990, "USD")).toBe("US$7.99");
   });

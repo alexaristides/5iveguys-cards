@@ -109,10 +109,11 @@ export function drawPlayerPack<C extends PackPoolCard>(pool: readonly C[], playe
   return cards;
 }
 
-/** "£7.50" from pence. */
-export function formatPence(pence: number): string {
+/** "£7.50" from pence; `short` drops ".00" from whole pounds ("£1"). */
+export function formatPence(pence: number, { short = false } = {}): string {
   const sign = pence < 0 ? "−" : "";
-  return `${sign}£${(Math.abs(pence) / 100).toFixed(2)}`;
+  const pounds = Math.abs(pence) / 100;
+  return `${sign}£${short && Number.isInteger(pounds) ? pounds : pounds.toFixed(2)}`;
 }
 
 /** An App Store price (thousandths of the currency) as money, e.g. "£7.99" or "$7.99". */

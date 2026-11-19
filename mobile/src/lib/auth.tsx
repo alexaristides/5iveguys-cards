@@ -91,7 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!__DEV__) return;
     const take = (url: string | null) => {
-      const { hostname, path, queryParams } = Linking.parse(url ?? "");
+      if (!url) return;
+      const { hostname, path, queryParams } = Linking.parse(url);
       if ((hostname ?? path) === "dev-sign-in" && typeof queryParams?.token === "string") void applyToken(queryParams.token);
     };
     Linking.getInitialURL().then(take);

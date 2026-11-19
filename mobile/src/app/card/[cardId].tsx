@@ -173,7 +173,7 @@ export default function CardSheet() {
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={styles.backTitle}>Back {packPlayer}</Text>
             <Text style={styles.backSub}>
-              {PLAYER_PACK.cardCount}-card pack with at least 1 {packPlayer}. {formatPence(PLAYER_PACK.playerSharePence)} goes to {packPlayer}.
+              {PLAYER_PACK.cardCount}-card pack with at least 1 {packPlayer}. {formatPence(PLAYER_PACK.playerSharePence, { short: true })} goes to {packPlayer}.
             </Text>
           </View>
           <View style={styles.backPrice}><Text style={styles.backPriceText}>{price}</Text></View>

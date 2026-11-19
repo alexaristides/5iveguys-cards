@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { buildSquad } from "./motm";
 import { AppleVerifyError, verifyTransaction } from "./apple-iap";
-import { WORLD_SLUGS } from "./worlds";
+import { WORLD_SLUGS, worldName } from "./worlds";
 import {
   drawPlayerPack, guaranteedOdds, otherCardOdds, PLAYER_PACK, playerCards, summariseEarnings, type Rarity,
 } from "./player-packs";
@@ -63,7 +63,7 @@ export async function shop(channelSlug: string) {
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return {
-    channel: { id: channel.id, slug: channel.slug, name: channel.name },
+    channel: { id: channel.id, slug: channel.slug, name: worldName(channel.slug) ?? channel.name },
     pack: {
       productId: PLAYER_PACK.productId,
       cardCount: PLAYER_PACK.cardCount,
@@ -293,7 +293,9 @@ export async function earnings({ includeTests = false } = {}) {
       select: { channelId: true, playerName: true, status: true, playerSharePence: true, priceMilli: true, currency: true },
     }),
     prisma.playerPayout.findMany({ orderBy: { paidAt: "desc" } }),
-    prisma.channel.findMany({ where: { slug: { in: WORLD_SLUGS } }, select: { id: true, slug: true, name: true } }),
+    prisma.channel
+      .findMany({ where: { slug: { in: WORLD_SLUGS } }, select: { id: true, slug: true, name: true } })
+      .then((cs) => cs.map((c) => ({ ...c, name: worldName(c.slug) ?? c.name }))),
     prisma.playerPack.findMany({
       where: { status: { in: ["paid", "opened", "refunded"] }, environment },
       orderBy: { paidAt: "desc" },

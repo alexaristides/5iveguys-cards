@@ -59,7 +59,7 @@ function PlayerPacks({ tileWidth }: { tileWidth: number }) {
       <SectionTitle>Back a player</SectionTitle>
       <Text style={styles.lede}>
         Every player pack has {shop.data?.pack.cardCount ?? 5} cards with at least one of that player, and{" "}
-        {formatPence(shop.data?.pack.playerSharePence ?? 100)} of it goes to them.
+        {formatPence(shop.data?.pack.playerSharePence ?? 100, { short: true })} of it goes to them.
       </Text>
       {shop.isLoading ? <Loading /> : (
         <View style={styles.grid}>
