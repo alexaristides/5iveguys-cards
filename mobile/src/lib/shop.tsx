@@ -19,8 +19,8 @@ import { api } from "./api";
 import { useAuth } from "./auth";
 import { FEATURES } from "./config";
 
-/** A finished purchase's pack, `pending` when Apple or the server hasn't settled it yet, null when cancelled. */
-export type BuyResult = { packId: string } | { pending: true; message: string } | null;
+/** A finished purchase's pack, `pending` when Apple or the server hasn't settled it yet, an error, or null when cancelled. */
+export type BuyResult = { packId: string } | { pending: true; message: string } | { error: string } | null;
 
 interface Shop {
   /** The App Store's price for a pack in the buyer's currency, or the default until it loads. */
@@ -107,14 +107,7 @@ function StoreConnection({ children }: { children: ReactNode }) {
   const { connected, products, fetchProducts, requestPurchase } = useIAP({
     purchaseFlow: flow,
     onPurchaseFlowOutcome: onOutcome,
-    onPurchaseError: (err) => {
-      if (!waiting.current) return;
-      if (wasCancelled(err)) settle(null);
-      else {
-        Alert.alert("Purchase failed", getUserFriendlyErrorMessage(err));
-        settle(null);
-      }
-    },
+    onPurchaseError: (err) => settle(wasCancelled(err) ? null : { error: getUserFriendlyErrorMessage(err) }),
   });
 
   useEffect(() => {
@@ -148,11 +141,7 @@ function StoreConnection({ children }: { children: ReactNode }) {
       try {
         await requestPurchase({ request: { apple: { sku: PLAYER_PACK.productId, appAccountToken: orderId } }, type: "in-app" });
       } catch (err) {
-        if (wasCancelled(err)) settle(null);
-        else {
-          settle(null);
-          throw new Error(getUserFriendlyErrorMessage(err as Error));
-        }
+        settle(wasCancelled(err) ? null : { error: getUserFriendlyErrorMessage(err as Error) });
       }
       // Paid, but the confirmation is slow: let the user carry on; the pack lands in Cards when it's done.
       const timeout = setTimeout(() => {

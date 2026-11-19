@@ -39,7 +39,9 @@ export default function PlayerPackSheet() {
     try {
       const result = await buy(slug, player.name);
       if (!result) return;
-      if ("packId" in result) {
+      if ("error" in result) {
+        Alert.alert("Couldn't buy the pack", result.error);
+      } else if ("packId" in result) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.back();
         router.push({ pathname: "/shop/open/[id]", params: { id: result.packId } });
@@ -67,7 +69,7 @@ export default function PlayerPackSheet() {
       <Text style={styles.sub}>{pack.cardCount} cards · at least 1 {player.name} card</Text>
 
       <View style={styles.support}>
-        <Text style={styles.supportBig}>{formatPence(pack.playerSharePence)} goes to {player.name}</Text>
+        <Text style={styles.supportBig}>{formatPence(pack.playerSharePence, { short: true })} goes to {player.name}</Text>
         <Text style={styles.supportSmall}>
           {player.supporters > 0
             ? `${player.supporters.toLocaleString()} pack${player.supporters === 1 ? "" : "s"} bought so far. Every one backs ${player.name}.`

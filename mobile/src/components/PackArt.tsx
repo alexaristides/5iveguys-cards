@@ -30,7 +30,9 @@ export function PackArt({ playerName, imageUrl, width = 200, cardCount = 5 }: {
         style={StyleSheet.absoluteFill}
       />
 
-      <Text style={[styles.brand, { fontSize: Math.max(8, width * 0.065) }]}>5IVEG · PLAYER PACK</Text>
+      <Text style={[styles.brand, { fontSize: Math.max(7, width * 0.06) }]} numberOfLines={1} adjustsFontSizeToFit>
+        {small ? "PLAYER PACK" : "5IVEG · PLAYER PACK"}
+      </Text>
       <View style={[styles.window, { width: width * 0.56, height: width * 0.56 * 1.4, borderRadius: width * 0.05 }]}>
         {imageUrl ? (
           <Image source={{ uri: imageUri(imageUrl) }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="disk" />
@@ -41,7 +43,11 @@ export function PackArt({ playerName, imageUrl, width = 200, cardCount = 5 }: {
       <Text style={[styles.name, { fontSize: Math.max(11, width * 0.12) }]} numberOfLines={1} adjustsFontSizeToFit>
         {(playerName ?? "Mystery").toUpperCase()}
       </Text>
-      {!small && <Text style={[styles.sub, { fontSize: width * 0.06 }]}>{cardCount} CARDS · 1 GUARANTEED</Text>}
+      {!small && (
+        <Text style={[styles.sub, { fontSize: width * 0.055 }]} numberOfLines={1} adjustsFontSizeToFit>
+          {cardCount} CARDS · 1 GUARANTEED
+        </Text>
+      )}
     </LinearGradient>
   );
 }
@@ -52,11 +58,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: "rgba(216,180,254,0.7)",
   },
   crimp: { position: "absolute", left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.25)" },
-  brand: { color: "#e9d5ff", fontWeight: "900", letterSpacing: 1.5 },
+  brand: { color: "#e9d5ff", fontWeight: "900", letterSpacing: 1.5, maxWidth: "90%" },
   window: {
     overflow: "hidden", backgroundColor: colors.card, alignItems: "center", justifyContent: "center",
     borderWidth: 2, borderColor: colors.gold,
   },
   name: { color: "#fff", fontWeight: "900", letterSpacing: 1, maxWidth: "88%" },
-  sub: { color: "#d8b4fe", fontWeight: "800", letterSpacing: 1 },
+  sub: { color: "#d8b4fe", fontWeight: "800", letterSpacing: 0.5, maxWidth: "90%", textAlign: "center" },
 });
