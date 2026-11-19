@@ -21,7 +21,7 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Label>Players</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="person.3.fill" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="cards" hidden={!FEATURES.packs}>
+      <NativeTabs.Trigger name="cards" hidden={!FEATURES.packs && !FEATURES.shop}>
         <NativeTabs.Trigger.Label>Cards</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="rectangle.stack.fill" />
       </NativeTabs.Trigger>

@@ -70,7 +70,7 @@ export default function SignIn() {
         ) : (
           <Text style={styles.logo}>⚽</Text>
         )}
-        <Text style={styles.title}>5iveG Cards</Text>
+        <Text style={styles.title}>5iveG</Text>
         <Text style={styles.sub}>
           Be a fan of 5ive Guys or Other Guys, get points and rate the players.
         </Text>

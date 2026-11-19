@@ -156,7 +156,7 @@ export default function VsCpu() {
                   const what = result === "win" ? `beat the CPU ${userScore}–${cpuScore}`
                     : result === "draw" ? `drew with the CPU ${userScore}–${cpuScore}`
                     : `lost to the CPU ${cpuScore}–${userScore}`;
-                  Share.share({ message: `I just ${what} with a ${Math.round(userOverall)} OVR squad on 5iveG Cards ⚽🃏` });
+                  Share.share({ message: `I just ${what} with a ${Math.round(userOverall)} OVR squad on 5iveG ⚽🃏` });
                 }}
               />
             </ResultPanel>

@@ -163,7 +163,7 @@ export default function Exhibition() {
           <Button
             title="Share result"
             variant="secondary"
-            onPress={() => Share.share({ message: `Exhibition result: Team A ${result.aScore}–${result.bScore} Team B on 5iveG Cards ⚽🃏` })}
+            onPress={() => Share.share({ message: `Exhibition result: Team A ${result.aScore}–${result.bScore} Team B on 5iveG ⚽🃏` })}
           />
         </ResultPanel>
       </GameScreen>

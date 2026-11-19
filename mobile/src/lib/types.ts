@@ -264,3 +264,54 @@ export interface FantasyPlayerDetail {
     priceChange: number;
   }[];
 }
+
+// ── Player packs (GET /api/shop, /api/shop/packs) ──────────────────────────────
+
+export type RarityOdds = Record<Rarity, number>;
+
+export interface ShopPlayer {
+  name: string;
+  /** Their Home Kit card, shown on the pack. */
+  card: DbCard;
+  /** How many of their cards can come out of a pack. */
+  cards: number;
+  /** Odds of each rarity for the guaranteed card, in percent. */
+  odds: RarityOdds;
+  /** Packs fans have bought of this player. */
+  supporters: number;
+}
+
+export interface ShopData {
+  channel: { id: string; slug: string; name: string };
+  pack: { productId: string; cardCount: number; price: string; playerSharePence: number; otherOdds: RarityOdds };
+  players: ShopPlayer[];
+}
+
+export interface PlayerPackView {
+  id: string;
+  channelId: string | null;
+  /** Null for a paid pack whose player gets picked when it's opened. */
+  playerName: string | null;
+  status: "paid" | "opened";
+  paidAt: string | null;
+  openedAt: string | null;
+  card: DbCard | null;
+}
+
+export interface MyPacks {
+  unopened: PlayerPackView[];
+  opened: PlayerPackView[];
+}
+
+export interface OpenedCard extends DbCard {
+  isNew: boolean;
+  /** The player's guaranteed card (always the last one). */
+  guaranteed: boolean;
+}
+
+export interface OpenPackResult {
+  packId: string;
+  playerName: string | null;
+  cards: OpenedCard[];
+  alreadyOpened: boolean;
+}

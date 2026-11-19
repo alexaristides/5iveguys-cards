@@ -298,7 +298,7 @@ export default function FootballGame({ onPhaseChange }: { onPhaseChange?: (phase
       result === "win"  ? `beat CPU ${userScore}–${cpuScore}` :
       result === "draw" ? `drew with CPU ${userScore}–${cpuScore}` :
                           `lost to CPU ${cpuScore}–${userScore}`;
-    const text = `I just ${outcome} with a ${Math.round(userOverall)} OVR squad on 5iveG Cards ⚽🃏`;
+    const text = `I just ${outcome} with a ${Math.round(userOverall)} OVR squad on 5iveG ⚽🃏`;
     if (typeof navigator !== "undefined" && navigator.share) {
       navigator.share({ text }).catch(() => {});
     } else {

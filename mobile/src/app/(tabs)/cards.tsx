@@ -3,10 +3,15 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimen
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { PACKS, type Pack, type Rarity } from "@shared/cards";
+import { formatPence } from "@shared/player-packs";
 import { AppHeader } from "@/components/AppHeader";
 import { CardTile } from "@/components/CardTile";
+import { PackArt } from "@/components/PackArt";
 import { Chip, Loading, SectionTitle } from "@/components/ui";
-import { useChannelCards, useMe, useRatings, useRefreshOnFocus } from "@/lib/queries";
+import { useChannel } from "@/lib/channel";
+import { FEATURES } from "@/lib/config";
+import { useChannelCards, useMe, useMyPacks, useRatings, useRefreshOnFocus, useShop } from "@/lib/queries";
+import { useShopPurchases } from "@/lib/shop";
 import { colors, RARITY_ORDER, rarityColor, rarityLabel } from "@/lib/theme";
 
 const PACK_GRADIENT: Record<string, [string, string]> = {
@@ -20,6 +25,60 @@ function oddsLine(pack: Pack) {
     .filter((r) => pack.odds[r] > 0)
     .map((r) => `${pack.odds[r]}% ${rarityLabel[r]}`)
     .join(" · ");
+}
+
+/** Your unopened packs (tap one to rip it) and every player whose pack you can buy. */
+function PlayerPacks({ tileWidth }: { tileWidth: number }) {
+  const { slug } = useChannel();
+  const shop = useShop();
+  const packs = useMyPacks();
+  const { price } = useShopPurchases();
+  useRefreshOnFocus(packs.refetch);
+  const unopened = packs.data?.unopened ?? [];
+
+  return (
+    <>
+      {unopened.length > 0 && (
+        <>
+          <SectionTitle right={<Text style={styles.count}>{unopened.length}</Text>}>Your packs</SectionTitle>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.packRow}>
+            {unopened.map((p) => (
+              <Pressable
+                key={p.id}
+                onPress={() => router.push({ pathname: "/shop/open/[id]", params: { id: p.id } })}
+                style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+              >
+                <PackArt playerName={p.playerName} imageUrl={p.card?.imageUrl} width={104} />
+                <Text style={styles.ripHint}>Tap to open</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </>
+      )}
+
+      <SectionTitle>Back a player</SectionTitle>
+      <Text style={styles.lede}>
+        Every player pack has {shop.data?.pack.cardCount ?? 5} cards with at least one of that player, and{" "}
+        {formatPence(shop.data?.pack.playerSharePence ?? 100)} of it goes to them.
+      </Text>
+      {shop.isLoading ? <Loading /> : (
+        <View style={styles.grid}>
+          {(shop.data?.players ?? []).map((p) => (
+            <View key={p.name} style={{ width: tileWidth }}>
+              <CardTile
+                imageUrl={p.card.imageUrl}
+                rarity={p.card.rarity}
+                name={p.name}
+                width={tileWidth}
+                onPress={() => router.push({ pathname: "/shop/[name]", params: { name: p.name, slug } })}
+              />
+              <Text style={styles.price}>{price}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </>
+  );
 }
 
 export default function CardsTab() {
@@ -64,8 +123,10 @@ export default function CardsTab() {
           <RefreshControl refreshing={false} onRefresh={() => { me.refetch(); cards.refetch(); ratings.refetch(); }} tintColor={colors.text2} />
         }
       >
-        <SectionTitle>Open packs</SectionTitle>
-        <View style={{ gap: 10 }}>
+        {FEATURES.shop && <PlayerPacks tileWidth={tileWidth} />}
+
+        {FEATURES.packs && <SectionTitle>Open packs</SectionTitle>}
+        {FEATURES.packs && <View style={{ gap: 10 }}>
           {PACKS.map((pack) => {
             const affordable = points >= pack.cost;
             return (
@@ -87,7 +148,7 @@ export default function CardsTab() {
               </Pressable>
             );
           })}
-        </View>
+        </View>}
 
         <SectionTitle right={<Text style={styles.count}>{uniqueOwned}/{total}</Text>}>Collection</SectionTitle>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
@@ -118,6 +179,11 @@ export default function CardsTab() {
           </View>
         )}
         <Text style={styles.footnote}>Tap any card to see its stats and rate the player.</Text>
+        {FEATURES.shop && (
+          <Text style={styles.footnote}>
+            Packs are bought through the App Store. Cards are just for fun: they can&apos;t be sold or exchanged for money.
+          </Text>
+        )}
       </ScrollView>
     </View>
   );
@@ -135,5 +201,9 @@ const styles = StyleSheet.create({
   chips: { gap: 8, paddingBottom: 14, alignItems: "center" },
   divider: { width: 1, height: 20, backgroundColor: colors.border, marginHorizontal: 4 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  packRow: { gap: 12, paddingBottom: 4 },
+  ripHint: { color: colors.accentHi, fontSize: 12, fontWeight: "700", textAlign: "center", marginTop: 6 },
+  lede: { color: colors.text2, fontSize: 14, lineHeight: 20, marginTop: -4, marginBottom: 14 },
+  price: { color: colors.gold, fontSize: 12, fontWeight: "800", textAlign: "center", marginTop: 2 },
   footnote: { color: colors.text3, fontSize: 12, textAlign: "center", marginTop: 20 },
 });

@@ -157,7 +157,7 @@ export default function ExhibitionGame() {
       result.winner === "A" ? `${teamA.name} beat ${teamB.name}` :
       result.winner === "B" ? `${teamB.name} beat ${teamA.name}` :
       `${teamA.name} drew with ${teamB.name}`;
-    const text = `Exhibition result: ${winner} ${result.aScore}–${result.bScore} on 5iveG Cards ⚽🃏`;
+    const text = `Exhibition result: ${winner} ${result.aScore}–${result.bScore} on 5iveG ⚽🃏`;
     if (typeof navigator !== "undefined" && navigator.share) {
       navigator.share({ text }).catch(() => {});
     } else {

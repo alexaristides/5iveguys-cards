@@ -1,18 +1,20 @@
 import { useMemo, useState } from "react";
 import { Alert, InputAccessoryView, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
 import Slider from "@react-native-community/slider";
 import * as Haptics from "expo-haptics";
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useQueryClient } from "@tanstack/react-query";
 import { computeOverall, STAT_FIELDS, type StatKey, type StatsMap } from "@shared/card-rating";
+import { cardPlayer, formatPence, PLAYER_PACK, squadNames } from "@shared/player-packs";
 import { Button, Loading } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useChannel } from "@/lib/channel";
 import { FEATURES } from "@/lib/config";
 import { imageUri } from "@/lib/images";
 import { useChannelCards, useMe, useVotes } from "@/lib/queries";
+import { useShopPurchases } from "@/lib/shop";
 import { colors, rarityColor, rarityLabel } from "@/lib/theme";
 
 const STATS: { key: StatKey; label: string; abbrev: string; color: string }[] = [
@@ -72,6 +74,12 @@ export default function CardSheet() {
   const votes = useVotes(cardId);
   const card = cards?.find((c) => c.id === cardId);
   const owned = me?.cards.filter((c) => c.cardId === cardId).length ?? 0;
+  const { price } = useShopPurchases();
+  // The player whose pack you can buy from this card (kit cards and specials named after them).
+  const packPlayer = useMemo(
+    () => (FEATURES.shop && card && cards ? cardPlayer(card, squadNames(cards)) : null),
+    [card, cards],
+  );
 
   const [voting, setVoting] = useState(false);
   const [edits, setEdits] = useState<Partial<StatsMap>>({});
@@ -154,8 +162,22 @@ export default function CardSheet() {
       <Text style={[styles.meta, { color: rarityColor[card.rarity] }]}>
         {rarityLabel[card.rarity]}{card.position ? ` · ${card.position}` : ""}{card.kit ? ` · ${card.kit}` : ""}
       </Text>
-      {FEATURES.packs && (
-        <Text style={styles.owned}>{owned > 0 ? `In your collection${owned > 1 ? ` ×${owned}` : ""}` : "Not collected yet. Rip a pack!"}</Text>
+      {(FEATURES.packs || FEATURES.shop) && (
+        <Text style={styles.owned}>{owned > 0 ? `In your collection${owned > 1 ? ` ×${owned}` : ""}` : "Not collected yet."}</Text>
+      )}
+      {packPlayer && (
+        <Pressable
+          onPress={() => router.push({ pathname: "/shop/[name]", params: { name: packPlayer, slug } })}
+          style={({ pressed }) => [styles.back, pressed && { opacity: 0.85 }]}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={styles.backTitle}>Back {packPlayer}</Text>
+            <Text style={styles.backSub}>
+              {PLAYER_PACK.cardCount}-card pack with at least 1 {packPlayer}. {formatPence(PLAYER_PACK.playerSharePence)} goes to {packPlayer}.
+            </Text>
+          </View>
+          <View style={styles.backPrice}><Text style={styles.backPriceText}>{price}</Text></View>
+        </Pressable>
       )}
 
       <View style={styles.statsHead}>
@@ -236,6 +258,14 @@ const styles = StyleSheet.create({
   name: { color: colors.text, fontSize: 26, fontWeight: "900", textAlign: "center", marginTop: 16 },
   meta: { fontSize: 14, fontWeight: "700", textAlign: "center", marginTop: 4 },
   owned: { color: colors.text2, fontSize: 13, textAlign: "center", marginTop: 6 },
+  back: {
+    flexDirection: "row", alignItems: "center", gap: 12, marginTop: 14, padding: 14, borderRadius: 14,
+    backgroundColor: "rgba(251,191,36,0.08)", borderWidth: 1, borderColor: "rgba(251,191,36,0.35)",
+  },
+  backTitle: { color: colors.gold, fontSize: 16, fontWeight: "900" },
+  backSub: { color: colors.text2, fontSize: 12 },
+  backPrice: { backgroundColor: colors.gold, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7 },
+  backPriceText: { color: "#000", fontWeight: "900", fontSize: 14 },
   statsHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 24, marginBottom: 10 },
   section: { color: colors.text, fontSize: 18, fontWeight: "800" },
   votes: { color: colors.text3, fontSize: 13 },

@@ -270,7 +270,7 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
       myScore > oppScore ? `beat ${opp} ${myScore}–${oppScore}` :
       myScore < oppScore ? `lost to ${opp} ${oppScore}–${myScore}` :
       `drew ${myScore}–${oppScore} with ${opp}`;
-    const text = `I just ${outcome} in a PvP match on 5iveG Cards ⚽🃏`;
+    const text = `I just ${outcome} in a PvP match on 5iveG ⚽🃏`;
     if (typeof navigator !== "undefined" && navigator.share) {
       navigator.share({ text }).catch(() => {});
     } else {

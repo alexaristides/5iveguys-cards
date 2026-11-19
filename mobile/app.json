@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "5iveG Cards",
+    "name": "5iveG",
     "slug": "fiveguys-cards",
     "scheme": "fiveguys",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0a0a0a",
     "ios": {
       "bundleIdentifier": "com.fiveguysfc.cards",
-      "buildNumber": "7",
+      "buildNumber": "8",
       "appleTeamId": "UHL8CHCWFJ",
       "supportsTablet": false,
       "usesAppleSignIn": true,
@@ -41,7 +41,8 @@
         {
           "initialOrientation": "PORTRAIT_UP"
         }
-      ]
+      ],
+      "expo-iap"
     ]
   }
 }
