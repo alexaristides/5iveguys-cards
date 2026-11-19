@@ -13,7 +13,7 @@ export default function Settings() {
   function confirmDelete() {
     Alert.alert(
       "Delete account?",
-      "This permanently deletes your account, points, cards and match history. This can't be undone.",
+      "This permanently deletes your account, points, cards (including any packs you bought) and match history. This can't be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -36,6 +36,7 @@ export default function Settings() {
       </View>
 
       <View style={styles.group}>
+        <Row label="How 5iveG works" onPress={() => { router.back(); router.push("/tour"); }} />
         <Row label="Help & Support" onPress={() => Linking.openURL(SUPPORT_URL)} />
         <Row label="Privacy Policy" onPress={() => Linking.openURL(PRIVACY_URL)} />
         <Row label="Terms of Service" onPress={() => Linking.openURL(TERMS_URL)} />

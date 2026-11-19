@@ -51,7 +51,9 @@ New users receive 100 free starting points (via the `createUser` NextAuth event 
 ### iOS app architecture
 
 - Tabs over the **same API and database** as the website. Channels covered: `CHANNELS` in `mobile/src/lib/config.ts`.
-  - Tabs shown: **YouTube · Players · Fantasy · Game** (Game re-added 2026-10-14 with 5IVE STREET, Fantasy 2026-11-08). Cards (packs/collection) are held back by `FEATURES` in `mobile/src/lib/config.ts`: each flag hides its tab and guards its stack screens in `src/app/_layout.tsx`, so flipping it to `true` brings the feature back.
+  - Tabs shown: **YouTube · Players · Cards · Fantasy · Game** (Game re-added 2026-10-14 with 5IVE STREET, Fantasy 2026-11-08, Cards 2026-11-19 with player packs). `FEATURES` in `mobile/src/lib/config.ts` holds features back: each flag hides its tab and guards its stack screens in `src/app/_layout.tsx`, so flipping it to `true` brings the feature back. `packs` (packs bought with points) stays off; `shop` (paid player packs + the collection) is on.
+  - The app is called **5iveG** (`name` in `mobile/app.json`, the home-screen name; the App Store listing is also "5iveG"). "5G" in the user's voice notes means 5iveG.
+  - First launch shows a welcome tour (`src/components/Tour.tsx`, 5 swipeable pages) before sign-in; `src/lib/tour.ts` remembers it per device (`tour_seen_v1`; bump the key to show everyone a new tour). Settings → How 5iveG works replays it (`/tour`).
   - Signing the Simulator in for testing: Google sign-in can't be automated there, so dev builds take `xcrun simctl openurl booted "fiveguys://dev-sign-in?token=<64-hex Session token>"` (`lib/auth.tsx`, `__DEV__` only). Make a temp `User` + `Session` for it.
   - Players lists one tile per player (`buildSquad` from `lib/motm.ts`, Home Kit card preferred) and opens the card sheet to rate them.
 - **Auth:** the app holds the token of a real NextAuth database `Session` row and sends `Authorization: Bearer <token>`. `middleware.ts` rewrites that into the NextAuth session cookie, so every route's `getServerSession()` works unchanged.
@@ -59,6 +61,16 @@ New users receive 100 free starting points (via the `createUser` NextAuth event 
   - Apple: `/api/mobile/auth/apple` verifies the identity token (needs `APPLE_*` env vars).
   - `DELETE /api/account` deletes the user (App Store requirement).
 - Game logic is shared, not copied: the app imports `lib/match-engine.ts`, `lib/football.ts`, `lib/exhibition.ts` etc. via the `@shared/*` alias (see `mobile/metro.config.js`). Keep those files free of Next/Prisma imports.
+
+### Player packs (paid, In-App Purchase)
+
+- A fan buys a named player's pack ("Ryan pack") for **£7.99** in the iPhone app: 5 cards, the last one guaranteed to be that player's (kit cards and specials named after them, `cardPlayer` in `lib/player-packs.ts`), the other four from the team's pack cards by `PLAYER_PACK.odds` (60/25/12/3%; a rarity the team lacks becomes a common). **£1 of every pack goes to the player** (`playerSharePence`). Duplicates are kept (they stack). The odds are shown before buying (App Store rule 3.1.1 for random items).
+- One App Store product for every player: consumable `com.fiveguysfc.cards.playerpack` (create it in App Store Connect at £7.99; the in-app price comes from StoreKit). The app (`mobile/src/lib/shop.tsx`, expo-iap / StoreKit 2) first creates an order (`POST /api/shop/orders` → a `PlayerPack` row, status `pending`), then buys with the order id as the `appAccountToken`. expo-iap's purchase flow sends the signed transaction to `POST /api/shop/apple`, which verifies it with Apple's library against Apple's root certificates (`lib/apple-iap.ts`, `lib/apple-root-certs.ts`), marks the order `paid` and only then lets the app finish the transaction. Unfinished transactions are retried when the store reconnects or the app returns to the foreground. Verification errors answer `verification_delayed` (never finish a real purchase we couldn't verify); only another app's purchase is `invalid`.
+- Paid packs wait unopened in Cards → Your packs; `POST /api/shop/packs/[id]/open` draws the cards (`drawPlayerPack`), adds them as `UserCard`s and logs a `PackOpen` (`packType: "player:<name>"`). Opening again returns the same cards. A paid transaction with no matching order becomes a pack without a player; the buyer picks one when opening.
+- Refunds: App Store Server Notifications V2 → `POST /api/shop/apple/notifications` (set `https://www.5iveg.com/api/shop/apple/notifications` in App Store Connect). REFUND/REVOKE mark the pack `refunded` (can't be opened; the player's share is taken back), REFUND_REVERSED restores it. Opened cards stay.
+- Player earnings: `/admin/packs` (admin secret) shows each player's packs, earned, paid and owed (Production purchases only unless "Include test purchases"; TestFlight/sandbox ones are free tests). Record money handed to a player with "I've paid …" (`PlayerPayout`). Buyers who delete their account keep their sales on the books (`PlayerPack.userId` → null).
+- Local testing: `next dev` with `SHOP_DEV_PURCHASES=1` lets a `__DEV__` app build without the App Store product buy through `POST /api/shop/dev`. Xcode-environment (unsigned, StoreKit configuration file) transactions are accepted only under `next dev`.
+- Code: rules/odds/earnings `lib/player-packs.ts` (pure, shared with the app, tests `lib/__tests__/player-packs.test.ts`), DB `lib/player-packs-db.ts`, API `app/api/shop/**` + `app/api/admin/packs`, app screens `mobile/src/app/(tabs)/cards.tsx`, `mobile/src/app/shop/[name].tsx` (buy sheet), `mobile/src/app/shop/open/[id].tsx` (rip and reveal), and "Back <player>" on the card sheet.
 
 ### Fantasy Div 1 (FPL rules for 7-a-side)
 
@@ -110,6 +122,8 @@ New users receive 100 free starting points (via the `createUser` NextAuth event 
 | `app/api/youtube/sync/route.ts` | Core points engine |
 | `app/api/packs/open/route.ts` | Pack opening + card draw |
 | `components/PointsActivity.tsx` | Earn Points UI with YouTube channel links |
+| `lib/player-packs.ts` / `lib/player-packs-db.ts` | Paid player packs: odds, draw, earnings / orders, Apple purchases, opening, refunds |
+| `lib/apple-iap.ts` | Verifies App Store signed transactions and server notifications |
 
 ### Database (PostgreSQL via Prisma)
 
@@ -119,6 +133,8 @@ Key models:
 - **VideoMeta** — channel video publish timestamps, used for early-like window calculation
 - **UserCard** — collected cards with `isFavourite`
 - **PackOpen** — history of pack opens with card IDs drawn
+- **PlayerPack** — a paid player pack (order → paid → opened, or refunded) with its App Store transaction and the player's share
+- **PlayerPayout** — money handed to a player from their pack earnings
 
 Schema changes: use `npm run db:push` (no migration files; direct push to DB).
 
@@ -151,4 +167,7 @@ YOUTUBE_CHANNEL_ID          # Channel to track engagement on
 DATABASE_URL                # PostgreSQL
 GOOGLE_SITE_VERIFICATION    # Hardcoded in layout.tsx — update there, not env
 ADMIN_SECRET                # Optional, gates /api/admin/stats
+APPLE_BUNDLE_ID             # com.fiveguysfc.cards (Sign in with Apple audience; also the IAP bundle check)
+APPLE_APP_APPLE_ID          # Optional, defaults to 6821596728 (App Store Connect app id, for Production purchase checks)
+SHOP_DEV_PURCHASES          # Local next dev only: "1" allows /api/shop/dev test purchases
 ```

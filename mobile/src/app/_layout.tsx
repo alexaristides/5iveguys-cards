@@ -4,9 +4,12 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Tour } from "@/components/Tour";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ChannelProvider } from "@/lib/channel";
 import { FEATURES } from "@/lib/config";
+import { ShopProvider } from "@/lib/shop";
+import { useTourSeen } from "@/lib/tour";
 import { colors } from "@/lib/theme";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -23,16 +26,20 @@ focusManager.setEventListener((handleFocus) => {
 
 function RootStack() {
   const { ready, signedIn } = useAuth();
+  const [tourSeen, markTourSeen] = useTourSeen();
+  const loaded = ready && tourSeen !== null;
 
   useEffect(() => {
-    if (ready) SplashScreen.hideAsync().catch(() => {});
-  }, [ready]);
+    if (loaded) SplashScreen.hideAsync().catch(() => {});
+  }, [loaded]);
 
   useEffect(() => {
     if (!signedIn) queryClient.clear();
   }, [signedIn]);
 
-  if (!ready) return null;
+  if (!loaded) return null;
+  // First launch: what the app does, before anything else.
+  if (!tourSeen) return <Tour onDone={markTourSeen} />;
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
@@ -51,14 +58,22 @@ function RootStack() {
           options={{ presentation: "formSheet", sheetAllowedDetents: [0.92], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
         />
         <Stack.Screen name="worlds" options={{ presentation: "fullScreenModal" }} />
+        <Stack.Screen name="tour" options={{ presentation: "fullScreenModal", animation: "fade" }} />
         <Stack.Screen
           name="settings"
-          options={{ presentation: "formSheet", sheetAllowedDetents: [0.62], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
+          options={{ presentation: "formSheet", sheetAllowedDetents: [0.68], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
         />
       </Stack.Protected>
       {/* Held back for launch (FEATURES in lib/config.ts); guarded so deep links can't reach them either. */}
       <Stack.Protected guard={signedIn && FEATURES.packs}>
         <Stack.Screen name="pack/[packId]" options={{ presentation: "fullScreenModal", animation: "fade" }} />
+      </Stack.Protected>
+      <Stack.Protected guard={signedIn && FEATURES.shop}>
+        <Stack.Screen
+          name="shop/[name]"
+          options={{ presentation: "formSheet", sheetAllowedDetents: [0.92], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
+        />
+        <Stack.Screen name="shop/open/[id]" options={{ presentation: "fullScreenModal", animation: "fade", gestureEnabled: false }} />
       </Stack.Protected>
       <Stack.Protected guard={signedIn && FEATURES.fantasy}>
         <Stack.Screen name="fantasy/edit" options={{ gestureEnabled: false }} />
@@ -104,8 +119,10 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ChannelProvider>
-          <StatusBar style="light" />
-          <RootStack />
+          <ShopProvider>
+            <StatusBar style="light" />
+            <RootStack />
+          </ShopProvider>
         </ChannelProvider>
       </AuthProvider>
     </QueryClientProvider>

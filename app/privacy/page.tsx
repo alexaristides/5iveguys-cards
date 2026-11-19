@@ -27,6 +27,7 @@ export default function PrivacyPage() {
             <li><span className="text-white font-medium">Account info</span> — your name, email address and profile picture from Google, or the name and email (which may be an Apple private relay address) from Sign in with Apple. Used to identify your account and show your name on leaderboards.</li>
             <li><span className="text-white font-medium">YouTube channel activity</span> — if you connect YouTube: whether you subscribe to the channels in the App and which of their videos you have rated. Used to show your fan activity and work out your fan points.</li>
             <li><span className="text-white font-medium">Activity in the App</span> — your points, cards, player ratings, fantasy team, game results, and time spent watching channel videos in the App&rsquo;s player.</li>
+            <li><span className="text-white font-medium">Purchases</span> — when you buy a player pack in the iPhone app: the App Store transaction ID, price, currency, the player you picked, when you bought it and the cards you got. Apple takes the payment; we never see your card or bank details.</li>
             <li><span className="text-white font-medium">Support messages</span> — the name, email and message you send through the support form, so we can reply.</li>
           </ul>
           <p>We do not access your YouTube watch history, private videos, playlists, or any data unrelated to the channels in the App.</p>
@@ -36,6 +37,7 @@ export default function PrivacyPage() {
           <h2 className="text-white font-semibold text-base">How we use your data</h2>
           <ul className="space-y-2 list-disc list-inside">
             <li>Running your account: points, cards, ratings, games and your fantasy team.</li>
+            <li>Delivering the packs you buy, and paying each player their share of their packs.</li>
             <li>Showing your name, avatar and points on fan leaderboards.</li>
             <li>Replying to support requests.</li>
           </ul>
@@ -62,7 +64,8 @@ export default function PrivacyPage() {
           <p>
             Your data is kept for as long as you have an account. In the iPhone app, Settings → Delete account
             permanently deletes your account and everything linked to it, and revokes the App&rsquo;s access to your
-            Google and Apple accounts. You can also ask us to delete it through the{" "}
+            Google and Apple accounts. Records of packs you bought are kept without your name or account, for our
+            accounts and the players&rsquo; earnings. You can also ask us to delete it through the{" "}
             <a href="/support" className="text-purple-400 underline hover:text-purple-300">support page</a>. You can
             remove the App&rsquo;s YouTube access at any time from your{" "}
             <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" className="text-purple-400 underline hover:text-purple-300">

@@ -6,7 +6,7 @@ import { useChannel } from "./channel";
 import { CHANNELS } from "./config";
 import { ROSTER, type FanAverages } from "../../street/src/roster";
 import type {
-  Account, CollectionItem, DbCard, FantasyGameweekResult, FantasyHistory, FantasyLeaderboard, FantasyLeagueStandings, FantasyLeagueSummary, FantasyOverview, FantasyPlayerDetail, Me, MotmResults, Record3,
+  Account, CollectionItem, DbCard, MyPacks, ShopData, FantasyGameweekResult, FantasyHistory, FantasyLeaderboard, FantasyLeagueStandings, FantasyLeagueSummary, FantasyOverview, FantasyPlayerDetail, Me, MotmResults, Record3,
   Video, VotesResponse, World,
 } from "./types";
 
@@ -62,6 +62,22 @@ export function useChannelCards() {
     queryFn: () => api<{ cards: DbCard[] }>(`/api/channels/${slug}/cards`).then((r) => r.cards),
     staleTime: 5 * 60_000,
   });
+}
+
+/** The player packs on sale in a team (the current one by default). */
+export function useShop(slugOverride?: string) {
+  const { slug: current } = useChannel();
+  const slug = slugOverride ?? current;
+  return useQuery({
+    queryKey: ["shop", slug],
+    queryFn: () => api<ShopData>(`/api/shop?channelSlug=${encodeURIComponent(slug)}`),
+    staleTime: 60_000,
+  });
+}
+
+/** Your unopened player packs and the ones you opened lately. */
+export function useMyPacks() {
+  return useQuery({ queryKey: ["player-packs"], queryFn: () => api<MyPacks>("/api/shop/packs") });
 }
 
 /** Every owned card across channels (squad picking for games). */

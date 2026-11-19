@@ -192,9 +192,9 @@ export default function LobbyRoom() {
                 title="Share result"
                 variant="secondary"
                 onPress={() => Share.share({
-                  message: myScore > oppScore ? `I just beat ${oppName} ${myScore}–${oppScore} in a PvP match on 5iveG Cards ⚽🃏`
-                    : myScore < oppScore ? `I just lost to ${oppName} ${oppScore}–${myScore} in a PvP match on 5iveG Cards ⚽🃏`
-                    : `I just drew ${myScore}–${oppScore} with ${oppName} in a PvP match on 5iveG Cards ⚽🃏`,
+                  message: myScore > oppScore ? `I just beat ${oppName} ${myScore}–${oppScore} in a PvP match on 5iveG ⚽🃏`
+                    : myScore < oppScore ? `I just lost to ${oppName} ${oppScore}–${myScore} in a PvP match on 5iveG ⚽🃏`
+                    : `I just drew ${myScore}–${oppScore} with ${oppName} in a PvP match on 5iveG ⚽🃏`,
                 })}
               />
             </ResultPanel>
@@ -249,7 +249,7 @@ export default function LobbyRoom() {
             title="Invite a friend"
             color={colors.user}
             style={{ alignSelf: "stretch" }}
-            onPress={() => Share.share({ message: `Play me on 5iveG Cards! Match code: ${lobbyId}\n${inviteUrl}` })}
+            onPress={() => Share.share({ message: `Play me on 5iveG! Match code: ${lobbyId}\n${inviteUrl}` })}
           />
           <Button title="Copy code" variant="secondary" style={{ alignSelf: "stretch" }} onPress={() => Clipboard.setStringAsync(lobbyId)} />
           <Text style={styles.waiting}>Waiting for an opponent… (expires in 10 minutes)</Text>

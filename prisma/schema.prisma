@@ -77,6 +77,7 @@ model User {
   lobbiesJoined     Lobby[]             @relation("JoinedLobbies")
   worldCups         WorldCup[]
   supportMessages   SupportMessage[]
+  playerPacks       PlayerPack[]
 }
 
 model VerificationToken {
@@ -728,4 +729,48 @@ model SupportMessage {
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([handled, createdAt])
+}
+
+// ---------- Player packs (paid) ----------
+
+// A player pack bought in the app: 5 cards, one guaranteed to be `playerName`'s, and
+// `playerSharePence` of the price goes to that player. The id is sent to the App Store as the
+// purchase's appAccountToken, which ties Apple's signed transaction back to this order.
+model PlayerPack {
+  id                    String    @id @default(uuid())
+  userId                String? // kept (null) when the buyer deletes their account, so the player's earnings stay
+  channelId             String? // null with playerName: a paid purchase whose order was lost, the buyer picks at opening
+  playerName            String?
+  status                String    @default("pending") // pending | paid | opened | refunded (lib/player-packs.ts)
+  store                 String    @default("apple") // apple | dev
+  productId             String?
+  transactionId         String?   @unique // Apple's
+  originalTransactionId String?
+  environment           String? // Production | Sandbox | Xcode
+  priceMilli            Int? // what the buyer paid, in thousandths of `currency` (Apple's units)
+  currency              String?
+  playerSharePence      Int       @default(0)
+  cardIds               String? // JSON array, once opened
+  createdAt             DateTime  @default(now())
+  paidAt                DateTime?
+  openedAt              DateTime?
+  refundedAt            DateTime?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([channelId, playerName])
+  @@index([status, paidAt])
+}
+
+// Money handed to a player from their pack earnings, recorded at /admin/packs.
+model PlayerPayout {
+  id          String   @id @default(cuid())
+  channelId   String
+  playerName  String
+  amountPence Int
+  note        String?
+  paidAt      DateTime @default(now())
+
+  @@index([channelId, playerName])
 }
