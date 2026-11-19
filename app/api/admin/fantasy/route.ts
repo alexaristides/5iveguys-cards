@@ -94,7 +94,8 @@ async function handle(body: Body) {
     case "savePlayer": {
       const name = str(body.name);
       const position = str(body.position) as FantasyPosition;
-      const price = int(body.price, 1);
+      // Without prices players cost nothing; with them a price is required.
+      const price = FANTASY_RULES.prices ? int(body.price, 1) : int(body.price) ?? 0;
       if (!name || !POSITIONS.includes(position) || price === null) throw new FantasyError("A player needs a name, position and price.");
       const status = isPlayerStatus(body.status) ? body.status : "a";
       const data = {
