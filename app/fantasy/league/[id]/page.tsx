@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { LeagueTable, type LeagueRow } from "@/components/fantasy/FantasyLeagues";
 import { FantasyShell, panel, Spinner } from "@/components/fantasy/FantasyShell";
 
-interface Standings { league: { id: string; name: string; code: string; isMember: boolean }; lastGameweek: number | null; teams: LeagueRow[] }
+interface Standings { league: { id: string; name: string; code: string; isMember: boolean }; lastGameweek: number | null; teamCount?: number; teams: LeagueRow[] }
 
 /** A private league's table, with its invite code. */
 export default function FantasyLeaguePage() {
@@ -29,7 +29,7 @@ export default function FantasyLeaguePage() {
 
   const link = typeof window !== "undefined" ? `${window.location.origin}/fantasy/join/${data.league.code}` : "";
   async function leave() {
-    if (!confirm(data!.teams.length === 1 ? "You're the last one in this league, so it will be deleted. Leave?" : "Leave this league? You can rejoin with the code.")) return;
+    if (!confirm((data!.teamCount ?? data!.teams.length) === 1 ? "You're the last one in this league, so it will be deleted. Leave?" : "Leave this league? You can rejoin with the code.")) return;
     const res = await fetch(`/api/fantasy/leagues/${id}`, { method: "DELETE" });
     if (res.ok) router.push("/fantasy");
   }
@@ -50,7 +50,7 @@ export default function FantasyLeaguePage() {
           {copied ? "Link copied" : "Copy invite link"}
         </button>
       </section>
-      <p className="text-zinc-400 text-sm">{data.teams.length} team{data.teams.length === 1 ? "" : "s"}{data.lastGameweek ? ` · after gameweek ${data.lastGameweek}` : ""}</p>
+      <p className="text-zinc-400 text-sm">{data.teamCount ?? data.teams.length} team{(data.teamCount ?? data.teams.length) === 1 ? "" : "s"}{data.lastGameweek ? ` · after gameweek ${data.lastGameweek}` : ""}</p>
       <LeagueTable rows={data.teams} lastGameweek={data.lastGameweek} />
       {data.league.isMember && <button onClick={leave} className="text-red-400 text-sm">Leave league</button>}
     </FantasyShell>
