@@ -13,7 +13,7 @@ export default function Settings() {
   function confirmDelete() {
     Alert.alert(
       "Delete account?",
-      "This permanently deletes your account, points, cards (including any packs you bought) and match history. This can't be undone.",
+      `This permanently deletes your account, points, cards${FEATURES.shop ? " (including any packs you bought)" : ""} and match history. This can't be undone.`,
       [
         { text: "Cancel", style: "cancel" },
         {
