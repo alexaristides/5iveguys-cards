@@ -5,7 +5,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
-  availableChips, awardBonus, buySquad, entryError, FANTASY_RULES, freeTransfersFor, gameweekStatus, isChip, keptCleanSheet,
+  availableChips, awardBonus, buySquad, entryError, entryPositions, FANTASY_RULES, freeTransfersFor, gameweekStatus, isChip, keptCleanSheet,
   makeLeagueCode, playerPoints, priceChanges, scoreEntry, squadCost, teamValue, transferCostFor, transfersBetween, bpsScore,
   type Chip, type EntryInput, type FantasyPosition, type LockedWeek, type Pick, type PlayerStats, type PlayerStatus,
   type Squad, type SquadPlayer,
@@ -140,7 +140,10 @@ export async function saveEntry(userId: string, input: EntryInput & { gameweek: 
   const error = entryError(input, squad, { ...opts, availableChips: state.availableChips });
   if (error) throw new FantasyError(error);
 
-  const { picks, bank } = buySquad(input.playerIds, squad, opts);
+  const bought = buySquad(input.playerIds, squad, opts);
+  const roles = entryPositions(input, squad);
+  const picks = bought.picks.map((p, i) => ({ ...p, position: roles[i] }));
+  const bank = bought.bank;
   const transfersMade = transfersBetween(input.playerIds, state.baseline);
   const entry = {
     picks: picks as unknown as Prisma.InputJsonValue,
@@ -241,6 +244,7 @@ export async function finalizeGameweek(gameweekId: string) {
     const score = scoreEntry(
       {
         playerIds: asPicks(entry.picks).map((p) => p.playerId),
+        positions: asPicks(entry.picks).map((p) => p.position ?? positions.get(p.playerId) ?? "MID"),
         captainId: entry.captainId, viceCaptainId: entry.viceCaptainId,
         chip: chipOf(entry), transferCost: entry.transferCost,
       },

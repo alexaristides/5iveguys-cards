@@ -14,7 +14,7 @@ import { Button, Chip as ChipButton, ErrorText, Loading } from "@/components/ui"
 import { api } from "@/lib/api";
 import {
   autoComplete, changeFormation, EMPTY_LINEUP, formatCountdown, formatDeadline, FORMATIONS, formationLabel, inLineup,
-  lineupFromIds, lineupIds, placePlayer, removePlayer, slotPositions, type Lineup,
+  lineupFromPicks, lineupIds, lineupPositions, placePlayer, removePlayer, slotPositions, type Lineup,
 } from "@/lib/fantasy";
 import { imageUri } from "@/lib/images";
 import { useFantasy } from "@/lib/queries";
@@ -50,7 +50,7 @@ function Editor({ data }: { data: FantasyOverview }) {
   const opts = { budget: season.budget, from: baseline, draft: draft?.saved ? draft.picks : null };
   const available = team?.availableChips ?? CHIP_IDS;
 
-  const [start] = useState<Lineup>(() => (draft ? lineupFromIds(draft.picks.map((p) => p.playerId), players) : EMPTY_LINEUP));
+  const [start] = useState<Lineup>(() => (draft ? lineupFromPicks(draft.picks, players) : EMPTY_LINEUP));
   const [lineup, setLineup] = useState<Lineup>(start);
   const [captain, setCaptain] = useState<string | null>(draft?.captainId ?? null);
   const [vice, setVice] = useState<string | null>(draft?.viceCaptainId ?? null);
@@ -77,7 +77,7 @@ function Editor({ data }: { data: FantasyOverview }) {
   const transferCost = transferCostFor(made, free, chip);
   const missing = FANTASY_RULES.squadSize - chosen.length;
   const error = ids
-    ? entryError({ playerIds: ids, captainId: captainId ?? "", viceCaptainId: viceId ?? "", chip }, squad, { ...opts, availableChips: available })
+    ? entryError({ playerIds: ids, positions: lineupPositions(lineup), captainId: captainId ?? "", viceCaptainId: viceId ?? "", chip }, squad, { ...opts, availableChips: available })
     : `Pick ${plural(missing, "more player")}.`;
   const needsName = !team && name.trim().length < 2;
 
@@ -144,7 +144,7 @@ function Editor({ data }: { data: FantasyOverview }) {
     try {
       const res = await api<FantasyOverview>("/api/fantasy/team", {
         body: {
-          gameweek: gameweek.number, playerIds: ids, captainId, viceCaptainId: viceId, chip,
+          gameweek: gameweek.number, playerIds: ids, positions: lineupPositions(lineup), captainId, viceCaptainId: viceId, chip,
           ...(team ? {} : { name: name.trim() }),
         },
       });
@@ -322,17 +322,24 @@ function PlayerPicker({
   const [sort, setSort] = useState<Sort>(FANTASY_RULES.prices ? "price" : "points");
   const value = (p: FantasyPlayer) => (sort === "points" ? p.totalPoints : sort === "form" ? p.form : sort === "selected" ? p.selectedBy : p.price);
   const options = players
-    .filter((p) => p.isActive && !taken.has(p.id) && (!position || p.position === position))
+    // Anyone can play anywhere: players who naturally play here come first.
+    .filter((p) => p.isActive && !taken.has(p.id))
     // Players you can afford first, then by the chosen order.
-    .sort((a, b) => Number(b.price <= money) - Number(a.price <= money) || value(b) - value(a));
+    .sort((a, b) => Number(b.price <= money) - Number(a.price <= money)
+      || Number(b.position === position) - Number(a.position === position) || value(b) - value(a));
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={styles.sheet}>
         <View style={styles.sheetHead}>
-          <Text style={styles.sheetTitle}>{position ? `Pick a ${POSITION_LABEL[position].toLowerCase()}` : "Pick a player"}</Text>
+          <Text style={styles.sheetTitle}>{position ? `Pick your ${POSITION_LABEL[position].toLowerCase()}` : "Pick a player"}</Text>
           <Pressable onPress={onClose} hitSlop={10}><Text style={styles.done}>Cancel</Text></Pressable>
         </View>
+        {position && (
+          <Text style={styles.muted}>
+            Anyone can play here and scores as a {POSITION_LABEL[position].toLowerCase()}. {POSITION_LABEL[position]}s are listed first.
+          </Text>
+        )}
         {FANTASY_RULES.prices && <Text style={styles.muted}>You can spend up to {formatPrice(Math.max(0, money))}.</Text>}
         <View style={[styles.formRow, { marginVertical: 12 }]}>
           {SORTS.map((s) => <ChipButton key={s.id} label={s.label} active={sort === s.id} onPress={() => setSort(s.id)} />)}
@@ -341,7 +348,7 @@ function PlayerPicker({
           data={options}
           keyExtractor={(p) => p.id}
           contentContainerStyle={{ gap: 8, paddingBottom: 40 }}
-          ListEmptyComponent={<Text style={styles.muted}>Everyone in that position is already in your team.</Text>}
+          ListEmptyComponent={<Text style={styles.muted}>Everyone is already in your team.</Text>}
           renderItem={({ item: p }) => {
             const affordable = p.price <= money;
             const flagged = p.status !== "a";

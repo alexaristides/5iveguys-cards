@@ -184,10 +184,20 @@ export interface SquadPlayer {
   isActive: boolean;
 }
 
-/** A squad slot: the player and what was paid for them. */
+/**
+ * A squad slot: the player, what was paid for them and the position the fan put them in (any player
+ * can play anywhere and scores as that position). Teams saved before positions were free have no
+ * `position`: they play their own.
+ */
 export interface Pick {
   playerId: string;
   price: number;
+  position?: FantasyPosition;
+}
+
+/** The position each pick plays: the one the fan chose, or the player's own. */
+export function pickPositions(picks: { playerId: string; position?: FantasyPosition | null }[], players: Map<string, { position: FantasyPosition }>) {
+  return picks.map((p) => (p.position && POSITIONS.includes(p.position) ? p.position : players.get(p.playerId)?.position ?? "MID"));
 }
 
 /** The locked team transfers are made from: who's in it and the money in the bank. */
@@ -260,9 +270,16 @@ export function transfersBetween(playerIds: string[], from: Squad | null) {
 
 export interface EntryInput {
   playerIds: string[];
+  /** Where each of `playerIds` plays (same order). Left out by older apps: everyone plays their own position. */
+  positions?: FantasyPosition[];
   captainId: string;
   viceCaptainId: string;
   chip: Chip | null;
+}
+
+/** The positions an entry plays, from `positions` when given, else the players' own. */
+export function entryPositions(entry: { playerIds: string[]; positions?: FantasyPosition[] }, players: Map<string, { position: FantasyPosition }>) {
+  return pickPositions(entry.playerIds.map((id, i) => ({ playerId: id, position: entry.positions?.[i] })), players);
 }
 
 /** Why an entry can't be saved, or null if it's legal. */
@@ -282,8 +299,11 @@ export function entryError(
     if (!p.isActive && !kept.has(id)) return "That player has left the squad.";
   }
 
-  if (!isValidTeam(playerIds.map((id) => players.get(id)!.position))) {
-    return "Your 7 needs 1 goalkeeper, 2-4 defenders, 1-3 midfielders and 1-3 forwards.";
+  if (entry.positions && (entry.positions.length !== playerIds.length || !entry.positions.every((p) => POSITIONS.includes(p)))) {
+    return "Put each player in a position.";
+  }
+  if (!isValidTeam(entryPositions(entry, players))) {
+    return "Your 7 needs 1 in goal, 2-4 in defence, 1-3 in midfield and 1-3 up front.";
   }
   if (!playerIds.includes(captainId)) return "Pick a captain from your team.";
   if (!playerIds.includes(viceCaptainId)) return "Pick a vice-captain from your team.";
@@ -367,7 +387,7 @@ export interface EntryScore {
 
 /** Score an entry: captain double (the vice's if the captain didn't play), chips, then the transfer cost. */
 export function scoreEntry(
-  entry: { playerIds: string[]; captainId: string; viceCaptainId: string; chip: Chip | null; transferCost: number },
+  entry: { playerIds: string[]; positions?: FantasyPosition[]; captainId: string; viceCaptainId: string; chip: Chip | null; transferCost: number },
   positions: Map<string, FantasyPosition>,
   stats: Map<string, PlayerStats>,
 ): EntryScore {
@@ -379,9 +399,10 @@ export function scoreEntry(
       : null;
   const captainMultiplier = entry.chip === "triple_captain" ? 3 : 2;
 
-  const players: ScoredPlayer[] = team.map((id) => ({
+  // Players score as the position the fan put them in (their own if the team predates that).
+  const players: ScoredPlayer[] = team.map((id, i) => ({
     playerId: id,
-    points: playerPoints(stats.get(id), positions.get(id) ?? "MID"),
+    points: playerPoints(stats.get(id), entry.positions?.[i] ?? positions.get(id) ?? "MID"),
     multiplier: !played(id) ? 0 : id === captainId ? captainMultiplier : 1,
   }));
   const playerTotal = players.reduce((sum, p) => sum + p.points * p.multiplier, 0);

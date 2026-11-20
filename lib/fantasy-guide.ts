@@ -11,8 +11,9 @@ export function fantasyGuide(season: { budget: number; secondHalfFrom: number | 
   const sections: { title: string; body: string }[] = [
     {
       title: "Your team",
-      body: (R.prices ? `Pick 7 of the 5ive Guys with a ${formatPrice(season.budget)} budget: ` : "Pick any 7 of the 5ive Guys (there are no prices): ")
-        + "1 goalkeeper, 2–4 defenders, 1–3 midfielders and 1–3 forwards. "
+      body: (R.prices ? `Pick 7 of the 5ive Guys with a ${formatPrice(season.budget)} budget ` : "Pick any 7 of the 5ive Guys (there are no prices) ")
+        + "and play them wherever you like: 1 in goal, 2–4 in defence, 1–3 in midfield and 1–3 up front. "
+        + "Everyone scores as the position you put them in, so a forward in defence gets a defender's points. "
         + "It's 7-a-side, so there's no bench: all 7 play. Your team locks at each gameweek's deadline.",
     },
     {

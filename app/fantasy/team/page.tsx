@@ -12,7 +12,7 @@ import {
   seasonHalf, transferCostFor, transfersBetween, type Chip, type FantasyPosition, type SquadPlayer,
 } from "@/lib/fantasy";
 import {
-  autoComplete, changeFormation, EMPTY_LINEUP, FORMATIONS, formationLabel, inLineup, lineupFromIds, lineupIds, placePlayer,
+  autoComplete, changeFormation, EMPTY_LINEUP, FORMATIONS, formationLabel, inLineup, lineupFromPicks, lineupIds, lineupPositions, placePlayer,
   removePlayer, slotPositions, type Lineup,
 } from "@/lib/fantasy-lineup";
 
@@ -50,7 +50,7 @@ function Editor({ data, onSaved }: { data: FantasyOverview; onSaved: () => void 
   const opts = { budget: season.budget, from: baseline, draft: draft?.saved ? draft.picks : null };
   const available = team?.availableChips ?? CHIP_IDS;
 
-  const [start] = useState<Lineup>(() => (draft ? lineupFromIds(draft.picks.map((p) => p.playerId), players) : EMPTY_LINEUP));
+  const [start] = useState<Lineup>(() => (draft ? lineupFromPicks(draft.picks, players) : EMPTY_LINEUP));
   const [lineup, setLineup] = useState<Lineup>(start);
   const [captain, setCaptain] = useState<string | null>(draft?.captainId ?? null);
   const [vice, setVice] = useState<string | null>(draft?.viceCaptainId ?? null);
@@ -75,7 +75,7 @@ function Editor({ data, onSaved }: { data: FantasyOverview; onSaved: () => void 
   const transferCost = transferCostFor(made, free, chip);
   const missing = FANTASY_RULES.squadSize - chosen.length;
   const ruleError = ids
-    ? entryError({ playerIds: ids, captainId: captainId ?? "", viceCaptainId: viceId ?? "", chip }, squad, { ...opts, availableChips: available })
+    ? entryError({ playerIds: ids, positions: lineupPositions(lineup), captainId: captainId ?? "", viceCaptainId: viceId ?? "", chip }, squad, { ...opts, availableChips: available })
     : `Pick ${plural(missing, "more player")}.`;
   const error = ruleError ?? (!team && name.trim().length < 2 ? "Give your team a name." : null);
 
@@ -99,7 +99,7 @@ function Editor({ data, onSaved }: { data: FantasyOverview; onSaved: () => void 
     const res = await fetch("/api/fantasy/team", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ gameweek: gameweek.number, playerIds: ids, captainId, viceCaptainId: viceId, chip, ...(team ? {} : { name: name.trim() }) }),
+      body: JSON.stringify({ gameweek: gameweek.number, playerIds: ids, positions: lineupPositions(lineup), captainId, viceCaptainId: viceId, chip, ...(team ? {} : { name: name.trim() }) }),
     });
     setSaving(false);
     if (res.ok) onSaved();
@@ -267,15 +267,22 @@ function Picker({ position, players, taken, budgetLeft, onPick, onClose }: {
   const [sort, setSort] = useState<"price" | "points" | "form" | "selected">(FANTASY_RULES.prices ? "price" : "points");
   const value = (p: FantasyPlayerRow) => (sort === "points" ? p.totalPoints : sort === "form" ? p.form : sort === "selected" ? p.selectedBy : p.price);
   const options = players
-    .filter((p) => p.isActive && !taken.has(p.id) && (!position || p.position === position))
-    .sort((a, b) => Number(b.price <= budgetLeft) - Number(a.price <= budgetLeft) || value(b) - value(a));
+    // Anyone can play anywhere: players who naturally play here come first.
+    .filter((p) => p.isActive && !taken.has(p.id))
+    .sort((a, b) => Number(b.price <= budgetLeft) - Number(a.price <= budgetLeft)
+      || Number(b.position === position) - Number(a.position === position) || value(b) - value(a));
 
   return (
     <Modal onClose={onClose}>
       <div className="flex items-center justify-between">
-        <h3 className="text-white text-lg font-black">{position ? `Pick a ${POSITION_LABEL[position].toLowerCase()}` : "Pick a player"}</h3>
+        <h3 className="text-white text-lg font-black">{position ? `Pick your ${POSITION_LABEL[position].toLowerCase()}` : "Pick a player"}</h3>
         <button onClick={onClose} className="text-purple-400 font-semibold">Cancel</button>
       </div>
+      {position && (
+        <p className="text-zinc-400 text-sm">
+          Anyone can play here and scores as a {POSITION_LABEL[position].toLowerCase()}. {POSITION_LABEL[position]}s are listed first.
+        </p>
+      )}
       {FANTASY_RULES.prices && <p className="text-zinc-400 text-sm">You can spend up to {formatPrice(Math.max(0, budgetLeft))}.</p>}
       <div className="flex gap-2">
         {(FANTASY_RULES.prices ? (["price", "points", "form", "selected"] as const) : (["points", "form", "selected"] as const)).map((s) => (
@@ -317,7 +324,7 @@ function Picker({ position, players, taken, budgetLeft, onPick, onClose }: {
             </button>
           );
         })}
-        {options.length === 0 && <p className="text-zinc-500 text-sm">Everyone in that position is already in your team.</p>}
+        {options.length === 0 && <p className="text-zinc-500 text-sm">Everyone is already in your team.</p>}
       </div>
     </Modal>
   );

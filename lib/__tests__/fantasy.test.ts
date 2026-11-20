@@ -4,7 +4,7 @@ import {
   priceChanges, scoreEntry, sellingPrice, teamValue, transferCostFor,
   type FantasyPosition, type PlayerStats, type SquadPlayer,
 } from "../fantasy";
-import { autoComplete, changeFormation, EMPTY_LINEUP, FORMATIONS, lineupFromIds, lineupIds } from "../fantasy-lineup";
+import { autoComplete, changeFormation, EMPTY_LINEUP, FORMATIONS, lineupFromIds, lineupFromPicks, lineupIds, lineupPositions } from "../fantasy-lineup";
 
 const stats = (s: Partial<PlayerStats>): PlayerStats => ({ ...EMPTY_STATS, played: true, playedMost: true, ...s });
 
@@ -205,6 +205,14 @@ describe("scoreEntry", () => {
   it("counts the first 7 of a team saved with subs", () => {
     expect(scoreEntry({ ...entry, playerIds: [...ids, "x", "y"] }, positions, s).players).toHaveLength(7);
   });
+
+  it("scores players as the position the fan put them in", () => {
+    // f1 (a forward) plays in defence: his goal is worth 6 instead of 4.
+    const roles: FantasyPosition[] = ["GK", "FWD", "DEF", "MID", "MID", "DEF", "FWD"];
+    const score = scoreEntry({ ...entry, positions: roles }, positions, s);
+    expect(score.players.find((p) => p.playerId === "f1")!.points).toBe(8);
+    expect(score.total).toBe(8 * 2 + 6 * 2);
+  });
 });
 
 describe("entryError", () => {
@@ -241,6 +249,16 @@ describe("entryError", () => {
     expect(priceChanges(new Map([["f1", 50]]), 10, new Map([["f1", 0]])).size).toBe(0);
   });
 
+  it("lets anyone play anywhere, checking the shape by where they're put", () => {
+    const o = { ...opts, availableChips: [...opts.availableChips] };
+    const noKeeper = ["d1", "d2", "d3", "m1", "m2", "f1", "f2"];
+    const team7 = { ...ok, playerIds: noKeeper };
+    expect(entryError(team7, players, o)).toMatch(/1 in goal/);
+    expect(entryError({ ...team7, positions: ["DEF", "DEF", "DEF", "MID", "MID", "FWD", "GK"] }, players, o)).toBeNull();
+    expect(entryError({ ...team7, positions: ["DEF", "DEF", "DEF", "MID", "MID", "FWD", "FWD"] }, players, o)).toMatch(/1 in goal/);
+    expect(entryError({ ...team7, positions: ["DEF", "DEF"] as FantasyPosition[] }, players, o)).toMatch(/position/);
+  });
+
   it("lets owners keep a player who has left the squad", () => {
     const from = { picks: [...team.slice(0, 6), "old"].map((id) => ({ playerId: id, price: players.get(id)!.price })), bank: 0 };
     expect(entryError({ ...ok, playerIds: from.picks.map((p) => p.playerId) }, players, { ...opts, availableChips: [], from })).toBeNull();
@@ -259,11 +277,22 @@ describe("lineup editing", () => {
     expect(l.slots[0]).toBe("gk");
   });
 
-  it("drops players who don't fit a new formation", () => {
+  it("keeps all 7 when the formation changes, moving the extras into the new slots", () => {
     const l = lineupFromIds(["gk", "d1", "d2", "d3", "m1", "m2", "f1"], players);
     const next = changeFormation(l, { DEF: 2, MID: 1, FWD: 3 }, players);
-    // 3-2-1 → 2-1-3: a defender and a midfielder leave; the two new forward slots are empty.
-    expect(next.slots.filter(Boolean)).toEqual(["gk", "d1", "d2", "m1", "f1"]);
+    // 3-2-1 → 2-1-3: a defender and a midfielder now play up front.
+    expect(next.slots).toEqual(["gk", "d1", "d2", "m1", "f1", "d3", "m2"]);
+    expect(lineupPositions(next)).toEqual(["GK", "DEF", "DEF", "MID", "FWD", "FWD", "FWD"]);
+  });
+
+  it("lays a saved team out where the fan put each player", () => {
+    const l = lineupFromPicks([
+      { playerId: "f1", position: "GK" }, { playerId: "gk", position: "FWD" }, { playerId: "d1", position: "DEF" },
+      { playerId: "d2", position: "DEF" }, { playerId: "m1", position: "MID" }, { playerId: "m2", position: "MID" }, { playerId: "f2" },
+    ], players);
+    expect(l.slots[0]).toBe("f1");
+    expect(l.formation).toEqual({ DEF: 2, MID: 2, FWD: 2 });
+    expect(l.slots.slice(5)).toEqual(["gk", "f2"]);
   });
 
   it("auto-fills within the money left", () => {
