@@ -1,14 +1,24 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Providers from "./providers";
 
+const description =
+  "Printed 1st Edition trading cards, the 5IVE STREET game and fantasy football for fans of the 5ive Guys YouTube channel.";
+
 export const metadata: Metadata = {
-  title: "5iveG",
-  description: "Collect official 5iveguysfc trading cards by supporting the channel",
+  metadataBase: new URL("https://www.5iveg.com"),
+  title: { default: "5iveG · The 5ive Guys fan app", template: "%s · 5iveG" },
+  description,
+  applicationName: "5iveG",
+  openGraph: { type: "website", siteName: "5iveG", locale: "en_GB", title: "5iveG · The 5ive Guys fan app", description },
+  twitter: { card: "summary_large_image" },
+  appleWebApp: { title: "5iveG", statusBarStyle: "black-translucent" },
   verification: {
     google: "6-H9bzJiq9WozG1o5zUxpwiKRUOfK4ySXjXhoAUFa38",
   },
 };
+
+export const viewport: Viewport = { themeColor: "#0a0a0a" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

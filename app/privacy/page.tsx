@@ -1,14 +1,16 @@
-import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 
-export const metadata = { title: "Privacy Policy — 5iveG" };
+export const metadata = { title: "Privacy Policy" };
 
 export default function PrivacyPage() {
   return (
-    <main className="min-h-screen bg-[#0a0a0a] px-6 py-16">
+    <main className="min-h-screen bg-[#0a0a0a]">
+      <SiteHeader />
+      <div className="px-6 py-12 sm:py-16">
       <div className="max-w-2xl mx-auto space-y-8 text-zinc-400 text-sm leading-relaxed">
         <div>
-          <Link href="/" className="text-zinc-600 text-xs hover:text-zinc-400 transition-colors">← Back</Link>
-          <h1 className="text-white text-3xl font-bold mt-4">Privacy Policy</h1>
+          <h1 className="text-white text-3xl font-bold">Privacy Policy</h1>
           <p className="text-zinc-600 text-xs mt-1">Last updated: November 2026</p>
         </div>
 
@@ -103,6 +105,8 @@ export default function PrivacyPage() {
           YouTube, Google LLC, Apple Inc., or any related entities.
         </p>
       </div>
+      </div>
+      <SiteFooter />
     </main>
   );
 }

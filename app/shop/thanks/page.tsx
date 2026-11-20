@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import ClearCart from "@/components/ClearCart";
+import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 import { PRINT_SHOP, SUPPORT_EMAIL, formatPounds, packById, packImage } from "@/lib/print-shop";
 import { addressLines, recordCheckout } from "@/lib/print-shop-db";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Thanks for your order — 5iveG", robots: { index: false } };
+export const metadata: Metadata = { title: "Thanks for your order", robots: { index: false } };
 
 /** Where Stripe sends the buyer after paying. Records the order (if the webhook hasn't) and shows it. */
 export default async function ThanksPage({ searchParams }: { searchParams: Promise<{ session_id?: string }> }) {
@@ -14,7 +16,9 @@ export default async function ThanksPage({ searchParams }: { searchParams: Promi
   const order = result?.order;
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] px-4 py-14">
+    <main className="min-h-screen bg-[#0a0a0a]">
+      <SiteHeader />
+      <div className="px-4 py-14">
       <div className="max-w-md mx-auto text-center space-y-6 text-zinc-400 text-sm leading-relaxed">
         {order ? (
           <>
@@ -70,6 +74,8 @@ export default async function ThanksPage({ searchParams }: { searchParams: Promi
           ← Back to the shop
         </Link>
       </div>
+      </div>
+      <SiteFooter />
     </main>
   );
 }
