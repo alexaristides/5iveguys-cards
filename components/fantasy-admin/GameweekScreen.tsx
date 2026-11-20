@@ -45,7 +45,7 @@ export function GameweekScreen({ season, gw, players, act, onBack }: {
   const goalsGiven = played.reduce((n, p) => n + rows[p.id].goals, 0);
 
   const set = (id: string, patch: Partial<PlayerStats>) => setRows((r) => ({ ...r, [id]: { ...r[id], ...patch } }));
-  // Playing assumes most of the match and the team's goals against, as most players do in 7-a-side.
+  // Playing assumes over half the game and the team's goals against, as most players do in 7-a-side.
   const togglePlayed = (id: string) => {
     tap();
     set(id, rows[id].played ? { ...EMPTY_STATS } : { played: true, playedMost: true, goalsConceded: goalsAgainst });
@@ -212,7 +212,7 @@ function PlayerStatCard({ player, stats, bonus, maxConceded, onChange }: {
 
       <div className="mt-4">
         <Segmented
-          options={[{ value: "long", label: "60+ mins" }, { value: "short", label: "Under 60" }]}
+          options={[{ value: "long", label: "Over half" }, { value: "short", label: "Under half" }]}
           value={stats.playedMost ? "long" : "short"}
           onChange={(v) => onChange({ playedMost: v === "long" })}
         />

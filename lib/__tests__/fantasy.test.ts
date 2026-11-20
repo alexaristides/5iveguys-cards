@@ -53,7 +53,7 @@ describe("playerPoints (FPL 2025/26 scoring)", () => {
   });
 
   it("adds up a busy defender's afternoon (the admin page example)", () => {
-    // 60+ mins 2, two goals 12, assist 3, 3 conceded -1, yellow -1 = 15; a save doesn't count for a defender.
+    // Over half the game 2, two goals 12, assist 3, 3 conceded -1, yellow -1 = 15; a save does not count for a defender.
     expect(playerPoints(stats({ goals: 2, assists: 1, goalsConceded: 3, yellowCards: 1, saves: 1 }), "DEF")).toBe(15);
     expect(playerPoints(stats({ goals: 2, assists: 1, goalsConceded: 3, yellowCards: 1, saves: 1, bonus: 3 }), "DEF")).toBe(18);
   });
