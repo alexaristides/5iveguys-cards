@@ -4,6 +4,7 @@ import {
 } from "../player-consent";
 
 const allTicked = Object.fromEntries(CONSENT_STATEMENTS.map(({ key }) => [key, true]));
+const SELFIE = "data:image/jpeg;base64,/9j/" + "A".repeat(2000);
 const form = (over: Record<string, unknown> = {}) => ({
   channelSlug: "5iveguysfc",
   teamName: "5ive Guys",
@@ -19,9 +20,10 @@ const form = (over: Record<string, unknown> = {}) => ({
   accountNumber: "12345678",
   consents: allTicked,
   signature: "milo test",
+  selfie: SELFIE,
   ...over,
 });
-const record = { reference: "ABCD1234", signedAt: new Date("2026-11-20T12:00:00Z"), ip: "1.2.3.4", userAgent: "Safari" };
+const record = { reference: "ABCD1234", siteUrl: "https://www.5iveg.com", signedAt: new Date("2026-11-20T12:00:00Z"), ip: "1.2.3.4", userAgent: "Safari" };
 
 describe("parseConsent", () => {
   it("accepts a complete form and tidies it", () => {
@@ -68,6 +70,19 @@ describe("parseConsent", () => {
     expect(parseConsent(form({ over18: false, guardianName: "Pat Test", signature: "Milo Test" })).ok).toBe(false);
   });
 
+  it("needs a JPEG selfie", () => {
+    expect(parseConsent(form({ selfie: undefined }))).toEqual({ ok: false, error: "Take a selfie so we know it's really you." });
+    expect(parseConsent(form({ selfie: "data:image/png;base64,iVBOR" })).ok).toBe(false);
+    expect(parseConsent(form({ selfie: "data:image/jpeg;base64,<script>" })).ok).toBe(false);
+  });
+
+  it("keeps the other team and only this site's card pictures", () => {
+    const r = parseConsent(form({ otherTeamName: "Other Guys", cardImage: "/cards/home/Milo_Home.jpg" }));
+    expect(r.ok && [r.value.otherTeamName, r.value.cardImage]).toEqual(["Other Guys", "/cards/home/Milo_Home.jpg"]);
+    const x = parseConsent(form({ cardImage: "https://evil.example/x.jpg" }));
+    expect(x.ok && x.value.cardImage).toBeUndefined();
+  });
+
   it("wants a full name, an email, a phone and an address", () => {
     expect(parseConsent(form({ fullName: "Milo", signature: "Milo" })).ok).toBe(false);
     expect(parseConsent(form({ email: "milo" })).ok).toBe(false);
@@ -109,6 +124,16 @@ describe("emails", () => {
     expect(e.text).toContain(AGREEMENT_PARTIES);
     expect(e.text).toContain("Genius Technologies Ltd, trading as 5iveG");
     for (const { text } of CONSENT_STATEMENTS) expect(e.text).toContain(`✔ ${text}`);
+    expect(e.html).toContain('src="cid:selfie"');
+    expect(e.text).not.toContain("base64");
+  });
+
+  it("shows the second team and their card beside the selfie", () => {
+    const x = parseConsent(form({ otherTeamName: "Other Guys", cardImage: "/cards/home/Milo_Home.jpg" }));
+    if (!x.ok) throw new Error(x.error);
+    const e = clubEmail(x.value, record);
+    expect(e.text).toContain("Also plays for: Other Guys");
+    expect(e.html).toContain('src="https://www.5iveg.com/cards/home/Milo_Home.jpg"');
   });
 
   it("escapes what the player typed", () => {
