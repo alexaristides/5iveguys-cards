@@ -111,7 +111,14 @@ export async function createCheckout(opts: { items: CartItem[]; zone: Zone; orig
       },
     },
     metadata: { shop: SHOP_TAG, items: itemsToMeta(items), zone },
-    payment_intent_data: { metadata: { shop: SHOP_TAG, items: itemsToMeta(items), zone }, description: "5iveG card packs" },
+    // The Stripe account is the company's (Genius Technologies); buyers know the shop as 5iveG,
+    // so the checkout page says 5iveG and card statements read "<company prefix>* 5IVEG".
+    branding_settings: { display_name: "5iveG", button_color: "#9333ea" },
+    payment_intent_data: {
+      metadata: { shop: SHOP_TAG, items: itemsToMeta(items), zone },
+      description: "5iveG card packs",
+      statement_descriptor_suffix: "5IVEG",
+    },
     ...(opts.userId ? { client_reference_id: opts.userId } : {}),
     success_url: `${origin}/shop/thanks?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${origin}/shop`,
