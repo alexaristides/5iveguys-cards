@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  CONSENT_STATEMENTS, GUARDIAN_STATEMENT, SIGNATURE_STATEMENT, formatSortCode, parseConsent, type ConsentKey,
+  AGREEMENT_PARTIES, CONSENT_STATEMENTS, GUARDIAN_STATEMENT, SIGNATURE_STATEMENT, formatSortCode, parseConsent, type ConsentKey,
 } from "@/lib/player-consent";
 
 interface World {
@@ -328,7 +328,7 @@ export default function ConsentForm({
       </Section>
 
       <Section n={4} title="Your permission">
-        <p>Tick each one to agree.</p>
+        <p>{AGREEMENT_PARTIES} Tick each one to agree.</p>
         <div className="space-y-2">
           {CONSENT_STATEMENTS.map(({ key, text }) => (
             <label

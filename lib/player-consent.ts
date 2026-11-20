@@ -6,7 +6,16 @@
  */
 
 /** Bump when the wording below changes, so every email says which version was signed. */
-export const CONSENT_VERSION = "2026-11-20";
+export const CONSENT_VERSION = "2026-11-20 v2";
+
+/**
+ * Who the player gives permission to: the company that sells the packs and pays them. A brand
+ * can't hold rights or owe money, so the company is named once and "5iveG" is shorthand after.
+ */
+export const COMPANY = "Genius Technologies Ltd";
+export const AGREEMENT_PARTIES =
+  `This agreement is between you and ${COMPANY}, trading as 5iveG ("5iveG"), which makes and sells 5iveG ` +
+  "cards and packs and pays your share.";
 
 export type ConsentKey = "image" | "share" | "withdraw" | "data" | "tax";
 
@@ -223,6 +232,7 @@ function sections(c: ConsentInput, r: ConsentRecord, bankRows: Row[]): [string, 
     ["Contact", [["Email", c.email], ["Mobile", c.phone], ["Address", c.address]]],
     ["Bank account for their share", bankRows],
     ["Permission given", [
+      ["", AGREEMENT_PARTIES],
       ...CONSENT_STATEMENTS.map(({ key, text }): Row => ["", `${c.consents[key] ? "✔" : "✘"} ${text}`]),
       ...(c.over18 ? [] : ([["", `✔ ${GUARDIAN_STATEMENT}`]] as Row[])),
     ]],
@@ -249,7 +259,7 @@ export function clubEmail(c: ConsentInput, r: ConsentRecord): Email {
     subject: `Player consent signed: ${c.playerName}${c.teamName ? ` (${c.teamName})` : ""}, ${c.fullName}`,
     ...render(
       `${c.playerName} has signed the player consent`,
-      `${c.fullName} gave permission to sell 5iveG cards and packs with their face, and sent their bank details. Reply to this email to reach them.`,
+      `${c.fullName} gave ${COMPANY} (5iveG) permission to sell cards and packs with their face, and sent their bank details. Reply to this email to reach them.`,
       all,
       `Sent from the 5iveG player consent form. Ref ${r.reference}.`,
     ),
