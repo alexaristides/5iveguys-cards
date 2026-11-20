@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  CONSENT_STATEMENTS, CONSENT_VERSION, clubEmail, formatSortCode, parseConsent, playerEmail, sameName, validIban,
+  CONSENT_STATEMENTS, CONSENT_VERSION, clubEmail, formatSortCode, parseConsent, sameName, validIban,
 } from "../player-consent";
 
 const allTicked = Object.fromEntries(CONSENT_STATEMENTS.map(({ key }) => [key, true]));
@@ -107,14 +107,6 @@ describe("emails", () => {
     expect(e.text).toContain("IP address: 1.2.3.4");
     expect(e.text).toContain(CONSENT_VERSION);
     for (const { text } of CONSENT_STATEMENTS) expect(e.text).toContain(`✔ ${text}`);
-  });
-
-  it("gives the player a copy without their full bank details", () => {
-    const e = playerEmail(r.value, record, "https://www.5iveg.com/support");
-    expect(e.text).toContain("ending 5678");
-    expect(e.text).not.toContain("12345678");
-    expect(e.text).not.toContain("12-34-56");
-    expect(e.text).not.toContain("1.2.3.4");
   });
 
   it("escapes what the player typed", () => {

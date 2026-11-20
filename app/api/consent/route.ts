@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { Resend } from "resend";
-import { clubEmail, parseConsent, playerEmail, type ConsentRecord } from "@/lib/player-consent";
+import { clubEmail, parseConsent, type ConsentRecord } from "@/lib/player-consent";
 
 /**
  * A signed player consent from /consent. Emailed in full (bank details included) to
- * CONSENT_EMAIL_TO, replying to the player, with a short copy to the player. Not stored.
- * Needs RESEND_API_KEY (Resend, from the Vercel Marketplace) and a sender on a domain verified
- * in Resend: CONSENT_EMAIL_FROM, "5iveG <consent@5iveg.com>" by default.
+ * CONSENT_EMAIL_TO, replying to the player. Not stored, and nothing goes to the player.
+ * Needs RESEND_API_KEY from a Resend account. Until a domain is verified in Resend, mail goes
+ * from Resend's onboarding@resend.dev, which only delivers to the Resend account's own email,
+ * so CONSENT_EMAIL_TO must be that address. With a verified domain, set CONSENT_EMAIL_FROM.
  */
 
 // A few forms an hour from one address is plenty: anything more is someone hammering the inbox.
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
     console.error("[consent] RESEND_API_KEY or CONSENT_EMAIL_TO is not set");
     return NextResponse.json({ error: "The form isn't set up to send yet. Please try again later." }, { status: 503 });
   }
-  const from = process.env.CONSENT_EMAIL_FROM || "5iveG <consent@5iveg.com>";
+  const from = process.env.CONSENT_EMAIL_FROM || "5iveG consent <onboarding@resend.dev>";
   const resend = new Resend(apiKey);
 
   const record: ConsentRecord = {
@@ -71,12 +72,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "We couldn't send your form. Please try again in a minute." }, { status: 502 });
   }
 
-  // The player's copy is a courtesy: the form counts once the club has it.
-  const copy = playerEmail(consent, record, new URL("/support", req.nextUrl.origin).toString());
-  const sent = await resend.emails
-    .send({ from, to: consent.email, subject: copy.subject, html: copy.html, text: copy.text })
-    .catch((err: Error) => ({ error: err }));
-  if (sent.error) console.error("[consent] player copy failed:", sent.error.message);
-
-  return NextResponse.json({ ok: true, reference: record.reference, copySent: !sent.error });
+  return NextResponse.json({ ok: true, reference: record.reference });
 }

@@ -1,7 +1,7 @@
 /**
  * Player consent: the form a squad player fills in (at /consent) to let 5iveG sell cards and
  * packs with their face, and to say where to pay their share. Each signed form is emailed to
- * the club (CONSENT_EMAIL_TO) by app/api/consent/route.ts, with a copy to the player.
+ * the club (CONSENT_EMAIL_TO) by app/api/consent/route.ts.
  * Nothing is stored in the database. Pure TypeScript (no Next/Prisma imports).
  */
 
@@ -252,25 +252,6 @@ export function clubEmail(c: ConsentInput, r: ConsentRecord): Email {
       `${c.fullName} gave permission to sell 5iveG cards and packs with their face, and sent their bank details. Reply to this email to reach them.`,
       all,
       `Sent from the 5iveG player consent form. Ref ${r.reference}.`,
-    ),
-  };
-}
-
-/** The player's own copy: everything they signed, with the bank details cut short. */
-export function playerEmail(c: ConsentInput, r: ConsentRecord, supportUrl: string): Email {
-  const last = (s: string | undefined, n: number) => (s ? `ending ${s.replace(/\s/g, "").slice(-n)}` : "");
-  const bank: Row[] =
-    c.bankCountry === "uk"
-      ? [["Name on account", c.accountHolder], ["Account", last(c.accountNumber, 4)]]
-      : [["Name on account", c.accountHolder], ["IBAN", last(c.iban, 4)]];
-  const first = (c.over18 ? c.fullName : c.guardianName ?? c.fullName).split(" ")[0];
-  return {
-    subject: "Your 5iveG player consent",
-    ...render(
-      `Thanks ${first}, you're all signed up`,
-      `Here's a copy of the player consent you signed for ${c.playerName}'s 5iveG cards. Keep it for your records.`,
-      sections(c, r, bank),
-      `To change your details or withdraw your permission, contact 5iveG at ${supportUrl}. Ref ${r.reference}.`,
     ),
   };
 }

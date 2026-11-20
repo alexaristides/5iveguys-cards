@@ -148,7 +148,7 @@ Schema changes: use `npm run db:push` (no migration files; direct push to DB).
 
 ### Player consent (`/consent`)
 
-The link sent to squad players to get their permission to sell cards and packs with their face, and their bank details for their share (`/consent?team=OGFC&player=Ramin` opens on one player). Each signed form is emailed in full to `CONSENT_EMAIL_TO` via Resend (`app/api/consent/route.ts`), replying to the player, with a copy to the player that hides their bank details. Nothing is stored in the database, and the form never logs what was sent. The wording and checks are in `lib/player-consent.ts`: bump `CONSENT_VERSION` when the wording changes. The form deliberately doesn't say how much the share is. Payouts are made by hand.
+The link sent to squad players to get their permission to sell cards and packs with their face, and their bank details for their share (`/consent?team=OGFC&player=Ramin` opens on one player). Each signed form is emailed in full to `CONSENT_EMAIL_TO` via Resend (`app/api/consent/route.ts`), replying to the player; the player gets nothing. Resend is a free account (the Vercel Marketplace's free plan is disabled): without a verified domain it sends from `onboarding@resend.dev`, which only reaches the Resend account's own email, so `CONSENT_EMAIL_TO` must be that address. Nothing is stored in the database, and the form never logs what was sent. The wording and checks are in `lib/player-consent.ts`: bump `CONSENT_VERSION` when the wording changes. The form deliberately doesn't say how much the share is. Payouts are made by hand.
 
 ### Admin
 
@@ -171,9 +171,9 @@ YOUTUBE_CHANNEL_ID          # Channel to track engagement on
 DATABASE_URL                # PostgreSQL
 GOOGLE_SITE_VERIFICATION    # Hardcoded in layout.tsx — update there, not env
 ADMIN_SECRET                # Optional, gates /api/admin/stats
-RESEND_API_KEY              # Resend (Vercel Marketplace), sends the /consent emails
+RESEND_API_KEY              # Resend (free account at resend.com), sends the /consent emails
 CONSENT_EMAIL_TO            # Where signed player consents are emailed
-CONSENT_EMAIL_FROM          # Optional sender, default 5iveG <consent@5iveg.com> (domain verified in Resend)
+CONSENT_EMAIL_FROM          # Optional sender on a domain verified in Resend (default onboarding@resend.dev)
 APPLE_BUNDLE_ID             # com.fiveguysfc.cards (Sign in with Apple audience; also the IAP bundle check)
 APPLE_APP_APPLE_ID          # Optional, defaults to 6821596728 (App Store Connect app id, for Production purchase checks)
 SHOP_DEV_PURCHASES          # Local next dev only: "1" allows /api/shop/dev test purchases

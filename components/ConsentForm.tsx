@@ -89,7 +89,7 @@ export default function ConsentForm({
 
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ reference: string; copySent: boolean } | null>(null);
+  const [result, setResult] = useState<{ reference: string } | null>(null);
 
   // The squads, with each player's card, from the shop's public list.
   useEffect(() => {
@@ -181,7 +181,7 @@ export default function ConsentForm({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Something went wrong. Please try again.");
-      setResult({ reference: data.reference, copySent: !!data.copySent });
+      setResult({ reference: data.reference });
       setState("sent");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
@@ -199,7 +199,6 @@ export default function ConsentForm({
           Your permission and bank details are with the 5iveG team. We&rsquo;ll pay your share of every {playerName} pack
           sold into the account you gave us.
         </p>
-        {result.copySent && <p>We&rsquo;ve emailed a copy of what you signed to {email}.</p>}
         <p className="text-zinc-600 text-xs">Reference {result.reference}</p>
       </div>
     );
