@@ -17,6 +17,7 @@ export const SUPPORT_URL = `${API_URL}/support`;
 /**
  * Features held back from the App Store release. Set one to true to bring it back.
  * `packs` = packs bought with points; `shop` = player packs bought with real money (In-App Purchase)
- * plus the Cards tab's collection.
+ * plus the Cards tab's collection. `shop` is off for the 1.0 launch (2026-11-20): it comes back in
+ * 1.1 once the Paid Apps agreement is active and the In-App Purchase can be reviewed with it.
  */
-export const FEATURES = { packs: false, shop: true, fantasy: true, game: true, street: true } as const;
+export const FEATURES = { packs: false, shop: false, fantasy: true, game: true, street: true } as const;
