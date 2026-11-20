@@ -169,6 +169,9 @@ export default function AdminPage() {
             <Link href="/admin/packs" className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm transition-colors">
               Player packs
             </Link>
+            <Link href="/admin/orders" className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm transition-colors">
+              Shop orders
+            </Link>
             <Link href="/admin/channels" className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm transition-colors">
               Channels →
             </Link>
