@@ -8,59 +8,59 @@ import { autoComplete, changeFormation, EMPTY_LINEUP, FORMATIONS, lineupFromIds,
 
 const stats = (s: Partial<PlayerStats>): PlayerStats => ({ ...EMPTY_STATS, played: true, playedMost: true, ...s });
 
-describe("playerPoints (FPL 2025/26 scoring)", () => {
+describe("playerPoints (7-a-side scoring)", () => {
   it("scores nothing for a player who didn't play", () => {
     expect(playerPoints({ ...EMPTY_STATS, goals: 2 }, "FWD")).toBe(0);
   });
 
-  it("gives 1 for a short appearance and 2 for most of the match", () => {
+  it("gives 1 for under half the game and 2 for over half", () => {
     expect(playerPoints(stats({ playedMost: false, goalsConceded: 3 }), "MID")).toBe(1);
     expect(playerPoints(stats({ goalsConceded: 3 }), "MID")).toBe(2);
   });
 
   it("values goals by position", () => {
     const goal = (p: FantasyPosition) => playerPoints(stats({ goals: 1, goalsConceded: 1 }), p) - playerPoints(stats({ goalsConceded: 1 }), p);
-    expect([goal("GK"), goal("DEF"), goal("MID"), goal("FWD")]).toEqual([10, 6, 5, 4]);
+    expect([goal("GK"), goal("DEF"), goal("MID"), goal("FWD")]).toEqual([6, 6, 4, 4]);
   });
 
-  it("gives clean sheets to keepers and defenders (4), midfielders (1), not forwards", () => {
-    expect(playerPoints(stats({}), "GK")).toBe(6);
-    expect(playerPoints(stats({}), "DEF")).toBe(6);
-    expect(playerPoints(stats({}), "MID")).toBe(3);
+  it("gives keepers and defenders a clean sheet less 1 per goal conceded, never below -2", () => {
+    const defence = (position: FantasyPosition, conceded: number) => playerPoints(stats({ goalsConceded: conceded }), position) - 2;
+    expect([0, 1, 2, 3, 4, 5, 6, 7, 8, 12].map((n) => defence("DEF", n))).toEqual([5, 4, 3, 2, 1, 0, -1, -2, -2, -2]);
+    expect([0, 1, 4, 5, 6, 9].map((n) => defence("GK", n))).toEqual([4, 3, 0, -1, -2, -2]);
+  });
+
+  it("gives midfielders and forwards nothing for clean sheets or goals conceded", () => {
+    expect(playerPoints(stats({}), "MID")).toBe(2);
     expect(playerPoints(stats({}), "FWD")).toBe(2);
-    // No clean sheet without playing most of the match.
-    expect(playerPoints(stats({ playedMost: false }), "DEF")).toBe(1);
+    expect(playerPoints(stats({ goalsConceded: 9 }), "MID")).toBe(2);
   });
 
-  it("takes 1 off keepers and defenders for every 2 goals conceded", () => {
-    expect(playerPoints(stats({ goalsConceded: 5 }), "DEF")).toBe(2 - 2);
-    expect(playerPoints(stats({ goalsConceded: 5 }), "FWD")).toBe(2);
+  it("gives a sub (under half the game) no defence points either way", () => {
+    expect(playerPoints(stats({ playedMost: false, goalsConceded: 0 }), "GK")).toBe(1);
+    expect(playerPoints(stats({ playedMost: false, goalsConceded: 9 }), "DEF")).toBe(1);
   });
 
   it("adds saves, penalty saves, defensive contributions and deductions", () => {
-    expect(playerPoints(stats({ goalsConceded: 1, saves: 7, penaltySaves: 1 }), "GK")).toBe(2 + 2 + 5);
-    expect(playerPoints(stats({ goalsConceded: 1, defensiveContributions: 10 }), "DEF")).toBe(4);
-    expect(playerPoints(stats({ goalsConceded: 1, defensiveContributions: 11 }), "MID")).toBe(2);
-    expect(playerPoints(stats({ goalsConceded: 1, defensiveContributions: 12 }), "MID")).toBe(4);
+    expect(playerPoints(stats({ goalsConceded: 1, saves: 9, penaltySaves: 1 }), "GK")).toBe(2 + 3 + 2 + 5);
+    expect(playerPoints(stats({ goalsConceded: 1, defensiveContributions: 5 }), "DEF")).toBe(2 + 4);
+    expect(playerPoints(stats({ goalsConceded: 1, defensiveContributions: 6 }), "DEF")).toBe(2 + 4 + 2);
+    expect(playerPoints(stats({ goalsConceded: 1, defensiveContributions: 7 }), "MID")).toBe(2);
+    expect(playerPoints(stats({ goalsConceded: 1, defensiveContributions: 8 }), "MID")).toBe(4);
+    expect(playerPoints(stats({ goalsConceded: 1, defensiveContributions: 20 }), "GK")).toBe(2 + 3);
     expect(playerPoints(stats({ goalsConceded: 1, yellowCards: 1, ownGoals: 1, penaltyMisses: 1 }), "MID")).toBe(2 - 1 - 2 - 2);
     expect(playerPoints(stats({ goalsConceded: 1, redCard: true }), "FWD")).toBe(-1);
     expect(playerPoints(stats({ goalsConceded: 1, bonus: 3 }), "FWD")).toBe(5);
   });
 
-  it("only counts saves and penalty saves for a goalkeeper", () => {
-    expect(playerPoints(stats({ goalsConceded: 1, saves: 6, penaltySaves: 1 }), "DEF")).toBe(2);
-    expect(playerPoints(stats({ goalsConceded: 1, saves: 6, penaltySaves: 1 }), "GK")).toBe(2 + 2 + 5);
+  it("counts saves for whoever made them (an outfielder who went in goal)", () => {
+    expect(playerPoints(stats({ goalsConceded: 1, saves: 8, penaltySaves: 1 }), "DEF")).toBe(2 + 4 + 2 + 5);
+    expect(playerPoints(stats({ goalsConceded: 1, saves: 4 }), "MID")).toBe(2 + 1);
   });
 
   it("adds up a busy defender's afternoon (the admin page example)", () => {
-    // Over half the game 2, two goals 12, assist 3, 3 conceded -1, yellow -1 = 15; a save does not count for a defender.
-    expect(playerPoints(stats({ goals: 2, assists: 1, goalsConceded: 3, yellowCards: 1, saves: 1 }), "DEF")).toBe(15);
-    expect(playerPoints(stats({ goals: 2, assists: 1, goalsConceded: 3, yellowCards: 1, saves: 1, bonus: 3 }), "DEF")).toBe(18);
-  });
-
-  it("gives a sub appearance points but no clean sheet, and still docks conceded goals", () => {
-    expect(playerPoints(stats({ playedMost: false, goalsConceded: 0 }), "GK")).toBe(1);
-    expect(playerPoints(stats({ playedMost: false, goalsConceded: 2 }), "DEF")).toBe(1 - 1);
+    // Over half the game 2, two goals 12, assist 3, 3 conceded (5 - 3 =) 2, yellow -1 = 18; one save isn't a point.
+    expect(playerPoints(stats({ goals: 2, assists: 1, goalsConceded: 3, yellowCards: 1, saves: 1 }), "DEF")).toBe(18);
+    expect(playerPoints(stats({ goals: 2, assists: 1, goalsConceded: 3, yellowCards: 1, saves: 1, bonus: 3 }), "DEF")).toBe(21);
   });
 });
 
@@ -87,6 +87,11 @@ describe("awardBonus", () => {
     const cleanSheet = (id: string, position: FantasyPosition) => ({ id, position, stats: stats({}) });
     const bonus = awardBonus([cleanSheet("gk", "GK"), cleanSheet("d", "DEF"), cleanSheet("m", "MID"), cleanSheet("f", "FWD")]);
     expect(Object.fromEntries(bonus)).toEqual({ gk: 3, d: 3 });
+  });
+
+  it("makes a goal worth the same bonus to everyone", () => {
+    expect(Object.fromEntries(awardBonus([p("m", { goals: 1 }, "MID"), p("f", { goals: 1 }), p("x", { assists: 1 })])))
+      .toEqual({ m: 3, f: 3, x: 1 });
   });
 
   it("doesn't count an outfield player's saves towards bonus", () => {
@@ -210,8 +215,11 @@ describe("scoreEntry", () => {
   s.set("f1", stats({ goalsConceded: 1, goals: 1 })); // 6 points
   const entry = { playerIds: ids, captainId: "f1", viceCaptainId: "m1", chip: null, transferCost: 0 };
 
+  // Each concedes 1: keeper 2 + 3, defenders 2 + 4, midfielders 2, forwards 2, and f1 scores (+4).
+  const base = 5 + 6 + 6 + 2 + 2 + 6 + 2;
+
   it("doubles the captain", () => {
-    expect(scoreEntry(entry, positions, s).total).toBe(6 * 2 + 6 * 2);
+    expect(scoreEntry(entry, positions, s).total).toBe(base + 6);
   });
 
   it("gives the armband to the vice when the captain doesn't play", () => {
@@ -219,25 +227,22 @@ describe("scoreEntry", () => {
     missing.set("f1", { ...EMPTY_STATS });
     const score = scoreEntry(entry, positions, missing);
     expect(score.captainId).toBe("m1");
-    expect(score.total).toBe(2 * 2 + 5 * 2);
+    expect(score.total).toBe(base - 6 + 2);
     expect(score.players.find((p) => p.playerId === "f1")!.multiplier).toBe(0);
   });
 
   it("applies Triple Captain, Double Points and the transfer cost", () => {
-    expect(scoreEntry({ ...entry, chip: "triple_captain" }, positions, s).total).toBe(6 * 3 + 12);
-    expect(scoreEntry({ ...entry, chip: "double_points", transferCost: 4 }, positions, s).total).toBe(24 * 2 - 4);
+    expect(scoreEntry({ ...entry, chip: "triple_captain" }, positions, s).total).toBe(base + 6 * 2);
+    expect(scoreEntry({ ...entry, chip: "double_points", transferCost: 4 }, positions, s).total).toBe((base + 6) * 2 - 4);
   });
 
   it("counts the first 7 of a team saved with subs", () => {
     expect(scoreEntry({ ...entry, playerIds: [...ids, "x", "y"] }, positions, s).players).toHaveLength(7);
   });
 
-  it("scores players as the position the fan put them in", () => {
-    // f1 (a forward) plays in defence: his goal is worth 6 instead of 4.
-    const roles: FantasyPosition[] = ["GK", "FWD", "DEF", "MID", "MID", "DEF", "FWD"];
-    const score = scoreEntry({ ...entry, positions: roles }, positions, s);
-    expect(score.players.find((p) => p.playerId === "f1")!.points).toBe(8);
-    expect(score.total).toBe(8 * 2 + 6 * 2);
+  it("scores players as their own position, whatever slot they're in", () => {
+    // f1 is a forward: 4 for his goal, even if the fan stood him in defence.
+    expect(scoreEntry(entry, positions, s).players.find((p) => p.playerId === "f1")!.points).toBe(2 + 4);
   });
 });
 

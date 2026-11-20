@@ -17,11 +17,11 @@ const COUNTS: { key: Count; label: string; only?: FantasyPosition[] }[] = [
   { key: "goals", label: "Goals" },
   { key: "assists", label: "Assists" },
   { key: "goalsConceded", label: "Conceded" },
-  { key: "saves", label: "Saves", only: ["GK"] },
+  { key: "saves", label: "Saves" },
   { key: "defensiveContributions", label: "Def. actions", only: ["DEF", "MID", "FWD"] },
   { key: "yellowCards", label: "Yellow" },
   { key: "ownGoals", label: "Own goals" },
-  { key: "penaltySaves", label: "Pens saved", only: ["GK"] },
+  { key: "penaltySaves", label: "Pens saved" },
   { key: "penaltyMisses", label: "Pens missed" },
 ];
 

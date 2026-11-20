@@ -337,7 +337,7 @@ function PlayerPicker({
         </View>
         {position && (
           <Text style={styles.muted}>
-            Anyone can play here and scores as a {POSITION_LABEL[position].toLowerCase()}. {POSITION_LABEL[position]}s are listed first.
+            Anyone can play here, but they score as their own position. {POSITION_LABEL[position]}s are listed first.
           </Text>
         )}
         {FANTASY_RULES.prices && <Text style={styles.muted}>You can spend up to {formatPrice(Math.max(0, money))}.</Text>}

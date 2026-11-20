@@ -280,7 +280,7 @@ function Picker({ position, players, taken, budgetLeft, onPick, onClose }: {
       </div>
       {position && (
         <p className="text-zinc-400 text-sm">
-          Anyone can play here and scores as a {POSITION_LABEL[position].toLowerCase()}. {POSITION_LABEL[position]}s are listed first.
+          Anyone can play here, but they score as their own position. {POSITION_LABEL[position]}s are listed first.
         </p>
       )}
       {FANTASY_RULES.prices && <p className="text-zinc-400 text-sm">You can spend up to {formatPrice(Math.max(0, budgetLeft))}.</p>}

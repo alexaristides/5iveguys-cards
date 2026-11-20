@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { awardBonus, EMPTY_STATS, gameweekStatus, pointsBreakdown, POSITION_LABEL, POSITIONS, type PlayerStats } from "@/lib/fantasy";
+import { awardBonus, EMPTY_STATS, FANTASY_POINTS, gameweekStatus, pointsBreakdown, POSITIONS, type PlayerStats } from "@/lib/fantasy";
 import type { Act, Gameweek, Player, Season } from "./types";
 import { GameweekSheet } from "./GameweeksTab";
 import { Avatar, btnPrimary, btnSecondary, formatDay, formatTime, kickoffOf, PositionTag, Segmented, Stepper, tap } from "./ui";
@@ -206,7 +206,7 @@ function PlayerStatCard({ player, stats, bonus, maxConceded, onChange }: {
         </div>
         <div className="text-right">
           <div className="text-white text-2xl font-black tabular-nums leading-none">{points}</div>
-          <div className="text-zinc-500 text-xs">pts as a {POSITION_LABEL[pos].toLowerCase()}</div>
+          <div className="text-zinc-500 text-xs">pts</div>
         </div>
       </div>
 
@@ -262,7 +262,7 @@ function PlayerStatCard({ player, stats, bonus, maxConceded, onChange }: {
                 <Stepper label="Saves" value={stats.saves} onChange={(v) => onChange({ saves: v })} />
                 <Stepper label="Pens saved" value={stats.penaltySaves} onChange={(v) => onChange({ penaltySaves: v })} />
               </div>
-              <p className="text-zinc-500 text-xs text-center mt-1">Saves only score for a goalkeeper. Fill them in if he went in goal.</p>
+              <p className="text-zinc-500 text-xs text-center mt-1">If he went in goal: +1 every {FANTASY_POINTS.savesPerPoint} saves, +{FANTASY_POINTS.penaltySave} a penalty save.</p>
             </div>
           )}
           <div>
@@ -270,7 +270,7 @@ function PlayerStatCard({ player, stats, bonus, maxConceded, onChange }: {
             <p className="text-zinc-500 text-xs text-center mt-1">
               {keeper
                 ? "Keepers don't score for defensive actions."
-                : `Tackles, blocks, interceptions and clearances${pos === "DEF" ? "" : " plus ball recoveries"}: +2 points once he reaches ${pos === "DEF" ? 10 : 12}.`}
+                : `Tackles, blocks, interceptions and clearances${pos === "DEF" ? "" : " plus ball recoveries"}: +${FANTASY_POINTS.defensiveContribution} points once he reaches ${FANTASY_POINTS.defensiveThreshold[pos]}.`}
             </p>
           </div>
         </div>

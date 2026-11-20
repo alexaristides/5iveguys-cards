@@ -264,7 +264,6 @@ export async function finalizeGameweek(gameweekId: string) {
     const score = scoreEntry(
       {
         playerIds: asPicks(entry.picks).map((p) => p.playerId),
-        positions: asPicks(entry.picks).map((p) => p.position ?? positions.get(p.playerId) ?? "MID"),
         captainId: entry.captainId, viceCaptainId: entry.viceCaptainId,
         chip: chipOf(entry), transferCost: entry.transferCost,
       },
