@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AGREEMENT_PARTIES, CONSENT_STATEMENTS, GUARDIAN_STATEMENT, SIGNATURE_STATEMENT, formatSortCode, parseConsent, type ConsentKey,
+  AGREEMENT_PARTIES, CONSENT_STATEMENTS, GUARDIAN_STATEMENT, SELFIE_MAX_SIDE, SIGNATURE_STATEMENT, formatSortCode, parseConsent,
+  type ConsentKey,
 } from "@/lib/player-consent";
 
 interface World {
@@ -18,6 +19,27 @@ const input =
   "w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800 text-white text-base sm:text-sm outline-none focus:border-purple-500 placeholder:text-zinc-600";
 const label = "block text-zinc-300 text-xs font-medium mb-1.5";
 const OTHER = "__other__";
+
+/** A phone photo shrunk to a small JPEG data URL, so it fits in the form and the email. */
+async function shrinkPhoto(file: File): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("That photo couldn't be opened. Please take it again."));
+      i.src = url;
+    });
+    const scale = Math.min(1, SELFIE_MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.naturalWidth * scale);
+    canvas.height = Math.round(img.naturalHeight * scale);
+    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.82);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 function Toggle<T extends string>({ value, options, onChange }: { value: T; options: [T, string][]; onChange: (v: T) => void }) {
   return (
@@ -64,6 +86,9 @@ export default function ConsentForm({
   const [team, setTeam] = useState(worlds.find((w) => w.slug.toLowerCase() === initialTeam?.toLowerCase())?.slug ?? worlds[0].slug);
   const [player, setPlayer] = useState(""); // a squad name, or OTHER
   const [otherName, setOtherName] = useState("");
+  const [bothTeams, setBothTeams] = useState(false);
+  const [selfie, setSelfie] = useState("");
+  const [selfieError, setSelfieError] = useState<string | null>(null);
 
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState<"adult" | "minor">("adult");
@@ -135,11 +160,24 @@ export default function ConsentForm({
   const chosen = squad.find((p) => p.name === player);
   const playerName = player === OTHER ? otherName.trim() : player;
   const signer = age === "adult" ? fullName : guardianName;
+  const otherTeam = worlds.find((w) => w.slug !== team);
   const today = useMemo(() => new Intl.DateTimeFormat("en-GB", { dateStyle: "long" }).format(new Date()), []);
 
   function pickTeam(slug: string) {
     setTeam(slug);
     setPlayer("");
+  }
+
+  async function takeSelfie(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // so the same photo can be picked again
+    if (!file) return;
+    setSelfieError(null);
+    try {
+      setSelfie(await shrinkPhoto(file));
+    } catch (err) {
+      setSelfieError((err as Error).message);
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -149,6 +187,9 @@ export default function ConsentForm({
       channelSlug: player === OTHER ? "" : team,
       teamName,
       playerName,
+      otherTeamName: bothTeams ? otherTeam?.name ?? "" : "",
+      cardImage: chosen?.imageUrl ?? "",
+      selfie,
       fullName,
       over18: age === "adult",
       guardianName,
@@ -243,6 +284,12 @@ export default function ConsentForm({
             </button>
           )
         )}
+        {player && otherTeam && (
+          <label className="flex gap-3 items-center rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 cursor-pointer">
+            <input type="checkbox" checked={bothTeams} onChange={(e) => setBothTeams(e.target.checked)} className="w-5 h-5 shrink-0 accent-purple-600" />
+            <span>I play for {otherTeam.name} too</span>
+          </label>
+        )}
       </Section>
 
       <Section n={2} title="Your details">
@@ -286,7 +333,32 @@ export default function ConsentForm({
         </div>
       </Section>
 
-      <Section n={3} title="Where should we pay you?">
+      <Section n={3} title="Take a selfie">
+        <p>
+          So we know it&rsquo;s really you filling this in. We&rsquo;ll check it against your card, and it only goes to the
+          5iveG team.{age === "minor" && " Get your parent or guardian in the picture too."}
+        </p>
+        <input id="selfie" type="file" accept="image/*" capture="user" className="sr-only" onChange={takeSelfie} />
+        {selfie ? (
+          <div className="flex items-end gap-4">
+            <img src={selfie} alt="Your selfie" className="w-32 rounded-xl border border-zinc-800" />
+            <label htmlFor="selfie" className="text-xs text-zinc-400 underline hover:text-zinc-200 cursor-pointer">
+              Take it again
+            </label>
+          </div>
+        ) : (
+          <label
+            htmlFor="selfie"
+            className="flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-zinc-700 hover:border-purple-500 py-8 cursor-pointer text-zinc-300"
+          >
+            <span className="text-3xl" aria-hidden="true">📷</span>
+            <span className="font-semibold">Take a selfie</span>
+          </label>
+        )}
+        {selfieError && <p className="text-sm text-red-300">{selfieError}</p>}
+      </Section>
+
+      <Section n={4} title="Where should we pay you?">
         <p>
           Your share of every pack sold with your name on it goes into this account. We only need these details to send you
           money. We&rsquo;ll never ask for your card number, PIN or banking password.
@@ -327,7 +399,7 @@ export default function ConsentForm({
         )}
       </Section>
 
-      <Section n={4} title="Your permission">
+      <Section n={5} title="Your permission">
         <p>{AGREEMENT_PARTIES} Tick each one to agree.</p>
         <div className="space-y-2">
           {CONSENT_STATEMENTS.map(({ key, text }) => (
@@ -349,7 +421,7 @@ export default function ConsentForm({
         </div>
       </Section>
 
-      <Section n={5} title="Sign">
+      <Section n={6} title="Sign">
         {age === "minor" && <p className="text-amber-200/90">{GUARDIAN_STATEMENT}</p>}
         <p>{SIGNATURE_STATEMENT}</p>
         <div>

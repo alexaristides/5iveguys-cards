@@ -6,7 +6,7 @@
  */
 
 /** Bump when the wording below changes, so every email says which version was signed. */
-export const CONSENT_VERSION = "2026-11-20 v2";
+export const CONSENT_VERSION = "2026-11-20 v3";
 
 /**
  * Who the player gives permission to: the company that sells the packs and pays them. A brand
@@ -40,7 +40,7 @@ export const CONSENT_STATEMENTS: { key: ConsentKey; text: string }[] = [
   {
     key: "data",
     text:
-      "I agree to 5iveG keeping the details on this form, including my bank details, to pay me and as a record of this " +
+      "I agree to 5iveG keeping the details on this form, including my bank details and selfie, to pay me and as a record of this " +
       "agreement. They're used for nothing else.",
   },
   { key: "tax", text: "I'm responsible for any tax on the money I'm paid." },
@@ -51,10 +51,23 @@ export const SIGNATURE_STATEMENT = "By typing my name below I'm signing this for
 export const GUARDIAN_STATEMENT =
   "I'm the parent or guardian of the player named on this form, and I give these permissions on their behalf.";
 
+/**
+ * The selfie that shows it's really the player: taken on the phone, shrunk to a JPEG there
+ * (components/ConsentForm.tsx) and sent as a data URL, then attached to the club's email.
+ */
+export const SELFIE_MAX_SIDE = 1024;
+const SELFIE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/;
+const SELFIE_MAX_CHARS = 3_000_000; // ~2.2 MB of JPEG, well inside a request
+/** A card picture on this site, shown beside the selfie in the email. */
+const CARD_IMAGE = /^\/cards\/[A-Za-z0-9_\-/]+\.(jpe?g|png|webp)$/;
+
 export interface ConsentInput {
   channelSlug: string;
   teamName: string;
   playerName: string; // the name on their card
+  otherTeamName?: string; // set when they play for both teams
+  cardImage?: string; // e.g. /cards/home/Milo_Home.jpg
+  selfie: string; // data:image/jpeg;base64,…
   fullName: string; // legal name
   over18: boolean;
   guardianName?: string;
@@ -110,6 +123,8 @@ export function parseConsent(body: unknown): { ok: true; value: ConsentInput } |
   const channelSlug = str(b.channelSlug, 40);
   const teamName = str(b.teamName, 60);
   if (!playerName) return fail("Pick which player you are.");
+  const otherTeamName = str(b.otherTeamName, 60);
+  const cardImage = typeof b.cardImage === "string" && CARD_IMAGE.test(b.cardImage) ? b.cardImage : "";
 
   const fullName = str(b.fullName, 100);
   if (fullName.length < 3 || !fullName.includes(" ")) return fail("Enter your full name (first and last).");
@@ -127,6 +142,10 @@ export function parseConsent(body: unknown): { ok: true; value: ConsentInput } |
   if (phone.replace(/\D/g, "").length < 7) return fail("Enter your mobile number.");
   const address = typeof b.address === "string" ? b.address.trim().slice(0, 400) : "";
   if (address.length < 8) return fail("Enter your home address, with postcode.");
+
+  const selfie = typeof b.selfie === "string" ? b.selfie : "";
+  if (!selfie) return fail("Take a selfie so we know it's really you.");
+  if (selfie.length > SELFIE_MAX_CHARS || !SELFIE.test(selfie)) return fail("That selfie didn't come through. Please take it again.");
 
   const accountHolder = str(b.accountHolder, 100);
   if (accountHolder.length < 3) return fail("Enter the name on the bank account.");
@@ -162,7 +181,10 @@ export function parseConsent(body: unknown): { ok: true; value: ConsentInput } |
   return {
     ok: true,
     value: {
-      channelSlug, teamName, playerName, fullName, over18,
+      channelSlug, teamName, playerName,
+      ...(otherTeamName ? { otherTeamName } : {}),
+      ...(cardImage ? { cardImage } : {}),
+      selfie, fullName, over18,
       ...(over18 ? {} : { guardianName, guardianRelationship }),
       email, phone, address, accountHolder, bankCountry, ...bank, consents, signature,
     },
@@ -171,6 +193,7 @@ export function parseConsent(body: unknown): { ok: true; value: ConsentInput } |
 
 export interface ConsentRecord {
   reference: string;
+  siteUrl: string; // for the card picture in the email
   signedAt: Date;
   ip: string | null;
   userAgent: string | null;
@@ -189,10 +212,17 @@ interface Email {
   text: string;
 }
 
-function render(title: string, intro: string, sections: [heading: string, rows: Row[]][], footer: string): Omit<Email, "subject"> {
+function render(
+  title: string,
+  intro: string,
+  sections: [heading: string, rows: Row[]][],
+  footer: string,
+  pictures = "",
+): Omit<Email, "subject"> {
   const html =
     `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:600px;color:#18181b">` +
     `<h2 style="margin:0 0 6px">${esc(title)}</h2><p style="margin:0 0 18px;color:#52525b">${esc(intro)}</p>` +
+    pictures +
     sections
       .map(
         ([heading, rows]) =>
@@ -222,7 +252,9 @@ function sections(c: ConsentInput, r: ConsentRecord, bankRows: Row[]): [string, 
   return [
     ["Player", [
       ["Card", `${c.playerName}${c.teamName ? ` (${c.teamName})` : ""}`],
+      ...(c.otherTeamName ? ([["Also plays for", c.otherTeamName]] as Row[]) : []),
       ["Full name", c.fullName],
+      ["Selfie", "Attached"],
       ["Age", c.over18 ? "18 or over" : "Under 18"],
       ...(c.over18 ? [] : ([
         ["Parent/guardian", c.guardianName ?? ""],
@@ -247,6 +279,9 @@ function sections(c: ConsentInput, r: ConsentRecord, bankRows: Row[]): [string, 
   ];
 }
 
+/** The selfie's content ID: the route attaches it inline under this name. */
+export const SELFIE_CID = "selfie";
+
 /** The signed form in full, bank details included, for the club's inbox. */
 export function clubEmail(c: ConsentInput, r: ConsentRecord): Email {
   const bank: Row[] =
@@ -255,6 +290,16 @@ export function clubEmail(c: ConsentInput, r: ConsentRecord): Email {
       : [["Name on account", c.accountHolder], ["IBAN", c.iban ?? ""], ["SWIFT/BIC", c.bic ?? ""], ["Bank", c.bankName || "Not given"]];
   const all = sections(c, r, bank);
   all.push(["Record", [["IP address", r.ip ?? "Unknown"], ["Device", r.userAgent ?? "Unknown"]]]);
+  // Selfie beside their card, to check it's them. The selfie is the inline attachment SELFIE_CID.
+  const picture = (src: string, caption: string) =>
+    `<td style="padding:0 12px 0 0;vertical-align:top;text-align:center;font-size:12px;color:#71717a">` +
+    `<img src="${esc(src)}" alt="${esc(caption)}" width="160" style="display:block;width:160px;border-radius:8px;margin-bottom:4px">` +
+    `${esc(caption)}</td>`;
+  const pictures =
+    `<table style="border-collapse:collapse;margin:0 0 8px"><tr>` +
+    picture(`cid:${SELFIE_CID}`, "Selfie") +
+    (c.cardImage ? picture(new URL(c.cardImage, r.siteUrl).toString(), "Their card") : "") +
+    `</tr></table>`;
   return {
     subject: `Player consent signed: ${c.playerName}${c.teamName ? ` (${c.teamName})` : ""}, ${c.fullName}`,
     ...render(
@@ -262,6 +307,7 @@ export function clubEmail(c: ConsentInput, r: ConsentRecord): Email {
       `${c.fullName} gave ${COMPANY} (5iveG) permission to sell cards and packs with their face, and sent their bank details. Reply to this email to reach them.`,
       all,
       `Sent from the 5iveG player consent form. Ref ${r.reference}.`,
+      pictures,
     ),
   };
 }
