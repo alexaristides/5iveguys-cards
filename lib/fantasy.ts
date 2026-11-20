@@ -53,12 +53,12 @@ export const FANTASY_RULES = {
 
 /** FPL 2025/26 points per event. */
 export const FANTASY_POINTS = {
-  /** Playing, and playing most of the match (FPL's 60 minutes). */
+  /** Playing, and playing over half the game (FPL's 60 minutes; our 7-a-side games are 40-50 minutes). */
   appearance: 1,
   appearanceLong: 2,
   goal: { GK: 10, DEF: 6, MID: 5, FWD: 4 } as Record<FantasyPosition, number>,
   assist: 3,
-  /** Only if they played most of the match and nobody scored past them. */
+  /** Only if they played over half the game and nobody scored past them. */
   cleanSheet: { GK: 4, DEF: 4, MID: 1, FWD: 0 } as Record<FantasyPosition, number>,
   /** +1 for every 3 saves. */
   savesPerPoint: 3,
@@ -78,7 +78,7 @@ export const FANTASY_POINTS = {
 
 export interface PlayerStats {
   played: boolean;
-  /** Played most of the match (FPL: 60 minutes or more). */
+  /** Played over half the game (FPL's 60 minutes, for a 7-a-side match of 40-50 minutes). */
   playedMost: boolean;
   goals: number;
   assists: number;
@@ -112,12 +112,15 @@ export function pointsBreakdown(stats: PlayerStats | undefined, position: Fantas
   if (!stats?.played) return lines;
   const P = FANTASY_POINTS;
   const add = (label: string, points: number) => { if (points) lines.push({ label, points }); };
-  add(stats.playedMost ? "Played most of the match" : "Played", stats.playedMost ? P.appearanceLong : P.appearance);
+  add(stats.playedMost ? "Played over half the game" : "Played under half the game", stats.playedMost ? P.appearanceLong : P.appearance);
   add(plural(stats.goals, "Goal"), stats.goals * P.goal[position]);
   add(plural(stats.assists, "Assist"), stats.assists * P.assist);
   if (keptCleanSheet(stats)) add("Clean sheet", P.cleanSheet[position]);
-  add(`${stats.saves} saves`, Math.floor(stats.saves / P.savesPerPoint));
-  add(plural(stats.penaltySaves, "Penalty save"), stats.penaltySaves * P.penaltySave);
+  // Saves and penalty saves only score in goal (FPL).
+  if (position === "GK") {
+    add(`${stats.saves} saves`, Math.floor(stats.saves / P.savesPerPoint));
+    add(plural(stats.penaltySaves, "Penalty save"), stats.penaltySaves * P.penaltySave);
+  }
   if (defends(position)) add(`${stats.goalsConceded} goals conceded`, -Math.floor(stats.goalsConceded / P.goalsConcededPerPoint));
   const threshold = P.defensiveThreshold[position];
   if (threshold && stats.defensiveContributions >= threshold) add("Defensive contributions", P.defensiveContribution);
@@ -147,7 +150,7 @@ export function bpsScore(s: PlayerStats, position: FantasyPosition) {
   bps += s.assists * 9;
   if (defends(position) && keptCleanSheet(s)) bps += 12;
   if (defends(position)) bps -= s.goalsConceded * 4;
-  bps += s.saves * 2 + s.penaltySaves * 15;
+  if (position === "GK") bps += s.saves * 2 + s.penaltySaves * 15;
   bps += Math.floor(s.defensiveContributions / 2);
   bps -= s.penaltyMisses * 6 + s.yellowCards * 3 + (s.redCard ? 9 : 0) + s.ownGoals * 6;
   return bps;

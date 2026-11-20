@@ -47,11 +47,11 @@ export function fantasyGuide(season: { budget: number; secondHalfFrom: number | 
   ];
 
   const scoring: { label: string; points: string }[] = [
-    { label: "Played", points: `+${P.appearance}` },
-    { label: "Played most of the match (FPL's 60 mins)", points: `+${P.appearanceLong}` },
+    { label: "Played under half the game", points: `+${P.appearance}` },
+    { label: "Played over half the game", points: `+${P.appearanceLong}` },
     { label: "Goal", points: `GK +${P.goal.GK} · DEF +${P.goal.DEF} · MID +${P.goal.MID} · FWD +${P.goal.FWD}` },
     { label: "Assist", points: `+${P.assist}` },
-    { label: "Clean sheet (most of the match)", points: `GK/DEF +${P.cleanSheet.GK} · MID +${P.cleanSheet.MID}` },
+    { label: "Clean sheet (played over half the game)", points: `GK/DEF +${P.cleanSheet.GK} · MID +${P.cleanSheet.MID}` },
     { label: `Every ${P.savesPerPoint} saves`, points: "+1" },
     { label: "Penalty save", points: `+${P.penaltySave}` },
     { label: `Defensive contributions (DEF ${P.defensiveThreshold.DEF}, MID/FWD ${P.defensiveThreshold.MID})`, points: `+${P.defensiveContribution}` },

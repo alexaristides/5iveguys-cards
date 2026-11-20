@@ -46,6 +46,22 @@ describe("playerPoints (FPL 2025/26 scoring)", () => {
     expect(playerPoints(stats({ goalsConceded: 1, redCard: true }), "FWD")).toBe(-1);
     expect(playerPoints(stats({ goalsConceded: 1, bonus: 3 }), "FWD")).toBe(5);
   });
+
+  it("only counts saves and penalty saves for a goalkeeper", () => {
+    expect(playerPoints(stats({ goalsConceded: 1, saves: 6, penaltySaves: 1 }), "DEF")).toBe(2);
+    expect(playerPoints(stats({ goalsConceded: 1, saves: 6, penaltySaves: 1 }), "GK")).toBe(2 + 2 + 5);
+  });
+
+  it("adds up a busy defender's afternoon (the admin page example)", () => {
+    // Over half the game 2, two goals 12, assist 3, 3 conceded -1, yellow -1 = 15; a save does not count for a defender.
+    expect(playerPoints(stats({ goals: 2, assists: 1, goalsConceded: 3, yellowCards: 1, saves: 1 }), "DEF")).toBe(15);
+    expect(playerPoints(stats({ goals: 2, assists: 1, goalsConceded: 3, yellowCards: 1, saves: 1, bonus: 3 }), "DEF")).toBe(18);
+  });
+
+  it("gives a sub appearance points but no clean sheet, and still docks conceded goals", () => {
+    expect(playerPoints(stats({ playedMost: false, goalsConceded: 0 }), "GK")).toBe(1);
+    expect(playerPoints(stats({ playedMost: false, goalsConceded: 2 }), "DEF")).toBe(1 - 1);
+  });
 });
 
 describe("awardBonus", () => {
@@ -65,6 +81,16 @@ describe("awardBonus", () => {
 
   it("hands out nothing when nobody did more than turn up", () => {
     expect(awardBonus([p("a", {}), p("b", {}), p("c", {})]).size).toBe(0);
+  });
+
+  it("gives a clean-sheet game's bonus to the defence, like FPL", () => {
+    const cleanSheet = (id: string, position: FantasyPosition) => ({ id, position, stats: stats({}) });
+    const bonus = awardBonus([cleanSheet("gk", "GK"), cleanSheet("d", "DEF"), cleanSheet("m", "MID"), cleanSheet("f", "FWD")]);
+    expect(Object.fromEntries(bonus)).toEqual({ gk: 3, d: 3 });
+  });
+
+  it("doesn't count an outfield player's saves towards bonus", () => {
+    expect(awardBonus([p("d", { saves: 3 }, "DEF"), p("k", { saves: 3 }, "GK")]).get("d")).toBeUndefined();
   });
 });
 

@@ -161,7 +161,7 @@ function Editor({ gw, players, secret }: { gw: AdminGameweek; players: AdminPlay
               {expanded && (
                 <View style={styles.details}>
                   <View style={styles.toggleRow}>
-                    <Text style={styles.toggleLabel}>Played most of the match</Text>
+                    <Text style={styles.toggleLabel}>Played over half the game</Text>
                     <Switch value={s.playedMost} onValueChange={(v) => set(p.id, { playedMost: v })} trackColor={{ true: colors.green }} />
                   </View>
                   <View style={styles.grid}>

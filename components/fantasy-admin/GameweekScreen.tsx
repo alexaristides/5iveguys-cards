@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { awardBonus, EMPTY_STATS, gameweekStatus, playerPoints, POSITIONS, type PlayerStats } from "@/lib/fantasy";
+import { awardBonus, EMPTY_STATS, gameweekStatus, pointsBreakdown, POSITION_LABEL, POSITIONS, type PlayerStats } from "@/lib/fantasy";
 import type { Act, Gameweek, Player, Season } from "./types";
 import { GameweekSheet } from "./GameweeksTab";
-import { Avatar, btnPrimary, btnSecondary, formatDay, formatTime, kickoffOf, PositionTag, Stepper, Switch, tap } from "./ui";
+import { Avatar, btnPrimary, btnSecondary, formatDay, formatTime, kickoffOf, PositionTag, Segmented, Stepper, tap } from "./ui";
 
 type Rows = Record<string, PlayerStats>;
 
@@ -23,15 +23,18 @@ export function GameweekScreen({ season, gw, players, act, onBack }: {
   const [rows, setRows] = useState<Rows>(initialRows);
   const [goalsFor, setGoalsFor] = useState(gw.goalsFor ?? 0);
   const [goalsAgainst, setGoalsAgainst] = useState(gw.goalsAgainst ?? 0);
+  // The score comes first: it decides clean sheets and goals conceded, so nobody gets a clean sheet
+  // from a 0–0 that was never entered.
+  const savedScore = gw.goalsFor !== null && gw.goalsAgainst !== null;
+  const [scoreSet, setScoreSet] = useState(savedScore);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const status = gameweekStatus(gw);
   const kickoff = kickoffOf(gw.deadline);
-  const dirty = goalsFor !== (gw.goalsFor ?? 0) || goalsAgainst !== (gw.goalsAgainst ?? 0)
+  const dirty = scoreSet !== savedScore || goalsFor !== (gw.goalsFor ?? 0) || goalsAgainst !== (gw.goalsAgainst ?? 0)
     || JSON.stringify(rows) !== JSON.stringify(initialRows);
-  // A score that was never saved can be saved as it stands (e.g. 0–0).
-  const canSave = dirty || gw.goalsFor === null;
+  const canSave = dirty;
 
   // Squad order: GK, DEF, MID, FWD; players who left only show if they have stats here.
   const squad = players
@@ -42,22 +45,26 @@ export function GameweekScreen({ season, gw, players, act, onBack }: {
   const goalsGiven = played.reduce((n, p) => n + rows[p.id].goals, 0);
 
   const set = (id: string, patch: Partial<PlayerStats>) => setRows((r) => ({ ...r, [id]: { ...r[id], ...patch } }));
-  // Playing assumes most of the match and the team's goals against, as most players do in 7-a-side.
+  // Playing assumes over half the game and the team's goals against, as most players do in 7-a-side.
   const togglePlayed = (id: string) => {
     tap();
     set(id, rows[id].played ? { ...EMPTY_STATS } : { played: true, playedMost: true, goalsConceded: goalsAgainst });
   };
+  const changeFor = (v: number) => { setScoreSet(true); setGoalsFor(v); };
   const changeAgainst = (v: number) => {
+    setScoreSet(true);
     // Keep "conceded" in step for everyone who was on for the whole match and hadn't been changed by hand.
     setRows((r) => Object.fromEntries(Object.entries(r).map(([id, s]) =>
-      [id, s.played && s.playedMost && s.goalsConceded === goalsAgainst ? { ...s, goalsConceded: v } : s])));
+      [id, s.played && s.playedMost && s.goalsConceded === goalsAgainst ? { ...s, goalsConceded: v }
+        : s.goalsConceded > v ? { ...s, goalsConceded: v } : s])));
     setGoalsAgainst(v);
   };
 
   async function save(finalize: boolean) {
     setBusy(true);
     const ok = await act({
-      action: "saveGameweek", seasonId: season.id, id: gw.id, number: gw.number, name: gw.name ?? "", deadline: gw.deadline, goalsFor, goalsAgainst,
+      action: "saveGameweek", seasonId: season.id, id: gw.id, number: gw.number, name: gw.name ?? "", deadline: gw.deadline,
+      goalsFor: scoreSet ? goalsFor : null, goalsAgainst: scoreSet ? goalsAgainst : null,
     }) && await act(
       { action: "saveStats", gameweekId: gw.id, stats: players.map((p) => ({ playerId: p.id, ...rows[p.id] })) },
       finalize ? undefined : gw.finalizedAt ? `Saved and re-scored gameweek ${gw.number}` : "Saved",
@@ -93,12 +100,20 @@ export function GameweekScreen({ season, gw, players, act, onBack }: {
         </p>
       )}
 
-      <section className="mt-4 rounded-2xl bg-zinc-900 border border-zinc-800 p-4">
-        <h2 className="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-1">Final score</h2>
-        <div className="divide-y divide-zinc-800">
-          <ScoreRow team="5ive Guys" value={goalsFor} onChange={setGoalsFor} />
+      <section className={`mt-4 rounded-2xl bg-zinc-900 border p-4 ${scoreSet ? "border-zinc-800" : "border-purple-500"}`}>
+        <h2 className="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-1">{scoreSet ? "Final score" : "Step 1 · What was the final score?"}</h2>
+        <div className={`divide-y divide-zinc-800 ${scoreSet ? "" : "opacity-60"}`}>
+          <ScoreRow team="5ive Guys" value={goalsFor} onChange={changeFor} />
           <ScoreRow team={gw.name || "Opponent"} value={goalsAgainst} onChange={changeAgainst} />
         </div>
+        {!scoreSet && (
+          <div className="mt-3 space-y-2">
+            <p className="text-zinc-400 text-sm">The score decides clean sheets and goals conceded, so it comes first.</p>
+            <button onClick={() => { tap(); setScoreSet(true); }} className="w-full h-11 rounded-xl border border-zinc-700 text-zinc-200 font-semibold">
+              It finished 0–0
+            </button>
+          </div>
+        )}
         {played.length > 0 && (
           <p className={`mt-3 text-center text-sm ${goalsGiven === goalsFor ? "text-emerald-400" : "text-amber-400"}`}>
             {goalsGiven === goalsFor
@@ -110,6 +125,11 @@ export function GameweekScreen({ season, gw, players, act, onBack }: {
         )}
       </section>
 
+      {!scoreSet ? (
+        <p className="mt-6 rounded-2xl border border-dashed border-zinc-800 text-zinc-500 text-sm text-center p-6">
+          Enter the score above, then pick who played and add their stats.
+        </p>
+      ) : (<>
       <section className="mt-6">
         <div className="flex items-baseline justify-between mb-3">
           <h2 className="text-white text-lg font-black">Who played?</h2>
@@ -135,11 +155,15 @@ export function GameweekScreen({ season, gw, players, act, onBack }: {
         <section className="mt-6 space-y-3">
           <h2 className="text-white text-lg font-black">Stats</h2>
           {played.map((p) => (
-            <PlayerStatCard key={p.id} player={p} stats={rows[p.id]} bonus={bonus.get(p.id) ?? 0} onChange={(patch) => set(p.id, patch)} />
+            <PlayerStatCard key={p.id} player={p} stats={rows[p.id]} bonus={bonus.get(p.id) ?? 0} maxConceded={goalsAgainst} onChange={(patch) => set(p.id, patch)} />
           ))}
-          <p className="text-zinc-500 text-xs">Bonus points (3-2-1) are worked out from the Bonus Points System when you save.</p>
+          <p className="text-zinc-500 text-xs">
+            Points are for each player&apos;s own position. Bonus goes 3-2-1 to the three best players in the match, ranked by
+            Fantasy Premier League&apos;s Bonus Points System from what you&apos;ve entered (so in a clean-sheet game it often goes to the defence).
+          </p>
         </section>
       )}
+      </>)}
 
       <div className="fixed inset-x-0 bottom-0 z-30 bg-[#0a0a0a]/95 backdrop-blur border-t border-zinc-900 px-4 pt-3 pb-[max(.75rem,env(safe-area-inset-bottom))]">
         <div className="max-w-lg mx-auto flex gap-3">
@@ -162,14 +186,15 @@ export function GameweekScreen({ season, gw, players, act, onBack }: {
   );
 }
 
-function PlayerStatCard({ player, stats, bonus, onChange }: {
-  player: Player; stats: PlayerStats; bonus: number; onChange: (patch: Partial<PlayerStats>) => void;
+function PlayerStatCard({ player, stats, bonus, maxConceded, onChange }: {
+  player: Player; stats: PlayerStats; bonus: number; maxConceded: number; onChange: (patch: Partial<PlayerStats>) => void;
 }) {
   const [more, setMore] = useState(false);
   const pos = player.position;
-  const points = playerPoints({ ...stats, bonus }, pos);
-  const showConceded = pos === "GK" || pos === "DEF";
-  const showSaves = pos === "GK";
+  const lines = pointsBreakdown({ ...stats, bonus }, pos);
+  const points = lines.reduce((sum, l) => sum + l.points, 0);
+  const keeper = pos === "GK";
+  const defends = keeper || pos === "DEF";
 
   return (
     <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4">
@@ -181,41 +206,72 @@ function PlayerStatCard({ player, stats, bonus, onChange }: {
         </div>
         <div className="text-right">
           <div className="text-white text-2xl font-black tabular-nums leading-none">{points}</div>
-          <div className="text-zinc-500 text-xs">pts{bonus ? <span className="text-amber-400 font-bold"> · +{bonus} bonus</span> : null}</div>
+          <div className="text-zinc-500 text-xs">pts as a {POSITION_LABEL[pos].toLowerCase()}</div>
         </div>
+      </div>
+
+      <div className="mt-4">
+        <Segmented
+          options={[{ value: "long", label: "Over half" }, { value: "short", label: "Under half" }]}
+          value={stats.playedMost ? "long" : "short"}
+          onChange={(v) => onChange({ playedMost: v === "long" })}
+        />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-y-4">
         <Stepper label="Goals" value={stats.goals} onChange={(v) => onChange({ goals: v })} />
         <Stepper label="Assists" value={stats.assists} onChange={(v) => onChange({ assists: v })} />
-        {showSaves && <Stepper label="Saves" value={stats.saves} onChange={(v) => onChange({ saves: v })} />}
-        {showConceded && <Stepper label="Conceded" value={stats.goalsConceded} onChange={(v) => onChange({ goalsConceded: v })} />}
+        {keeper && <Stepper label="Saves" value={stats.saves} onChange={(v) => onChange({ saves: v })} />}
+        {defends && <Stepper label="Conceded" value={stats.goalsConceded} max={maxConceded} onChange={(v) => onChange({ goalsConceded: v })} />}
       </div>
 
       <div className="mt-4 flex gap-2">
         <ToggleChip on={stats.yellowCards > 0} onClick={() => onChange({ yellowCards: stats.yellowCards > 0 ? 0 : 1 })} label="🟨 Yellow" />
         <ToggleChip on={stats.redCard} onClick={() => onChange({ redCard: !stats.redCard })} label="🟥 Red" />
-        <ToggleChip on={!stats.playedMost} onClick={() => onChange({ playedMost: !stats.playedMost })} label="Sub / short" />
       </div>
 
-      <button onClick={() => setMore(!more)} className="mt-3 w-full h-11 text-purple-400 text-sm font-semibold">
+      <div className="mt-4 rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2 text-sm">
+        {lines.map((l) => (
+          <div key={l.label} className="flex justify-between py-0.5">
+            <span className={l.label === "Bonus" ? "text-amber-400" : "text-zinc-300"}>{l.label}</span>
+            <span className={`tabular-nums font-semibold ${l.points < 0 ? "text-red-400" : l.label === "Bonus" ? "text-amber-400" : "text-white"}`}>
+              {l.points > 0 ? `+${l.points}` : l.points}
+            </span>
+          </div>
+        ))}
+        <div className="flex justify-between pt-1 mt-1 border-t border-zinc-800 font-black text-white">
+          <span>Total</span><span className="tabular-nums">{points}</span>
+        </div>
+      </div>
+
+      <button onClick={() => setMore(!more)} className="mt-2 w-full h-11 text-purple-400 text-sm font-semibold">
         {more ? "Fewer stats ▴" : "More stats ▾"}
       </button>
       {more && (
         <div className="space-y-4 pt-1">
-          <Switch checked={stats.playedMost} onChange={(v) => onChange({ playedMost: v })}
-            label="Played most of the match" hint="FPL's 60 minutes. Off for subs and early exits: no clean sheet, 1 point for playing." />
           <div className="grid grid-cols-2 gap-y-4">
-            {!showConceded && <Stepper label="Conceded" value={stats.goalsConceded} onChange={(v) => onChange({ goalsConceded: v })} />}
-            {!showSaves && <Stepper label="Saves" value={stats.saves} onChange={(v) => onChange({ saves: v })} />}
+            {!defends && <Stepper label="Conceded" value={stats.goalsConceded} max={maxConceded} onChange={(v) => onChange({ goalsConceded: v })} />}
             <Stepper label="Own goals" value={stats.ownGoals} onChange={(v) => onChange({ ownGoals: v })} />
-            <Stepper label="Pens saved" value={stats.penaltySaves} onChange={(v) => onChange({ penaltySaves: v })} />
             <Stepper label="Pens missed" value={stats.penaltyMisses} onChange={(v) => onChange({ penaltyMisses: v })} />
             <Stepper label="Yellows" value={stats.yellowCards} onChange={(v) => onChange({ yellowCards: v })} max={2} />
+            {keeper && <Stepper label="Pens saved" value={stats.penaltySaves} onChange={(v) => onChange({ penaltySaves: v })} />}
           </div>
+          {!keeper && (
+            <div>
+              <div className="grid grid-cols-2 gap-y-4">
+                <Stepper label="Saves" value={stats.saves} onChange={(v) => onChange({ saves: v })} />
+                <Stepper label="Pens saved" value={stats.penaltySaves} onChange={(v) => onChange({ penaltySaves: v })} />
+              </div>
+              <p className="text-zinc-500 text-xs text-center mt-1">Saves only score for a goalkeeper. Fill them in if he went in goal.</p>
+            </div>
+          )}
           <div>
             <Stepper label="Defensive actions" value={stats.defensiveContributions} onChange={(v) => onChange({ defensiveContributions: v })} />
-            <p className="text-zinc-500 text-xs text-center mt-1">Tackles, blocks, interceptions and clearances (plus ball recoveries for midfielders and forwards).</p>
+            <p className="text-zinc-500 text-xs text-center mt-1">
+              {keeper
+                ? "Keepers don't score for defensive actions."
+                : `Tackles, blocks, interceptions and clearances${pos === "DEF" ? "" : " plus ball recoveries"}: +2 points once he reaches ${pos === "DEF" ? 10 : 12}.`}
+            </p>
           </div>
         </div>
       )}
