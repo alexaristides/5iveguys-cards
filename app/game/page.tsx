@@ -6,6 +6,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 import { QRCodeSVG } from "qrcode.react";
 import GameLeaderboard from "@/components/football/GameLeaderboard";
 
@@ -296,26 +298,7 @@ function GamePageInner() {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full bg-purple-900/15 blur-3xl" />
       </div>
 
-      <header className="relative border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-md sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
-          <Link href="/dashboard" className="flex items-center gap-2 shrink-0">
-            <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center">
-              <span className="text-white text-xs font-bold">5</span>
-            </div>
-            <span className="text-white font-semibold text-sm hidden sm:block">5iveG</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors">
-              ← Dashboard
-            </Link>
-            {user?.image && (
-              <div className="relative w-7 h-7 rounded-full overflow-hidden border border-zinc-700">
-                <Image src={user.image} alt={user.name ?? "User"} fill className="object-cover" />
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
+      <SiteHeader />
 
       <div className="relative max-w-5xl mx-auto px-4 sm:px-6 py-8">
         {tab === "menu" && (
@@ -345,6 +328,9 @@ function GamePageInner() {
             <GameLeaderboard />
           </div>
         )}
+      </div>
+      <div className="mt-16">
+        <SiteFooter />
       </div>
     </main>
   );

@@ -1,8 +1,9 @@
-import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 import SupportForm from "@/components/SupportForm";
 import { PRINT_SHOP, SUPPORT_EMAIL } from "@/lib/print-shop";
 
-export const metadata = { title: "Support — 5iveG" };
+export const metadata = { title: "Support" };
 
 const FAQ: { q: string; a: React.ReactNode }[] = [
   {
@@ -62,13 +63,12 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
 
 export default function SupportPage() {
   return (
-    <main className="min-h-screen bg-[#0a0a0a] px-6 py-16">
+    <main className="min-h-screen bg-[#0a0a0a]">
+      <SiteHeader />
+      <div className="px-6 py-12 sm:py-16">
       <div className="max-w-2xl mx-auto space-y-8 text-zinc-400 text-sm leading-relaxed">
         <div>
-          <Link href="/" className="text-zinc-600 text-xs hover:text-zinc-400 transition-colors">
-            ← Back
-          </Link>
-          <h1 className="text-white text-3xl font-bold mt-4">Support</h1>
+          <h1 className="text-white text-3xl font-bold">Support</h1>
           <p className="mt-2">Help with the 5iveG app and website. Can&rsquo;t find your answer? Send us a message.</p>
         </div>
 
@@ -105,6 +105,8 @@ export default function SupportPage() {
           Google LLC.
         </p>
       </div>
+      </div>
+      <SiteFooter />
     </main>
   );
 }

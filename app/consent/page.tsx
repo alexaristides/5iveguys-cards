@@ -3,7 +3,7 @@ import ConsentForm from "@/components/ConsentForm";
 import { WORLDS } from "@/lib/worlds";
 
 export const metadata: Metadata = {
-  title: "Player consent — 5iveG",
+  title: "Player consent",
   description: "Say yes to 5iveG cards with your face on, and tell us where to pay your share of every pack sold.",
   robots: { index: false, follow: false },
   openGraph: {

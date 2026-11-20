@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: "Fantasy admin — 5iveG",
+  title: "Fantasy admin",
   robots: { index: false, follow: false },
   appleWebApp: { capable: true, title: "5iveG admin", statusBarStyle: "black-translucent" },
 };

@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { signIn, useSession } from "next-auth/react";
 import Navbar from "@/components/Navbar";
+import { Logo } from "@/components/Logo";
 import type { overview } from "@/lib/fantasy-db";
 
 /** GET /api/fantasy as the browser receives it. */
@@ -27,7 +28,9 @@ export function FantasyShell({ children }: { children: ReactNode }) {
       ) : (
         <header className="fixed top-0 inset-x-0 z-40 bg-[#0a0a0a]/90 backdrop-blur border-b border-zinc-800">
           <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
-            <Link href="/" className="text-white font-black">5iveG</Link>
+            <Link href="/" aria-label="5iveG home">
+              <Logo className="h-7" />
+            </Link>
             {status !== "loading" && (
               <button onClick={() => signIn("google")} className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold">
                 Sign in to play
