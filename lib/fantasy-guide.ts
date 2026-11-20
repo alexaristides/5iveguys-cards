@@ -11,8 +11,9 @@ export function fantasyGuide(season: { budget: number; secondHalfFrom: number | 
   const sections: { title: string; body: string }[] = [
     {
       title: "Your team",
-      body: (R.prices ? `Pick 7 of the 5ive Guys with a ${formatPrice(season.budget)} budget: ` : "Pick any 7 of the 5ive Guys (there are no prices): ")
-        + "1 goalkeeper, 2–4 defenders, 1–3 midfielders and 1–3 forwards. "
+      body: (R.prices ? `Pick 7 of the 5ive Guys with a ${formatPrice(season.budget)} budget ` : "Pick any 7 of the 5ive Guys (there are no prices) ")
+        + "and play them wherever you like: 1 in goal, 2–4 in defence, 1–3 in midfield and 1–3 up front. "
+        + "Everyone scores as their own position wherever you play them, so a forward in defence still scores as a forward. "
         + "It's 7-a-side, so there's no bench: all 7 play. Your team locks at each gameweek's deadline.",
     },
     {
@@ -46,21 +47,22 @@ export function fantasyGuide(season: { budget: number; secondHalfFrom: number | 
   ];
 
   const scoring: { label: string; points: string }[] = [
-    { label: "Played", points: `+${P.appearance}` },
-    { label: "Played most of the match (FPL's 60 mins)", points: `+${P.appearanceLong}` },
-    { label: "Goal", points: `GK +${P.goal.GK} · DEF +${P.goal.DEF} · MID +${P.goal.MID} · FWD +${P.goal.FWD}` },
+    { label: "Played under half the game", points: `+${P.appearance}` },
+    { label: "Played over half the game", points: `+${P.appearanceLong}` },
+    { label: "Goal", points: `GK/DEF +${P.goal.DEF} · MID/FWD +${P.goal.FWD}` },
     { label: "Assist", points: `+${P.assist}` },
-    { label: "Clean sheet (most of the match)", points: `GK/DEF +${P.cleanSheet.GK} · MID +${P.cleanSheet.MID}` },
+    { label: "Clean sheet (GK/DEF, played over half the game)", points: `GK +${P.defence.GK} · DEF +${P.defence.DEF}` },
+    { label: `Each goal conceded comes off that, down to ${signed(P.defenceFloor)}`, points: "−1" },
     { label: `Every ${P.savesPerPoint} saves`, points: "+1" },
     { label: "Penalty save", points: `+${P.penaltySave}` },
     { label: `Defensive contributions (DEF ${P.defensiveThreshold.DEF}, MID/FWD ${P.defensiveThreshold.MID})`, points: `+${P.defensiveContribution}` },
     { label: "Bonus", points: `+${P.bonus.at(-1)} to +${P.bonus[0]}` },
-    { label: `Every ${P.goalsConcededPerPoint} goals conceded (GK/DEF)`, points: "−1" },
     { label: "Penalty miss", points: signed(P.penaltyMiss) },
     { label: "Yellow card", points: signed(P.yellowCard) },
     { label: "Red card", points: signed(P.redCard) },
     { label: "Own goal", points: signed(P.ownGoal) },
   ];
+
 
   return { sections, chips: CHIPS, scoring };
 }

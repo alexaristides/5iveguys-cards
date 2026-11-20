@@ -2,7 +2,7 @@
  * Fantasy Div 1 — team editing shared by the website and the iOS app: formations, slots and
  * auto-fill for the 7 picks. Pure TypeScript; rules live in lib/fantasy.ts.
  */
-import { FANTASY_RULES, type FantasyPosition } from "./fantasy";
+import { FANTASY_RULES, pickPositions, type FantasyPosition } from "./fantasy";
 
 export interface LineupPlayer { id: string; position: FantasyPosition; price: number; isActive: boolean; totalPoints?: number }
 
@@ -33,14 +33,25 @@ export interface Lineup {
 
 export const EMPTY_LINEUP: Lineup = { formation: FORMATIONS[0], slots: Array(FANTASY_RULES.squadSize).fill(null) };
 
-/** Lay out a saved team (teams saved with 2 subs under the old rules show their first 7). */
-export function lineupFromIds(ids: string[], players: Map<string, LineupPlayer>): Lineup {
-  const pos = (id: string) => players.get(id)?.position ?? "MID";
-  const slots = ids.slice(0, FANTASY_RULES.squadSize).sort((a, b) => ORDER[pos(a)] - ORDER[pos(b)]);
-  const count = (p: FantasyPosition) => slots.filter((id) => pos(id) === p).length;
+/**
+ * Lay out a saved team, each player in the position the fan put them in (their own position for
+ * teams saved before that; teams saved with 2 subs under the old rules show their first 7).
+ */
+export function lineupFromPicks(picks: { playerId: string; position?: FantasyPosition | null }[], players: Map<string, LineupPlayer>): Lineup {
+  const seven = picks.slice(0, FANTASY_RULES.squadSize);
+  const roles = pickPositions(seven, players);
+  const placed = seven.map((p, i) => ({ id: p.playerId, role: roles[i] })).sort((a, b) => ORDER[a.role] - ORDER[b.role]);
+  const count = (p: FantasyPosition) => placed.filter((x) => x.role === p).length;
   const formation = { DEF: count("DEF"), MID: count("MID"), FWD: count("FWD") };
-  return { formation: FORMATIONS.find((f) => sameFormation(f, formation)) ?? formation, slots };
+  return { formation: FORMATIONS.find((f) => sameFormation(f, formation)) ?? formation, slots: placed.map((x) => x.id) };
 }
+
+/** Lay out players by their own positions. */
+export const lineupFromIds = (ids: string[], players: Map<string, LineupPlayer>) =>
+  lineupFromPicks(ids.map((id) => ({ playerId: id })), players);
+
+/** The position each slot plays, in slot order (what's saved with the picks). */
+export const lineupPositions = (l: Lineup) => slotPositions(l.formation);
 
 /** The 7 picks, or null while there are empty slots. */
 export function lineupIds(l: Lineup): string[] | null {
@@ -51,16 +62,27 @@ export function inLineup(l: Lineup) {
   return new Set(l.slots.filter((id): id is string => !!id));
 }
 
-/** Switch formation: players who still fit stay, the rest leave the team. */
+/**
+ * Switch formation, keeping all 7: players stay in their position where the new shape still has
+ * room, and anyone left over moves to a free slot (anyone can play anywhere).
+ */
 export function changeFormation(l: Lineup, f: Formation, players: Map<string, LineupPlayer>): Lineup {
   if (sameFormation(l.formation, f)) return l;
-  const positions = slotPositions(f);
+  const before = slotPositions(l.formation);
+  const after = slotPositions(f);
   const slots: (string | null)[] = Array(FANTASY_RULES.squadSize).fill(null);
-  for (const id of l.slots) {
-    if (!id) continue;
-    const i = positions.findIndex((p, j) => p === players.get(id)?.position && !slots[j]);
-    if (i >= 0) slots[i] = id;
+  const left: string[] = [];
+  l.slots.forEach((id, i) => {
+    if (!id) return;
+    const j = after.findIndex((p, k) => p === before[i] && !slots[k]);
+    if (j >= 0) slots[j] = id; else left.push(id);
+  });
+  // Leftovers go where they'd naturally play if there's room, then anywhere.
+  for (const id of [...left]) {
+    const j = after.findIndex((p, k) => p === players.get(id)?.position && !slots[k]);
+    if (j >= 0) { slots[j] = id; left.splice(left.indexOf(id), 1); }
   }
+  for (const id of left) slots[slots.indexOf(null)] = id;
   return { formation: f, slots };
 }
 
@@ -76,8 +98,9 @@ export function removePlayer(l: Lineup, id: string): Lineup {
 }
 
 /**
- * Fill the empty slots: for each one take the priciest player who still leaves enough money
- * to fill the rest with the cheapest available. `moneyLeft` is the bank with the current picks in.
+ * Fill the empty slots: for each one take a player who naturally plays there if there's one left
+ * (else anyone), the priciest who still leaves enough money to fill the rest with the cheapest
+ * available. `moneyLeft` is the bank with the current picks in.
  */
 export function autoComplete(lineup: Lineup, players: LineupPlayer[], moneyLeft: number): Lineup {
   let next = lineup;
@@ -92,14 +115,14 @@ export function autoComplete(lineup: Lineup, players: LineupPlayer[], moneyLeft:
     const cheapestRest = (exclude: string) => {
       const used = new Set([exclude]);
       return rest.reduce((sum, r) => {
-        const c = pool.filter((p) => !used.has(p.id) && p.position === r.position).sort((a, b) => a.price - b.price)[0];
+        const c = pool.filter((p) => !used.has(p.id)).sort((a, b) => a.price - b.price)[0];
         if (c) used.add(c.id);
         return sum + (c?.price ?? 0);
       }, 0);
     };
     const choice = pool
-      .filter((p) => p.position === position)
-      .sort((a, b) => b.price - a.price || (b.totalPoints ?? 0) - (a.totalPoints ?? 0))
+      .sort((a, b) => Number(b.position === position) - Number(a.position === position)
+        || b.price - a.price || (b.totalPoints ?? 0) - (a.totalPoints ?? 0))
       .find((p) => p.price + cheapestRest(p.id) <= bank);
     if (choice) {
       next = placePlayer(next, index, choice.id);

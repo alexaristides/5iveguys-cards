@@ -8,7 +8,7 @@ import { LeagueForms, LeagueTable, RankMove, type LeagueRow } from "@/components
 import { FantasyShell, panel, Spinner, type FantasyOverview } from "@/components/fantasy/FantasyShell";
 import { CHIPS, FANTASY_RULES, formatCountdown, formatDeadline, formatPrice } from "@/lib/fantasy";
 import { fantasyGuide } from "@/lib/fantasy-guide";
-import { lineupFromIds, slotPositions } from "@/lib/fantasy-lineup";
+import { lineupFromPicks, slotPositions } from "@/lib/fantasy-lineup";
 
 interface Leaderboard { teams: LeagueRow[]; me: LeagueRow | null; teamCount: number; lastGameweek: number | null }
 interface MyLeague { id: string; name: string; code: string; members: number; rank: number }
@@ -64,7 +64,7 @@ export default function FantasyPage() {
   const team = data.team;
   const next = data.gameweeks.find((g) => g.number === data.nextGameweek);
   const draft = team?.draft;
-  const lineup = draft ? lineupFromIds(draft.picks.map((p) => p.playerId), players) : null;
+  const lineup = draft ? lineupFromPicks(draft.picks, players) : null;
   const chip = draft?.chip ? CHIPS.find((c) => c.id === draft.chip) : null;
   const slots: PitchSlot[] = lineup
     ? slotPositions(lineup.formation).map((position, i) => {
@@ -120,7 +120,7 @@ export default function FantasyPage() {
           <p className="text-zinc-400">
             {FANTASY_RULES.prices
               ? <>Pick {FANTASY_RULES.squadSize} of the 5ive Guys with {formatPrice(data.season.budget)}. Captain, transfers, price changes and chips, just like</>
-              : <>Pick any {FANTASY_RULES.squadSize} of the 5ive Guys, no prices. Captain, transfers and chips, just like</>}
+              : <>Pick any {FANTASY_RULES.squadSize} of the 5ive Guys and play them anywhere, no prices. Captain, transfers and chips, just like</>}
             Fantasy Premier League — and the points come from their real Division 1 matches.
           </p>
         </section>

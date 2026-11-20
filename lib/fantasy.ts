@@ -51,23 +51,30 @@ export const FANTASY_RULES = {
   minPrice: 35,
 };
 
-/** FPL 2025/26 points per event. */
+/**
+ * Points per event: FPL 2025/26 reworked for 7-a-side (games of 40-50 minutes with lots of goals),
+ * so every position averages about the same and none is a cheat code.
+ */
 export const FANTASY_POINTS = {
-  /** Playing, and playing most of the match (FPL's 60 minutes). */
+  /** Playing, and playing over half the game (FPL's 60 minutes). */
   appearance: 1,
   appearanceLong: 2,
-  goal: { GK: 10, DEF: 6, MID: 5, FWD: 4 } as Record<FantasyPosition, number>,
+  goal: { GK: 6, DEF: 6, MID: 4, FWD: 4 } as Record<FantasyPosition, number>,
   assist: 3,
-  /** Only if they played most of the match and nobody scored past them. */
-  cleanSheet: { GK: 4, DEF: 4, MID: 1, FWD: 0 } as Record<FantasyPosition, number>,
-  /** +1 for every 3 saves. */
-  savesPerPoint: 3,
+  /**
+   * Keepers and defenders who played over half the game get this, less 1 per goal conceded while
+   * they were on, never below `defenceFloor`. It replaces FPL's clean sheet and goals-conceded
+   * points, which a 7-a-side scoreline makes all-or-nothing. If the average goals conceded moves a
+   * lot, set DEF to about that average + 1.5 and GK one less.
+   */
+  defence: { GK: 4, DEF: 5, MID: 0, FWD: 0 } as Record<FantasyPosition, number>,
+  defenceFloor: -2,
+  /** +1 for every 4 saves, whoever made them (an outfielder who went in goal too). */
+  savesPerPoint: 4,
   penaltySave: 5,
-  /** -1 for every 2 goals conceded (keepers and defenders). */
-  goalsConcededPerPoint: 2,
   /** +2 for this many tackles, blocks, interceptions and clearances (plus recoveries for MID/FWD). */
   defensiveContribution: 2,
-  defensiveThreshold: { GK: 0, DEF: 10, MID: 12, FWD: 12 } as Record<FantasyPosition, number>,
+  defensiveThreshold: { GK: 0, DEF: 6, MID: 8, FWD: 8 } as Record<FantasyPosition, number>,
   penaltyMiss: -2,
   yellowCard: -1,
   redCard: -3,
@@ -78,7 +85,7 @@ export const FANTASY_POINTS = {
 
 export interface PlayerStats {
   played: boolean;
-  /** Played most of the match (FPL: 60 minutes or more). */
+  /** Played over half the game (FPL's 60 minutes, for a 7-a-side match of 40-50 minutes). */
   playedMost: boolean;
   goals: number;
   assists: number;
@@ -106,19 +113,26 @@ export function keptCleanSheet(stats: PlayerStats) {
   return stats.played && stats.playedMost && stats.goalsConceded === 0;
 }
 
+/** Defence points for a keeper or defender (see FANTASY_POINTS.defence), or null if none apply. */
+export function defencePoints(stats: PlayerStats, position: FantasyPosition) {
+  const top = FANTASY_POINTS.defence[position];
+  if (!top || !stats.played || !stats.playedMost) return null;
+  return Math.max(FANTASY_POINTS.defenceFloor, top - stats.goalsConceded);
+}
+
 /** Line-by-line points for one player in one gameweek (empty if they didn't play). */
 export function pointsBreakdown(stats: PlayerStats | undefined, position: FantasyPosition) {
   const lines: { label: string; points: number }[] = [];
   if (!stats?.played) return lines;
   const P = FANTASY_POINTS;
   const add = (label: string, points: number) => { if (points) lines.push({ label, points }); };
-  add(stats.playedMost ? "Played most of the match" : "Played", stats.playedMost ? P.appearanceLong : P.appearance);
+  add(stats.playedMost ? "Played over half the game" : "Played under half the game", stats.playedMost ? P.appearanceLong : P.appearance);
   add(plural(stats.goals, "Goal"), stats.goals * P.goal[position]);
   add(plural(stats.assists, "Assist"), stats.assists * P.assist);
-  if (keptCleanSheet(stats)) add("Clean sheet", P.cleanSheet[position]);
+  const defence = defencePoints(stats, position);
+  if (defence !== null) add(stats.goalsConceded ? `Defence: ${stats.goalsConceded} conceded` : "Clean sheet", defence);
   add(`${stats.saves} saves`, Math.floor(stats.saves / P.savesPerPoint));
   add(plural(stats.penaltySaves, "Penalty save"), stats.penaltySaves * P.penaltySave);
-  if (defends(position)) add(`${stats.goalsConceded} goals conceded`, -Math.floor(stats.goalsConceded / P.goalsConcededPerPoint));
   const threshold = P.defensiveThreshold[position];
   if (threshold && stats.defensiveContributions >= threshold) add("Defensive contributions", P.defensiveContribution);
   add(plural(stats.yellowCards, "Yellow card"), stats.yellowCards * P.yellowCard);
@@ -139,15 +153,19 @@ function plural(n: number, word: string, many = `${word}s`) {
 
 // ── Bonus points ──────────────────────────────────────────────────────────────
 
-/** FPL's Bonus Points System, from the stats we record. */
+/**
+ * FPL's Bonus Points System, from the stats we record, evened out for 7-a-side: a goal is worth the
+ * same to everyone (FPL's 24 for a forward handed forwards most of the bonus) and conceding costs
+ * keepers and defenders 2, not 4, as 7-a-side games have more goals.
+ */
 export function bpsScore(s: PlayerStats, position: FantasyPosition) {
   if (!s.played) return 0;
   let bps = s.playedMost ? 6 : 3;
-  bps += s.goals * (position === "FWD" ? 24 : position === "MID" ? 18 : 12);
+  bps += s.goals * 20;
   bps += s.assists * 9;
   if (defends(position) && keptCleanSheet(s)) bps += 12;
-  if (defends(position)) bps -= s.goalsConceded * 4;
-  bps += s.saves * 2 + s.penaltySaves * 15;
+  if (defends(position)) bps -= s.goalsConceded * 2;
+  if (position === "GK") bps += s.saves * 2 + s.penaltySaves * 15;
   bps += Math.floor(s.defensiveContributions / 2);
   bps -= s.penaltyMisses * 6 + s.yellowCards * 3 + (s.redCard ? 9 : 0) + s.ownGoals * 6;
   return bps;
@@ -184,10 +202,20 @@ export interface SquadPlayer {
   isActive: boolean;
 }
 
-/** A squad slot: the player and what was paid for them. */
+/**
+ * A squad slot: the player, what was paid for them and the position the fan put them in. Any player
+ * can play anywhere, but always scores as their own position: the slot only shapes the team.
+ * Teams saved before positions were free have no `position`: they play their own.
+ */
 export interface Pick {
   playerId: string;
   price: number;
+  position?: FantasyPosition;
+}
+
+/** The position each pick plays: the one the fan chose, or the player's own. */
+export function pickPositions(picks: { playerId: string; position?: FantasyPosition | null }[], players: Map<string, { position: FantasyPosition }>) {
+  return picks.map((p) => (p.position && POSITIONS.includes(p.position) ? p.position : players.get(p.playerId)?.position ?? "MID"));
 }
 
 /** The locked team transfers are made from: who's in it and the money in the bank. */
@@ -260,9 +288,16 @@ export function transfersBetween(playerIds: string[], from: Squad | null) {
 
 export interface EntryInput {
   playerIds: string[];
+  /** Where each of `playerIds` plays (same order). Left out by older apps: everyone plays their own position. */
+  positions?: FantasyPosition[];
   captainId: string;
   viceCaptainId: string;
   chip: Chip | null;
+}
+
+/** The positions an entry plays, from `positions` when given, else the players' own. */
+export function entryPositions(entry: { playerIds: string[]; positions?: FantasyPosition[] }, players: Map<string, { position: FantasyPosition }>) {
+  return pickPositions(entry.playerIds.map((id, i) => ({ playerId: id, position: entry.positions?.[i] })), players);
 }
 
 /** Why an entry can't be saved, or null if it's legal. */
@@ -282,8 +317,11 @@ export function entryError(
     if (!p.isActive && !kept.has(id)) return "That player has left the squad.";
   }
 
-  if (!isValidTeam(playerIds.map((id) => players.get(id)!.position))) {
-    return "Your 7 needs 1 goalkeeper, 2-4 defenders, 1-3 midfielders and 1-3 forwards.";
+  if (entry.positions && (entry.positions.length !== playerIds.length || !entry.positions.every((p) => POSITIONS.includes(p)))) {
+    return "Put each player in a position.";
+  }
+  if (!isValidTeam(entryPositions(entry, players))) {
+    return "Your 7 needs 1 in goal, 2-4 in defence, 1-3 in midfield and 1-3 up front.";
   }
   if (!playerIds.includes(captainId)) return "Pick a captain from your team.";
   if (!playerIds.includes(viceCaptainId)) return "Pick a vice-captain from your team.";
@@ -368,6 +406,7 @@ export interface EntryScore {
 /** Score an entry: captain double (the vice's if the captain didn't play), chips, then the transfer cost. */
 export function scoreEntry(
   entry: { playerIds: string[]; captainId: string; viceCaptainId: string; chip: Chip | null; transferCost: number },
+  /** Each player's own position, which they score as wherever the fan put them. */
   positions: Map<string, FantasyPosition>,
   stats: Map<string, PlayerStats>,
 ): EntryScore {

@@ -5,7 +5,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
-  availableChips, awardBonus, buySquad, entryError, FANTASY_RULES, freeTransfersFor, gameweekStatus, isChip, keptCleanSheet,
+  availableChips, awardBonus, buySquad, entryError, entryPositions, FANTASY_RULES, freeTransfersFor, gameweekStatus, isChip, keptCleanSheet,
   makeLeagueCode, playerPoints, priceChanges, scoreEntry, squadCost, teamValue, transferCostFor, transfersBetween, bpsScore,
   type Chip, type EntryInput, type FantasyPosition, type LockedWeek, type Pick, type PlayerStats, type PlayerStatus,
   type Squad, type SquadPlayer,
@@ -140,7 +140,10 @@ export async function saveEntry(userId: string, input: EntryInput & { gameweek: 
   const error = entryError(input, squad, { ...opts, availableChips: state.availableChips });
   if (error) throw new FantasyError(error);
 
-  const { picks, bank } = buySquad(input.playerIds, squad, opts);
+  const bought = buySquad(input.playerIds, squad, opts);
+  const roles = entryPositions(input, squad);
+  const picks = bought.picks.map((p, i) => ({ ...p, position: roles[i] }));
+  const bank = bought.bank;
   const transfersMade = transfersBetween(input.playerIds, state.baseline);
   const entry = {
     picks: picks as unknown as Prisma.InputJsonValue,
@@ -204,22 +207,40 @@ export async function finalizeGameweek(gameweekId: string) {
   const positions = new Map(players.map((p) => [p.id, p.position as FantasyPosition]));
   const stats = new Map(statRows.map((s) => [s.playerId, toPlayerStats(s)]));
 
-  const teams = await prisma.fantasyTeam.findMany({
-    where: { seasonId: gw.seasonId, entries: { some: { gameweek: { number: { lte: gw.number } } } } },
-    select: { id: true, entries: true },
-  });
+  // Only what scoring needs, so this stays quick with tens of thousands of teams: each team's entry
+  // for this gameweek, and the team it carries in otherwise (its last entry before, skipping Free Hit
+  // weeks, which revert).
+  const entryColumns = { teamId: true, gameweekId: true, picks: true, captainId: true, viceCaptainId: true, chip: true, transfersMade: true, transferCost: true, bank: true, points: true } as const;
+  // Every team that existed by the last scored gameweek has an entry there (scoring carries teams
+  // over), so the kept team is at most a couple of weeks back (a Free Hit week is skipped, and with
+  // two sets of chips there can be two in a row). Looking back that far, not the whole season, keeps
+  // this quick late in the season.
+  const lastScored = gameweeks.filter((g) => g.finalizedAt && g.number < gw.number).reduce((n, g) => Math.max(n, g.number), 0);
+  const lookBackFrom = lastScored ? lastScored - 2 : 0;
+  const [mineRows, beforeRows] = await Promise.all([
+    prisma.fantasyEntry.findMany({ where: { gameweekId }, select: entryColumns }),
+    prisma.$queryRaw<(EntryRow & { teamId: string })[]>`
+      SELECT DISTINCT ON (e."teamId") e."teamId", e."gameweekId", e.picks, e."captainId", e."viceCaptainId", e.chip,
+        e."transfersMade", e."transferCost", e.bank, e.points
+      FROM "FantasyEntry" e JOIN "FantasyGameweek" g ON g.id = e."gameweekId"
+      WHERE g."seasonId" = ${gw.seasonId} AND g.number < ${gw.number} AND g.number >= ${lookBackFrom}
+        AND (e.chip IS NULL OR e.chip <> 'free_hit')
+      ORDER BY e."teamId", g.number DESC`,
+  ]);
+  const mineByTeam = new Map(mineRows.map((e) => [e.teamId, e]));
+  const beforeByTeam = new Map(beforeRows.map((e) => [e.teamId, e]));
+  const teamIds = new Set([...mineByTeam.keys(), ...beforeByTeam.keys()]);
 
   const carried: Prisma.FantasyEntryCreateManyInput[] = [];
   const scored: { teamId: string; entry: EntryRow }[] = [];
   const net = new Map<string, number>();
-  for (const team of teams) {
-    const numbered = numberEntries(gameweeks, team.entries);
-    const before = keptEntry(numbered, gw.number);
-    const mine = numbered.find((e) => e.number === gw.number);
+  for (const teamId of teamIds) {
+    const before = beforeByTeam.get(teamId);
+    const mine = mineByTeam.get(teamId);
     if (mine) {
-      scored.push({ teamId: team.id, entry: mine });
+      scored.push({ teamId, entry: mine });
       // Transfers into and out of the team this gameweek move prices.
-      if (before) {
+      if (before && FANTASY_RULES.prices) {
         const now = new Set(asPicks(mine.picks).map((p) => p.playerId));
         const was = new Set(asPicks(before.picks).map((p) => p.playerId));
         for (const id of now) if (!was.has(id)) net.set(id, (net.get(id) ?? 0) + 1);
@@ -232,12 +253,14 @@ export async function finalizeGameweek(gameweekId: string) {
       gameweekId, picks: before.picks, captainId: before.captainId, viceCaptainId: before.viceCaptainId, chip: null,
       transfersMade: 0, transferCost: 0, bank: bankOf(before, gw.season.budget), points: null,
     };
-    carried.push({ teamId: team.id, ...copy, picks: copy.picks as Prisma.InputJsonValue });
-    scored.push({ teamId: team.id, entry: copy });
+    carried.push({ teamId, ...copy, picks: copy.picks as Prisma.InputJsonValue });
+    scored.push({ teamId, entry: copy });
   }
-  if (carried.length) await prisma.fantasyEntry.createMany({ data: carried, skipDuplicates: true });
+  for (let i = 0; i < carried.length; i += 5000) {
+    await prisma.fantasyEntry.createMany({ data: carried.slice(i, i + 5000), skipDuplicates: true });
+  }
 
-  const updates = scored.map(({ teamId, entry }) => {
+  const results = scored.map(({ teamId, entry }) => {
     const score = scoreEntry(
       {
         playerIds: asPicks(entry.picks).map((p) => p.playerId),
@@ -246,17 +269,21 @@ export async function finalizeGameweek(gameweekId: string) {
       },
       positions, stats,
     );
-    return prisma.fantasyEntry.update({
-      where: { teamId_gameweekId: { teamId, gameweekId } },
-      data: { points: score.total, breakdown: score as unknown as Prisma.InputJsonValue },
-    });
+    return { teamId, points: score.total, breakdown: JSON.stringify(score) };
   });
-  for (let i = 0; i < updates.length; i += 50) await Promise.all(updates.slice(i, i + 50));
-
+  // A few big UPDATEs instead of one per team.
+  for (let i = 0; i < results.length; i += 2000) {
+    const chunk = results.slice(i, i + 2000);
+    await prisma.$executeRaw`
+      UPDATE "FantasyEntry" e SET points = v.points, breakdown = v.breakdown::jsonb, "updatedAt" = NOW()
+      FROM unnest(${chunk.map((r) => r.teamId)}::text[], ${chunk.map((r) => r.points)}::int[], ${chunk.map((r) => r.breakdown)}::text[])
+        AS v("teamId", points, breakdown)
+      WHERE e."teamId" = v."teamId" AND e."gameweekId" = ${gameweekId}`;
+  }
   // Prices move once, the first time the gameweek is scored.
   let changes: Map<string, number> | null = null;
   if (gw.priceChanges === null) {
-    changes = priceChanges(net, teams.length, new Map(players.map((p) => [p.id, p.price])));
+    changes = priceChanges(net, teamIds.size, new Map(players.map((p) => [p.id, p.price])));
     await prisma.$transaction([
       ...[...changes].map(([id, change]) => prisma.fantasyPlayer.update({ where: { id }, data: { price: { increment: change } } })),
       prisma.fantasyGameweek.update({ where: { id: gameweekId }, data: { priceChanges: Object.fromEntries(changes) } }),
@@ -264,21 +291,22 @@ export async function finalizeGameweek(gameweekId: string) {
   }
 
   await prisma.fantasyGameweek.update({ where: { id: gameweekId }, data: { finalizedAt: gw.finalizedAt ?? new Date() } });
-  await updateStandings(gw.seasonId);
+  await updateStandings(gw.seasonId, gw.number);
   return { teamsScored: scored.length, priceChanges: changes ? changes.size : null };
 }
 
-/** Season totals, plus each scored entry's gameweek rank, running total and overall rank. */
-async function updateStandings(seasonId: string) {
-  await prisma.$executeRaw`
-    UPDATE "FantasyTeam" t SET "totalPoints" = s.total, "updatedAt" = NOW()
-    FROM (
-      SELECT e."teamId", COALESCE(SUM(e.points), 0)::int AS total
-      FROM "FantasyEntry" e JOIN "FantasyGameweek" g ON g.id = e."gameweekId"
-      WHERE g."seasonId" = ${seasonId} AND g."finalizedAt" IS NOT NULL
-      GROUP BY e."teamId"
-    ) s
-    WHERE t.id = s."teamId"`;
+/**
+ * Season totals, plus each scored entry's gameweek rank, running total and overall rank, for the
+ * gameweeks from `fromNumber` on (earlier ones can't change). Running totals carry on from the
+ * previous scored gameweek's stored totals when it's the one just before (every team has an entry
+ * there), so this reads a couple of gameweeks of entries rather than the whole season; otherwise it
+ * adds the season up from the start. Rows are only written where a value moved.
+ */
+async function updateStandings(seasonId: string, fromNumber = 1) {
+  const previous = fromNumber > 1
+    ? await prisma.fantasyGameweek.findFirst({ where: { seasonId, number: fromNumber - 1, finalizedAt: { not: null } }, select: { id: true } })
+    : null;
+  const from = previous ? fromNumber : 1;
   await prisma.$executeRaw`
     UPDATE "FantasyEntry" e SET "overallPoints" = r.cum, "overallRank" = r.overall, "gameweekRank" = r.week
     FROM (
@@ -287,12 +315,23 @@ async function updateStandings(seasonId: string) {
         RANK() OVER (PARTITION BY number ORDER BY points DESC)::int AS week
       FROM (
         SELECT e.id, g.number, COALESCE(e.points, 0) AS points,
-          SUM(COALESCE(e.points, 0)) OVER (PARTITION BY e."teamId" ORDER BY g.number)::int AS cum
-        FROM "FantasyEntry" e JOIN "FantasyGameweek" g ON g.id = e."gameweekId"
-        WHERE g."seasonId" = ${seasonId} AND g."finalizedAt" IS NOT NULL
+          (COALESCE(b."overallPoints", 0) + SUM(COALESCE(e.points, 0)) OVER (PARTITION BY e."teamId" ORDER BY g.number))::int AS cum
+        FROM "FantasyEntry" e
+        JOIN "FantasyGameweek" g ON g.id = e."gameweekId"
+        LEFT JOIN "FantasyEntry" b ON b."teamId" = e."teamId" AND b."gameweekId" = ${previous?.id ?? ""}
+        WHERE g."seasonId" = ${seasonId} AND g."finalizedAt" IS NOT NULL AND g.number >= ${from}
       ) x
     ) r
-    WHERE e.id = r.id`;
+    WHERE e.id = r.id AND (e."overallPoints" IS DISTINCT FROM r.cum OR e."overallRank" IS DISTINCT FROM r.overall OR e."gameweekRank" IS DISTINCT FROM r.week)`;
+  // A team's season total is its running total in the latest scored gameweek.
+  const latest = await prisma.fantasyGameweek.findFirst({
+    where: { seasonId, finalizedAt: { not: null } }, orderBy: { number: "desc" }, select: { id: true },
+  });
+  if (!latest) return;
+  await prisma.$executeRaw`
+    UPDATE "FantasyTeam" t SET "totalPoints" = COALESCE(e."overallPoints", 0), "updatedAt" = NOW()
+    FROM "FantasyEntry" e
+    WHERE e."gameweekId" = ${latest.id} AND e."teamId" = t.id AND t."totalPoints" IS DISTINCT FROM COALESCE(e."overallPoints", 0)`;
 }
 
 // ── Reading ───────────────────────────────────────────────────────────────────
@@ -307,15 +346,23 @@ async function playerList(seasonId: string, gameweeks: (Gameweek & { priceChange
       where: { gameweekId: { in: finished.map((g) => g.id) } },
       select: { playerId: true, gameweekId: true, points: true, goals: true, assists: true, cleanSheet: true, bonus: true, played: true },
     }),
-    // Each team's most recent entry (their current team).
-    prisma.$queryRaw<{ picks: Pick[] }[]>`
-      SELECT DISTINCT ON (e."teamId") e.picks FROM "FantasyEntry" e
-      JOIN "FantasyGameweek" g ON g.id = e."gameweekId"
-      WHERE g."seasonId" = ${seasonId}
-      ORDER BY e."teamId", g.number DESC`,
+    // How many teams have each player in their current team (their most recent entry), counted in
+    // the database: with thousands of teams, fetching every team's picks here would be megabytes.
+    // Every team has an entry in the last scored gameweek, so nothing older needs reading.
+    prisma.$queryRaw<{ playerId: string; n: number; teams: number }[]>`
+      WITH latest AS (
+        SELECT DISTINCT ON (e."teamId") e.picks FROM "FantasyEntry" e
+        JOIN "FantasyGameweek" g ON g.id = e."gameweekId"
+        WHERE g."seasonId" = ${seasonId} AND g.number >= ${finished[0]?.number ?? 0}
+        ORDER BY e."teamId", g.number DESC
+      )
+      SELECT x.pick->>'playerId' AS "playerId", COUNT(*)::int AS n, (SELECT COUNT(*) FROM latest)::int AS teams
+      FROM latest, jsonb_array_elements(latest.picks) WITH ORDINALITY AS x(pick, i)
+      WHERE x.i <= ${FANTASY_RULES.squadSize}
+      GROUP BY 1`,
   ]);
-  const pickedBy = new Map<string, number>();
-  for (const { picks } of latestPicks) for (const p of picks.slice(0, FANTASY_RULES.squadSize)) pickedBy.set(p.playerId, (pickedBy.get(p.playerId) ?? 0) + 1);
+  const pickedBy = new Map(latestPicks.map((r) => [r.playerId, r.n]));
+  const teamCount = latestPicks[0]?.teams ?? 0;
   const lastChanges = (finished[0]?.priceChanges ?? {}) as Record<string, number>;
 
   return players.map((p) => {
@@ -334,9 +381,32 @@ async function playerList(seasonId: string, gameweeks: (Gameweek & { priceChange
       assists: sum((r) => r.assists),
       cleanSheets: sum((r) => Number(r.cleanSheet)),
       bonus: sum((r) => r.bonus),
-      selectedBy: latestPicks.length ? Math.round(((pickedBy.get(p.id) ?? 0) / latestPicks.length) * 100) : 0,
+      selectedBy: teamCount ? Math.round(((pickedBy.get(p.id) ?? 0) / teamCount) * 100) : 0,
     };
   });
+}
+
+/**
+ * The player list is the same for every fan and is the heaviest part of GET /api/fantasy, so each
+ * server keeps it for a short while (and straight away rebuilds it once a gameweek is scored).
+ * Admin changes call invalidateFantasyCache(); other servers catch up within PLAYER_LIST_TTL.
+ */
+const PLAYER_LIST_TTL = 30_000;
+const playerListCache = new Map<string, { at: number; value: ReturnType<typeof playerList> }>();
+
+export function invalidateFantasyCache() {
+  playerListCache.clear();
+}
+
+function cachedPlayerList(seasonId: string, gameweeks: (Gameweek & { priceChanges: Prisma.JsonValue })[]) {
+  const key = `${seasonId}:${gameweeks.map((g) => `${g.id}.${g.finalizedAt?.getTime() ?? 0}`).join(",")}`;
+  const hit = playerListCache.get(key);
+  if (hit && Date.now() - hit.at < PLAYER_LIST_TTL) return hit.value;
+  const value = playerList(seasonId, gameweeks);
+  playerListCache.set(key, { at: Date.now(), value });
+  value.catch(() => playerListCache.delete(key));
+  if (playerListCache.size > 20) playerListCache.delete(playerListCache.keys().next().value!);
+  return value;
 }
 
 /** GET /api/fantasy: the season, its players and gameweeks, and the signed-in fan's team. */
@@ -346,7 +416,7 @@ export async function overview(userId?: string) {
 
   const gameweeks = await prisma.fantasyGameweek.findMany({ where: { seasonId: season.id }, orderBy: { number: "asc" } });
   const [players, team] = await Promise.all([
-    playerList(season.id, gameweeks),
+    cachedPlayerList(season.id, gameweeks),
     userId
       ? prisma.fantasyTeam.findUnique({ where: { userId_seasonId: { userId, seasonId: season.id } }, include: { entries: true } })
       : null,
@@ -542,12 +612,14 @@ export async function leagueStandings(leagueId: string, userId?: string) {
         select: { teamId: true, gameweekId: true, points: true, overallPoints: true },
       })
     : [];
-  const at = (teamId: string, g?: { id: string }) => (g ? entries.find((e) => e.teamId === teamId && e.gameweekId === g.id) : undefined);
+  // Lookups and ranks in one pass each, so a league with thousands of members stays quick.
+  const byTeamWeek = new Map(entries.map((e) => [`${e.teamId}:${e.gameweekId}`, e]));
+  const at = (teamId: string, g?: { id: string }) => (g ? byTeamWeek.get(`${teamId}:${g.id}`) : undefined);
 
   const teams = league.members.map((m) => m.team);
-  const rankBy = (score: (t: (typeof teams)[number]) => number | null) => (t: (typeof teams)[number]) => {
-    const mine = score(t);
-    return mine === null ? null : 1 + teams.filter((o) => (score(o) ?? -Infinity) > mine).length;
+  const rankBy = (score: (t: (typeof teams)[number]) => number | null) => {
+    const ranks = competitionRanks(teams.map((t) => [t.id, score(t)]));
+    return (t: (typeof teams)[number]) => ranks.get(t.id) ?? null;
   };
   const rank = rankBy((t) => t.totalPoints);
   const previousRank = rankBy((t) => at(t.id, finished[1])?.overallPoints ?? null);
@@ -565,9 +637,22 @@ export async function leagueStandings(leagueId: string, userId?: string) {
       mine: !!userId && t.userId === userId,
     }))
     .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
+  // Big leagues send the top LEAGUE_ROWS and your own row, not thousands of rows.
+  const shown = rows.length > LEAGUE_ROWS ? rows.filter((r, i) => i < LEAGUE_ROWS || r.mine) : rows;
   return {
     league: { id: league.id, name: league.name, code: league.code, isMember: rows.some((r) => r.mine) },
     lastGameweek: finished[0]?.number ?? null,
-    teams: rows,
+    teamCount: rows.length,
+    teams: shown,
   };
+}
+
+const LEAGUE_ROWS = 100;
+
+/** 1 + how many are strictly ahead (ties share a rank), for everyone with a score; null without one. */
+function competitionRanks(scores: [string, number | null][]) {
+  const ranked = scores.filter((s): s is [string, number] => s[1] !== null).sort((a, b) => b[1] - a[1]);
+  const ranks = new Map<string, number | null>(scores.map(([id]) => [id, null]));
+  ranked.forEach(([id, score], i) => ranks.set(id, i > 0 && ranked[i - 1][1] === score ? ranks.get(ranked[i - 1][0])! : i + 1));
+  return ranks;
 }

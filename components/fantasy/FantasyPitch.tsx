@@ -7,7 +7,7 @@ export interface PitchPlayer { id: string; name: string; position: FantasyPositi
 
 export interface PitchSlot {
   key: string;
-  /** Empty slots show their position. */
+  /** The position this slot plays (anyone can fill it); empty slots show it. */
   position: FantasyPosition | null;
   player: PitchPlayer | null;
   caption?: string;
@@ -32,7 +32,7 @@ export function FantasyPitch({ slots }: { slots: PitchSlot[] }) {
       <div className="absolute bottom-2.5 left-[27%] right-[27%] h-[14%] border border-b-0 border-white/20" />
       {ROWS.map((pos) => (
         <div key={pos} className="relative flex justify-evenly items-start">
-          {slots.filter((s) => (s.player?.position ?? s.position) === pos).map((s) => <Token key={s.key} slot={s} />)}
+          {slots.filter((s) => (s.position ?? s.player?.position) === pos).map((s) => <Token key={s.key} slot={s} />)}
         </div>
       ))}
     </div>
