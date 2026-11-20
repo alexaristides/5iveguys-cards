@@ -112,12 +112,15 @@ export function pointsBreakdown(stats: PlayerStats | undefined, position: Fantas
   if (!stats?.played) return lines;
   const P = FANTASY_POINTS;
   const add = (label: string, points: number) => { if (points) lines.push({ label, points }); };
-  add(stats.playedMost ? "Played most of the match" : "Played", stats.playedMost ? P.appearanceLong : P.appearance);
+  add(stats.playedMost ? "Played 60+ mins" : "Played under 60 mins", stats.playedMost ? P.appearanceLong : P.appearance);
   add(plural(stats.goals, "Goal"), stats.goals * P.goal[position]);
   add(plural(stats.assists, "Assist"), stats.assists * P.assist);
   if (keptCleanSheet(stats)) add("Clean sheet", P.cleanSheet[position]);
-  add(`${stats.saves} saves`, Math.floor(stats.saves / P.savesPerPoint));
-  add(plural(stats.penaltySaves, "Penalty save"), stats.penaltySaves * P.penaltySave);
+  // Saves and penalty saves only score in goal (FPL).
+  if (position === "GK") {
+    add(`${stats.saves} saves`, Math.floor(stats.saves / P.savesPerPoint));
+    add(plural(stats.penaltySaves, "Penalty save"), stats.penaltySaves * P.penaltySave);
+  }
   if (defends(position)) add(`${stats.goalsConceded} goals conceded`, -Math.floor(stats.goalsConceded / P.goalsConcededPerPoint));
   const threshold = P.defensiveThreshold[position];
   if (threshold && stats.defensiveContributions >= threshold) add("Defensive contributions", P.defensiveContribution);
@@ -147,7 +150,7 @@ export function bpsScore(s: PlayerStats, position: FantasyPosition) {
   bps += s.assists * 9;
   if (defends(position) && keptCleanSheet(s)) bps += 12;
   if (defends(position)) bps -= s.goalsConceded * 4;
-  bps += s.saves * 2 + s.penaltySaves * 15;
+  if (position === "GK") bps += s.saves * 2 + s.penaltySaves * 15;
   bps += Math.floor(s.defensiveContributions / 2);
   bps -= s.penaltyMisses * 6 + s.yellowCards * 3 + (s.redCard ? 9 : 0) + s.ownGoals * 6;
   return bps;
