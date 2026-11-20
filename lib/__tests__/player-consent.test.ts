@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  CONSENT_STATEMENTS, CONSENT_VERSION, clubEmail, formatSortCode, parseConsent, sameName, validIban,
+  AGREEMENT_PARTIES, CONSENT_STATEMENTS, CONSENT_VERSION, clubEmail, formatSortCode, parseConsent, sameName, validIban,
 } from "../player-consent";
 
 const allTicked = Object.fromEntries(CONSENT_STATEMENTS.map(({ key }) => [key, true]));
@@ -106,6 +106,8 @@ describe("emails", () => {
     expect(e.text).toContain("Account number: 12345678");
     expect(e.text).toContain("IP address: 1.2.3.4");
     expect(e.text).toContain(CONSENT_VERSION);
+    expect(e.text).toContain(AGREEMENT_PARTIES);
+    expect(e.text).toContain("Genius Technologies Ltd, trading as 5iveG");
     for (const { text } of CONSENT_STATEMENTS) expect(e.text).toContain(`✔ ${text}`);
   });
 
