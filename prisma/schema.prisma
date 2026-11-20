@@ -774,3 +774,34 @@ model PlayerPayout {
 
   @@index([channelId, playerName])
 }
+
+/// A paid order from the printed card shop (/shop), recorded from its Stripe Checkout session.
+/// Rules in lib/print-shop.ts, Stripe side in lib/print-shop-db.ts.
+model PrintOrder {
+  id              String    @id @default(cuid())
+  number          Int       @unique @default(autoincrement()) // shown to the buyer
+  stripeSessionId String    @unique
+  paymentIntentId String?
+  livemode        Boolean   @default(false) // false = a Stripe test-mode order
+  status          String    @default("paid") // paid | posted | cancelled
+  email           String?
+  customerName    String?
+  shippingName    String?
+  shippingAddress String? // JSON: line1, line2, city, state, postal_code, country
+  country         String?
+  zone            String // uk | world
+  items           String // JSON [{ packId, qty }]
+  packCount       Int
+  subtotalPence   Int
+  discountPence   Int
+  shippingPence   Int
+  totalPence      Int
+  firstEdition    Boolean
+  userId          String? // the signed-in buyer, if any (no relation: orders outlive accounts)
+  note            String?
+  paidAt          DateTime
+  postedAt        DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([status, paidAt])
+}

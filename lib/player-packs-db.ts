@@ -7,6 +7,7 @@ import { prisma } from "./db";
 import { buildSquad } from "./motm";
 import { AppleVerifyError, verifyTransaction } from "./apple-iap";
 import { WORLD_SLUGS, worldName } from "./worlds";
+import { PRINT_SHOP, packById, type CartItem } from "./print-shop";
 import {
   drawPlayerPack, guaranteedOdds, otherCardOdds, PLAYER_PACK, playerCards, summariseEarnings, type Rarity,
 } from "./player-packs";
@@ -287,7 +288,7 @@ export async function openPack(userId: string, packId: string, choice?: { channe
 /** Each player's pack sales, earnings, payouts and what they're still owed; and the latest sales. */
 export async function earnings({ includeTests = false } = {}) {
   const environment = includeTests ? undefined : "Production";
-  const [sales, payouts, channels, recent] = await Promise.all([
+  const [sales, payouts, channels, recent, printOrders] = await Promise.all([
     prisma.playerPack.findMany({
       where: { status: { in: ["paid", "opened", "refunded"] }, environment },
       select: { channelId: true, playerName: true, status: true, playerSharePence: true, priceMilli: true, currency: true },
@@ -305,7 +306,26 @@ export async function earnings({ includeTests = false } = {}) {
         user: { select: { name: true } },
       },
     }),
+    prisma.printOrder.findMany({
+      where: { status: { in: ["paid", "posted"] }, ...(includeTests ? {} : { livemode: true }) },
+      select: { items: true },
+    }),
   ]);
+
+  // Printed player packs from the web shop (lib/print-shop.ts) earn their player a share too.
+  const printChannelId = channels.find((c) => c.slug === PRINT_SHOP.channelSlug)?.id;
+  const printSales = printChannelId
+    ? printOrders.flatMap((o) =>
+        (JSON.parse(o.items) as CartItem[]).flatMap((i) => {
+          const player = packById(i.packId)?.player;
+          return player
+            ? Array.from({ length: i.qty }, () => ({
+                channelId: printChannelId, playerName: player, status: "paid", playerSharePence: PRINT_SHOP.playerSharePence,
+              }))
+            : [];
+        }),
+      )
+    : [];
 
   // Takings by currency (the App Store charges each country in its own), before Apple's cut.
   const takings = new Map<string, number>();
@@ -318,7 +338,7 @@ export async function earnings({ includeTests = false } = {}) {
     playerSharePence: PLAYER_PACK.playerSharePence,
     channels,
     players: summariseEarnings(
-      sales.filter((s): s is typeof s & { channelId: string } => !!s.channelId),
+      [...sales.filter((s): s is typeof s & { channelId: string } => !!s.channelId), ...printSales],
       payouts,
     ),
     takings: [...takings].map(([currency, milli]) => ({ currency, milli })),

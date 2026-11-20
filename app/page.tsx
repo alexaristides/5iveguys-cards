@@ -38,7 +38,10 @@ export default function HomePage() {
             </div>
             <span className="text-white font-semibold text-sm">5iveG</span>
           </div>
-          <div>
+          <div className="flex items-center gap-3">
+            <Link href="/shop" className="text-sm font-semibold text-purple-300 hover:text-purple-200">
+              Shop
+            </Link>
             <button
               onClick={() => signIn("google")}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-black text-sm font-semibold hover:bg-zinc-100 transition-all"
@@ -72,6 +75,24 @@ export default function HomePage() {
             Get points for being a fan of 5ive Guys and Other Guys, and unlock exclusive rewards.
           </p>
         </div>
+
+        {/* The printed card shop. */}
+        <Link
+          href="/shop"
+          className="group relative mb-8 flex items-center gap-5 overflow-hidden rounded-3xl border border-amber-400/40 bg-gradient-to-br from-amber-400/15 via-[#140b05] to-[#0a0a0a] p-6 transition hover:border-amber-300/70 sm:p-8"
+        >
+          <img src="/shop/packs/Squad.jpg" alt="" className="w-20 shrink-0 rounded-lg shadow-xl shadow-black/60 sm:w-28" />
+          <div>
+            <span className="inline-flex rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-200">
+              New · Printed 1st Edition
+            </span>
+            <h2 className="mt-3 text-2xl font-extrabold text-white sm:text-3xl">Real trading card packs</h2>
+            <p className="mt-1 text-sm text-zinc-300 sm:text-base">
+              Order before 14 December for 1st Edition cards, posted by 20 December. Any 3 packs for £25.
+            </p>
+            <span className="mt-3 inline-block text-sm font-semibold text-amber-200 group-hover:text-amber-100">Shop the packs →</span>
+          </div>
+        </Link>
 
         {/*
           5IVE STREET hero. The game is a static page (public/street), so plain links rather than <Link>.

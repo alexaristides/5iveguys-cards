@@ -265,6 +265,9 @@ export default function DashboardPage() {
           </button>
 
           <div className="flex items-center gap-3">
+            <Link href="/shop" className="text-purple-300 hover:text-purple-200 text-xs font-semibold transition-colors">
+              Shop
+            </Link>
             <Link href="/game" className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors">
               Games
             </Link>
