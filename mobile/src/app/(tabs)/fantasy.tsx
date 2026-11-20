@@ -6,7 +6,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { FantasyPitch, type PitchSlot } from "@/components/fantasy/FantasyPitch";
 import { RankMove } from "@/components/fantasy/LeaderRow";
 import { Button, ErrorText, Loading, Panel, SectionTitle } from "@/components/ui";
-import { formatCountdown, formatDeadline, lineupFromIds, slotPositions } from "@/lib/fantasy";
+import { formatCountdown, formatDeadline, lineupFromPicks, slotPositions } from "@/lib/fantasy";
 import { useFantasy, useFantasyGameweek, useFantasyLeagues } from "@/lib/queries";
 import { colors } from "@/lib/theme";
 import type { FantasyOverview } from "@/lib/types";
@@ -88,7 +88,7 @@ function Home({ data, now, gameweek, leagues }: {
           <Text style={styles.body}>
             {FANTASY_RULES.prices
               ? `Pick ${FANTASY_RULES.squadSize} of the 5ive Guys with ${formatPrice(season.budget)}. Captain, transfers, price changes and chips, `
-              : `Pick any ${FANTASY_RULES.squadSize} of the 5ive Guys, no prices. Captain, transfers and chips, `}
+              : `Pick any ${FANTASY_RULES.squadSize} of the 5ive Guys and play them anywhere, no prices. Captain, transfers and chips, `}
             just like Fantasy Premier League — and the points come from their real Division 1 matches.
           </Text>
         </Panel>
@@ -105,7 +105,7 @@ function Home({ data, now, gameweek, leagues }: {
     );
   }
 
-  const lineup = draft ? lineupFromIds(draft.picks.map((p) => p.playerId), players) : null;
+  const lineup = draft ? lineupFromPicks(draft.picks, players) : null;
   const slots: PitchSlot[] = lineup
     ? slotPositions(lineup.formation).map((position, i) => {
         const p = players.get(lineup.slots[i] ?? "") ?? null;

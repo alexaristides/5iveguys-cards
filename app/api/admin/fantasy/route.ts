@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { overallFromVotes, STAT_FIELDS, type StatsMap } from "@/lib/card-rating";
 import { buildSquad } from "@/lib/motm";
 import { EMPTY_STATS, FANTASY_RULES, isPlayerStatus, POSITIONS, suggestPrices, toFantasyPosition, type FantasyPosition, type PlayerStats } from "@/lib/fantasy";
-import { FantasyError, finalizeGameweek, scoreGameweekStats } from "@/lib/fantasy-db";
+import { FantasyError, finalizeGameweek, invalidateFantasyCache, scoreGameweekStats } from "@/lib/fantasy-db";
 
 const isAdmin = (req: NextRequest) =>
   !!process.env.ADMIN_SECRET && req.headers.get("x-admin-secret") === process.env.ADMIN_SECRET;
@@ -44,7 +44,9 @@ export async function POST(req: NextRequest) {
   if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = (await req.json().catch(() => ({}))) as Body;
   try {
-    return NextResponse.json(await handle(body));
+    const result = await handle(body);
+    invalidateFantasyCache(); // fans see admin changes straight away (on this server; others within 30 s)
+    return NextResponse.json(result);
   } catch (err) {
     if (err instanceof FantasyError) return NextResponse.json({ error: err.message }, { status: err.status });
     throw err;

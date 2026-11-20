@@ -5,7 +5,7 @@ import { CHIPS } from "@shared/fantasy";
 import { FantasyPitch, type PitchSlot } from "@/components/fantasy/FantasyPitch";
 import { GameScreen } from "@/components/game/GameScreen";
 import { ErrorText, Loading, Panel } from "@/components/ui";
-import { lineupFromIds, slotPositions } from "@/lib/fantasy";
+import { lineupFromPicks, slotPositions } from "@/lib/fantasy";
 import { useFantasy, useFantasyGameweek } from "@/lib/queries";
 import { colors } from "@/lib/theme";
 
@@ -46,7 +46,7 @@ export default function FantasyGameweekScreen() {
   const { gameweek, team, entry, score, lines } = data;
   const live = gameweek.status === "live";
   const scored = new Map((score?.players ?? []).map((p) => [p.playerId, p]));
-  const lineup = entry ? lineupFromIds(entry.picks.map((p) => p.playerId), players) : null;
+  const lineup = entry ? lineupFromPicks(entry.picks, players) : null;
   const chip = entry?.chip ? CHIPS.find((c) => c.id === entry.chip) : null;
   const doubled = entry?.chip === "double_points" ? 2 : 1;
   const result90 = gameweek.goalsFor !== null && gameweek.goalsAgainst !== null

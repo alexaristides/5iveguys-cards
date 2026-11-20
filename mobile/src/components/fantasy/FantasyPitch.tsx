@@ -6,7 +6,7 @@ import type { FantasyPlayer } from "@/lib/types";
 
 export interface PitchSlot {
   key: string;
-  /** Empty slots show their position. */
+  /** The position this slot plays (anyone can fill it); empty slots show it. */
   position: FantasyPosition | null;
   player: Pick<FantasyPlayer, "id" | "name" | "position" | "imageUrl"> & { status?: PlayerStatus } | null;
   /** Under the name: a price, or points. */
@@ -32,7 +32,7 @@ export function FantasyPitch({ slots }: { slots: PitchSlot[] }) {
       <View style={styles.box} />
       {ROWS.map((pos) => (
         <View key={pos} style={styles.row}>
-          {slots.filter((s) => (s.player?.position ?? s.position) === pos).map((s) => <Token key={s.key} slot={s} />)}
+          {slots.filter((s) => (s.position ?? s.player?.position) === pos).map((s) => <Token key={s.key} slot={s} />)}
         </View>
       ))}
     </View>

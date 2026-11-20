@@ -49,6 +49,8 @@ export async function GET(req: NextRequest, { params }: Params) {
     const stats = new Map(statRows.map((s) => [s.playerId, toPlayerStats(s)]));
 
     const picks = entry ? asPicks(entry.picks) : [];
+    // Players score as their own position, wherever the fan put them.
+    const ownPosition = (id: string) => positions.get(id) ?? "MID";
     const chip = sameWeek && isChip(entry!.chip) ? entry!.chip : null;
     const transferCost = sameWeek ? entry!.transferCost : 0;
     const score = entry
@@ -69,7 +71,7 @@ export async function GET(req: NextRequest, { params }: Params) {
         : null,
       score,
       gameweekRank: sameWeek ? entry!.gameweekRank : null,
-      lines: Object.fromEntries(picks.map((p) => [p.playerId, pointsBreakdown(stats.get(p.playerId), positions.get(p.playerId) ?? "MID")])),
+      lines: Object.fromEntries(picks.map((p) => [p.playerId, pointsBreakdown(stats.get(p.playerId), ownPosition(p.playerId))])),
       average: aggregate?._avg.points != null ? Math.round(aggregate._avg.points) : null,
       highest: aggregate?._max.points ?? null,
     };

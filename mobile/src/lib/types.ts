@@ -205,6 +205,8 @@ export interface FantasyLeaderboard {
 export interface FantasyLeagueStandings {
   league: { id: string; name: string; code: string; isMember: boolean };
   lastGameweek: number | null;
+  /** Everyone in the league; big leagues only send the top 100 and your row in `teams`. */
+  teamCount?: number;
   teams: FantasyLeagueRow[];
 }
 

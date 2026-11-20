@@ -67,7 +67,7 @@ function Private({ id }: { id: string }) {
       (i) => {
         if (i === 0) Share.share({ message: inviteMessage(data.league) });
         if (i === 1) {
-          Alert.alert("Leave this league?", data.teams.length === 1 ? "You're the last one in it, so the league will be deleted." : "You can rejoin with the code.", [
+          Alert.alert("Leave this league?", (data.teamCount ?? data.teams.length) === 1 ? "You're the last one in it, so the league will be deleted." : "You can rejoin with the code.", [
             { text: "Cancel", style: "cancel" },
             {
               text: "Leave", style: "destructive", onPress: async () => {
@@ -101,7 +101,7 @@ function Private({ id }: { id: string }) {
             <Text style={styles.inviteAction}>Invite ›</Text>
           </Pressable>
           <Text style={styles.sub}>
-            {data.teams.length} team{data.teams.length === 1 ? "" : "s"}{data.lastGameweek ? ` · after gameweek ${data.lastGameweek}` : ""}
+            {data.teamCount ?? data.teams.length} team{(data.teamCount ?? data.teams.length) === 1 ? "" : "s"}{data.lastGameweek ? ` · after gameweek ${data.lastGameweek}` : ""}
           </Text>
           <Table rows={data.teams} lastGameweek={data.lastGameweek} />
         </>

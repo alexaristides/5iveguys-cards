@@ -6,7 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { FantasyPitch, type PitchSlot } from "@/components/fantasy/FantasyPitch";
 import { FantasyShell, panel, Spinner, type FantasyOverview } from "@/components/fantasy/FantasyShell";
 import { CHIPS, type Chip, type EntryScore, type GameweekStatus, type Pick } from "@/lib/fantasy";
-import { lineupFromIds, slotPositions } from "@/lib/fantasy-lineup";
+import { lineupFromPicks, slotPositions } from "@/lib/fantasy-lineup";
 
 interface GameweekResult {
   gameweek: { number: number; name: string | null; deadline: string; status: GameweekStatus; goalsFor: number | null; goalsAgainst: number | null };
@@ -60,7 +60,7 @@ function Gameweek() {
   const { gameweek, team, entry, score, lines } = result;
   const live = gameweek.status === "live";
   const scored = new Map((score?.players ?? []).map((p) => [p.playerId, p]));
-  const lineup = entry ? lineupFromIds(entry.picks.map((p) => p.playerId), players) : null;
+  const lineup = entry ? lineupFromPicks(entry.picks, players) : null;
   const chip = entry?.chip ? CHIPS.find((c) => c.id === entry.chip) : null;
   const doubled = entry?.chip === "double_points" ? 2 : 1;
   const matchLine = gameweek.goalsFor !== null && gameweek.goalsAgainst !== null
