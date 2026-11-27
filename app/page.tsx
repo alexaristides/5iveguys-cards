@@ -70,7 +70,7 @@ export default function HomePage() {
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_70%_at_75%_10%,rgba(147,51,234,0.30),transparent_70%)]" />
         <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-12 pb-16 sm:pt-20 sm:pb-24 grid gap-12 md:grid-cols-[1.1fr_1fr] items-center">
           <div>
-            <p className="text-purple-300 text-xs font-semibold uppercase tracking-[0.2em]">The 5ive Guys fan app</p>
+            <p className="text-purple-300 text-xs font-semibold uppercase tracking-[0.2em]">The fantasy football app for the 5ive Guys YouTube channel</p>
             <h1 className="mt-4 text-4xl sm:text-6xl font-extrabold tracking-tight text-white leading-[1.02]">
               Collect the squad.
               <br />

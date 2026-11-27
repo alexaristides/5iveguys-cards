@@ -38,7 +38,7 @@ export default function SiteFooter({ light }: { light?: boolean }) {
         <div className="space-y-4">
           <Logo className="h-7" ink={light} />
           <p className={`${light ? "text-ink-3" : "text-zinc-500"} text-sm leading-relaxed max-w-xs`}>
-            The fan app for 5ive Guys: printed trading cards, the 5IVE STREET game and fantasy football.
+            The fantasy football app for the 5ive Guys YouTube channel, plus trading cards and the 5IVE STREET game.
           </p>
         </div>
         {COLUMNS.map((c) => (

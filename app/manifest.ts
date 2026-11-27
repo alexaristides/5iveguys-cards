@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "5iveG",
     short_name: "5iveG",
-    description: "Trading cards, games and fantasy football for fans of 5ive Guys.",
+    description: "The fantasy football app for the 5ive Guys YouTube channel.",
     start_url: "/",
     display: "standalone",
     background_color: "#0a0a0a",
