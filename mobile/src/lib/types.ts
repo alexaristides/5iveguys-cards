@@ -1,4 +1,6 @@
+import type { StatsMap } from "@shared/card-rating";
 import type { Chip, EntryScore, FantasyPosition, GameweekStatus, Pick, PlayerStatus, Squad } from "@shared/fantasy";
+export type { SquadRating } from "@shared/player-ratings";
 
 export interface Account {
   id: string;
@@ -6,6 +8,16 @@ export interface Account {
   email: string | null;
   image: string | null;
   hasYoutubeScope: boolean;
+}
+
+// ── Player ratings (GET /api/channels/[slug]/players, /api/cards/[cardId]/votes) ──
+
+export interface VotesResponse {
+  /** The fans' average for each stat, rounded (all 0 before anyone has rated). */
+  averages: StatsMap;
+  userVote: StatsMap | null;
+  voteCount: number;
+  position: string | null;
 }
 
 // ── Man of the Match (GET /api/channels/[slug]/videos, …/videos/[videoId]/motm) ──

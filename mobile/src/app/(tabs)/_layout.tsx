@@ -1,13 +1,17 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { colors } from "@/lib/theme";
 
-/** Four tabs: your team, Man of the Match voting, your leagues, and how the game works. */
+/** Five tabs: your team, rating the players, Man of the Match voting, your leagues, and how the game works. */
 export default function TabsLayout() {
   return (
     <NativeTabs tintColor={colors.accent} minimizeBehavior="onScrollDown">
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>My Team</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="tshirt.fill" />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="players">
+        <NativeTabs.Trigger.Label>Players</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="person.2.fill" />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="motm">
         <NativeTabs.Trigger.Label>MOTM</NativeTabs.Trigger.Label>
