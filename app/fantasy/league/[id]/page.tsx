@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { LeagueTable, type LeagueRow } from "@/components/fantasy/FantasyLeagues";
-import { FantasyShell, panel, Spinner } from "@/components/fantasy/FantasyShell";
+import { BackLink, FantasyShell, primaryButton, Spinner } from "@/components/fantasy/FantasyShell";
 
 interface Standings { league: { id: string; name: string; code: string; isMember: boolean }; lastGameweek: number | null; teamCount?: number; teams: LeagueRow[] }
 
@@ -24,7 +23,7 @@ export default function FantasyLeaguePage() {
     fetch(`/api/fantasy/leagues/${id}`).then(async (r) => (r.ok ? setData(await r.json()) : setError((await r.json()).error ?? "Couldn't load that league.")));
   }, [id, status, router]);
 
-  if (error) return <FantasyShell><p className="text-red-400">{error}</p><Link href="/fantasy" className="text-purple-400">← Fantasy</Link></FantasyShell>;
+  if (error) return <FantasyShell><BackLink /><p className="text-red-600 font-semibold">{error}</p></FantasyShell>;
   if (!data) return <FantasyShell><Spinner /></FantasyShell>;
 
   const link = typeof window !== "undefined" ? `${window.location.origin}/fantasy/join/${data.league.code}` : "";
@@ -36,23 +35,23 @@ export default function FantasyLeaguePage() {
 
   return (
     <FantasyShell>
-      <Link href="/fantasy" className="text-purple-400 text-sm">← Fantasy</Link>
-      <h1 className="text-white text-2xl font-black">{data.league.name}</h1>
-      <section className={`${panel} flex flex-wrap items-center gap-4`}>
+      <BackLink />
+      <h1 className="text-ink text-2xl sm:text-3xl font-black">{data.league.name}</h1>
+      <section className="rounded-[20px] bg-violet-100 p-4 sm:p-5 flex flex-wrap items-center gap-4">
         <div className="flex-1">
-          <div className="text-zinc-500 text-xs font-bold">League code</div>
-          <div className="text-white text-3xl font-black tracking-[0.3em]">{data.league.code}</div>
+          <div className="text-ink-3 text-xs font-bold">League code</div>
+          <div className="text-violet-600 text-3xl font-black tracking-[0.2em]">{data.league.code}</div>
         </div>
         <button
           onClick={() => { navigator.clipboard.writeText(link).then(() => setCopied(true)); }}
-          className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold"
+          className={`${primaryButton} h-12 px-5`}
         >
           {copied ? "Link copied" : "Copy invite link"}
         </button>
       </section>
-      <p className="text-zinc-400 text-sm">{data.teamCount ?? data.teams.length} team{(data.teamCount ?? data.teams.length) === 1 ? "" : "s"}{data.lastGameweek ? ` · after gameweek ${data.lastGameweek}` : ""}</p>
+      <p className="text-ink-2 text-sm font-semibold">{data.teamCount ?? data.teams.length} team{(data.teamCount ?? data.teams.length) === 1 ? "" : "s"}{data.lastGameweek ? ` · after gameweek ${data.lastGameweek}` : ""}</p>
       <LeagueTable rows={data.teams} lastGameweek={data.lastGameweek} />
-      {data.league.isMember && <button onClick={leave} className="text-red-400 text-sm">Leave league</button>}
+      {data.league.isMember && <button onClick={leave} className="text-red-600 hover:text-red-700 text-sm font-bold">Leave league</button>}
     </FantasyShell>
   );
 }

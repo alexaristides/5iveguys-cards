@@ -23,6 +23,14 @@ const config: Config = {
           900: "#581c87",
           950: "#3b0764",
         },
+        // The Fantasy pages' bright look, from the iOS app (mobile/src/lib/theme.ts). Its accent is violet-600.
+        ink: { DEFAULT: "#160B2E", 2: "#4B4462", 3: "#857F9B" },
+        lilac: { DEFAULT: "#F4F2FB", 2: "#EEEBF8", line: "#E3DFF0" },
+        pitch: { DEFAULT: "#24A148", stripe: "#2BAE50" },
+      },
+      boxShadow: {
+        card: "0 3px 10px rgba(46, 16, 101, 0.07)",
+        hero: "0 8px 24px rgba(124, 58, 237, 0.25)",
       },
       fontFamily: {
         sans: ["-apple-system", "BlinkMacSystemFont", "SF Pro Display", "Segoe UI", "sans-serif"],

@@ -6,7 +6,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { FantasyPitch, POSITION_BG, type PitchSlot } from "@/components/fantasy/FantasyPitch";
-import { FantasyShell, panel, Spinner, type FantasyOverview, type FantasyPlayerRow } from "@/components/fantasy/FantasyShell";
+import {
+  card, chipClass, FantasyShell, inputClass, panel, primaryButton, Spinner, type FantasyOverview, type FantasyPlayerRow,
+} from "@/components/fantasy/FantasyShell";
 import {
   buySquad, CHIP_IDS, CHIPS, entryError, FANTASY_RULES, formatCountdown, formatDeadline, formatPrice, PLAYER_STATUS, POSITION_LABEL,
   seasonHalf, transferCostFor, transfersBetween, type Chip, type FantasyPosition, type SquadPlayer,
@@ -29,7 +31,7 @@ export default function FantasyTeamPage() {
 
   if (!data) return <FantasyShell><Spinner /></FantasyShell>;
   if (!data.season || data.nextGameweek === null) {
-    return <FantasyShell><p className="text-zinc-400">There&apos;s no gameweek open for picks right now. <Link href="/fantasy" className="text-purple-400">Back</Link></p></FantasyShell>;
+    return <FantasyShell><p className={`${panel} text-ink-2`}>There&apos;s no gameweek open for picks right now. <Link href="/fantasy" className="text-violet-600 font-bold">Back</Link></p></FantasyShell>;
   }
   return <FantasyShell><Editor data={data} onSaved={() => router.push("/fantasy")} /></FantasyShell>;
 }
@@ -119,20 +121,26 @@ function Editor({ data, onSaved }: { data: FantasyOverview; onSaved: () => void 
 
   return (
     <>
-      <div className="flex items-center justify-between">
-        <h1 className="text-white text-2xl font-black">{team ? team.name : "Pick your team"}</h1>
-        <div className="flex gap-4 text-sm">
-          <button onClick={() => { setLineup(start); setCaptain(draft?.captainId ?? null); setVice(draft?.viceCaptainId ?? null); setChip(draft?.chip ?? null); }} className="text-zinc-400 hover:text-white">Reset</button>
-          <Link href="/fantasy" className="text-zinc-400 hover:text-white">Cancel</Link>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-ink text-2xl sm:text-3xl font-black truncate">{team ? team.name : "Pick your team"}</h1>
+        <div className="flex gap-4 text-sm font-bold shrink-0">
+          <button onClick={() => { setLineup(start); setCaptain(draft?.captainId ?? null); setVice(draft?.viceCaptainId ?? null); setChip(draft?.chip ?? null); }} className="text-violet-600 hover:text-violet-700">Reset</button>
+          <Link href="/fantasy" className="text-ink-3 hover:text-ink">Cancel</Link>
         </div>
       </div>
-      <p className="text-zinc-400 text-sm">
-        Gameweek {gameweek.number}{gameweek.name ? ` · ${gameweek.name}` : ""} · deadline {formatDeadline(gameweek.deadline)} ({formatCountdown(new Date(gameweek.deadline).getTime() - openedAt)})
-      </p>
+      <div className={`${card} flex items-center gap-3 p-3.5`}>
+        <div className="flex-1 min-w-0">
+          <div className="text-ink font-black">Gameweek {gameweek.number}{gameweek.name ? ` · ${gameweek.name}` : ""}</div>
+          <div className="text-ink-2 text-sm">Deadline {formatDeadline(gameweek.deadline)}</div>
+        </div>
+        <span className="rounded-xl bg-amber-100 text-amber-700 font-black tabular-nums px-3 py-1.5">
+          {formatCountdown(new Date(gameweek.deadline).getTime() - openedAt)}
+        </span>
+      </div>
 
       {!team && (
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Team name" maxLength={30}
-          className="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold outline-none focus:border-purple-500" />
+          className={`${inputClass} w-full h-[54px] text-lg font-extrabold`} />
       )}
 
       <div className={`grid ${FANTASY_RULES.prices ? "grid-cols-3" : "grid-cols-2"} gap-2 text-center`}>
@@ -144,23 +152,23 @@ function Editor({ data, onSaved }: { data: FantasyOverview; onSaved: () => void 
       <div className="flex flex-wrap gap-2">
         {FORMATIONS.map((f) => (
           <button key={formationLabel(f)} onClick={() => setLineup(changeFormation(lineup, f, players))}
-            className={`px-3 py-1.5 rounded-full border text-sm font-semibold ${formationLabel(f) === formationLabel(lineup.formation) ? "bg-purple-600 border-purple-600 text-white" : "border-zinc-700 text-zinc-300 hover:border-zinc-500"}`}>
+            className={chipClass(formationLabel(f) === formationLabel(lineup.formation))}>
             {formationLabel(f)}
           </button>
         ))}
         {missing > 0 && (
           <button onClick={() => setLineup(autoComplete(lineup, data.players, FANTASY_RULES.prices ? bank : Infinity))}
-            className="px-3 py-1.5 rounded-full border border-zinc-700 text-zinc-300 hover:border-zinc-500 text-sm font-semibold">
+            className="h-[34px] px-3.5 rounded-full border border-violet-200 bg-violet-100 text-violet-700 hover:bg-violet-200 text-sm font-bold">
             Auto-fill ✨
           </button>
         )}
       </div>
 
       <FantasyPitch slots={slots} />
-      <p className="text-zinc-500 text-xs text-center">Click a player to make them captain or transfer them out.</p>
+      <p className="text-ink-2 text-sm text-center">Click a player to make them captain or transfer them out. C = captain (double points), V = vice-captain.</p>
 
       <section className="space-y-2">
-        <h2 className="text-white text-lg font-extrabold">Chips</h2>
+        <h2 className="text-ink text-xl font-black pt-2">Chips <span className="text-ink-3 text-base font-bold">optional</span></h2>
         <div className="grid grid-cols-2 gap-2">
           {CHIPS.map((c) => {
             const active = chip === c.id;
@@ -169,22 +177,22 @@ function Editor({ data, onSaved }: { data: FantasyOverview; onSaved: () => void 
             const playedAt = team?.chipsPlayed.find((p) => p.chip === c.id && seasonHalf(p.gameweek, season.secondHalfFrom) === seasonHalf(gameweek.number, season.secondHalfFrom));
             return (
               <button key={c.id} disabled={blocked} onClick={() => setChip(active ? null : c.id)}
-                className={`text-left rounded-xl border p-3 disabled:opacity-40 ${active ? "border-amber-400 bg-amber-950/40" : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"}`}>
-                <div className="text-white font-bold">{c.emoji} {c.name}</div>
-                <div className={`text-xs ${active ? "text-amber-400" : "text-zinc-500"}`}>
+                className={`text-left rounded-2xl border-[1.5px] p-3 space-y-1 disabled:opacity-40 transition-colors ${active ? "border-yellow-400 bg-amber-100" : "border-lilac-line bg-white enabled:hover:border-violet-300"}`}>
+                <div className="text-ink font-black">{c.emoji} {c.name}</div>
+                <div className={`text-xs leading-snug ${active ? "text-amber-700 font-extrabold" : "text-ink-2"}`}>
                   {active ? "Playing this gameweek" : needsTeam ? "After your first deadline" : playedAt ? `Played in GW${playedAt.gameweek}` : c.description}
                 </div>
               </button>
             );
           })}
         </div>
-        <p className="text-zinc-500 text-xs">One chip a gameweek; you can cancel it until the deadline.{season.secondHalfFrom ? ` Chips come back from gameweek ${season.secondHalfFrom}.` : ""}</p>
+        <p className="text-ink-3 text-xs">One chip a gameweek; you can cancel it until the deadline.{season.secondHalfFrom ? ` Chips come back from gameweek ${season.secondHalfFrom}.` : ""}</p>
       </section>
 
       <div className="sticky bottom-4 space-y-2">
-        {(error || saveError) && <p className="text-center text-red-400 text-sm bg-[#0a0a0a]/90 rounded-lg py-1">{saveError ?? error}</p>}
+        {(error || saveError) && <p className="text-center text-red-600 text-sm font-semibold bg-red-50/95 border border-red-100 rounded-xl py-1.5 px-3">{saveError ?? error}</p>}
         <button onClick={save} disabled={!!error || saving}
-          className="w-full rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white font-bold py-3 shadow-lg shadow-black/50">
+          className={`${primaryButton} w-full h-[52px] text-[17px] shadow-hero disabled:shadow-none`}>
           {saving ? "Saving…" : !team ? "Create team" : transfersIn.length ? `Confirm ${plural(transfersIn.length, "transfer")}${transferCost ? ` (−${transferCost} pts)` : ""}` : "Save team"}
         </button>
       </div>
@@ -218,17 +226,17 @@ function Editor({ data, onSaved }: { data: FantasyOverview; onSaved: () => void 
 
 function Stat({ value, label, bad }: { value: string; label: string; bad?: boolean }) {
   return (
-    <div className={`${panel} py-3 px-2`}>
-      <div className={`text-lg font-black tabular-nums ${bad ? "text-red-400" : "text-white"}`}>{value}</div>
-      <div className="text-zinc-500 text-xs">{label}</div>
+    <div className={`${card} py-3 px-2`}>
+      <div className={`text-xl font-black tabular-nums ${bad ? "text-red-600" : "text-ink"}`}>{value}</div>
+      <div className="text-ink-3 text-xs font-semibold">{label}</div>
     </div>
   );
 }
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-md max-h-[80vh] overflow-y-auto rounded-2xl bg-zinc-900 border border-zinc-800 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 bg-ink/40 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-4 [color-scheme:light]" onClick={onClose}>
+      <div className="w-full max-w-md max-h-[80vh] overflow-y-auto rounded-3xl bg-lilac p-4 space-y-3 shadow-2xl shadow-violet-950/20" onClick={(e) => e.stopPropagation()}>
         {children}
       </div>
     </div>
@@ -241,8 +249,8 @@ function SlotMenu({ player, actions, onClose }: {
   return (
     <Modal onClose={onClose}>
       <div>
-        <div className="text-white font-bold">{player.name} · {POSITION_LABEL[player.position]}{FANTASY_RULES.prices ? ` · ${formatPrice(player.price)}` : ""}</div>
-        <div className="text-zinc-500 text-sm">{player.totalPoints} pts · form {player.form} · picked by {player.selectedBy}%</div>
+        <div className="text-ink text-lg font-black">{player.name} · {POSITION_LABEL[player.position]}{FANTASY_RULES.prices ? ` · ${formatPrice(player.price)}` : ""}</div>
+        <div className="text-ink-3 text-sm">{player.totalPoints} pts · form {player.form} · picked by {player.selectedBy}%</div>
         {player.status !== "a" && (
           <div className="text-sm font-semibold" style={{ color: PLAYER_STATUS[player.status].color }}>
             {PLAYER_STATUS[player.status].label}{player.news ? ` — ${player.news}` : ""}
@@ -251,11 +259,11 @@ function SlotMenu({ player, actions, onClose }: {
       </div>
       {actions.map((a) => (
         <button key={a.label} onClick={() => { a.run(); onClose(); }}
-          className={`w-full rounded-xl bg-zinc-800 hover:bg-zinc-700 py-2.5 font-semibold ${a.danger ? "text-red-400" : "text-white"}`}>
+          className={`${card} w-full h-12 font-extrabold hover:bg-violet-50 transition-colors ${a.danger ? "text-red-600" : "text-ink"}`}>
           {a.label}
         </button>
       ))}
-      <button onClick={onClose} className="w-full py-2 text-zinc-400">Cancel</button>
+      <button onClick={onClose} className="w-full py-2 text-ink-3 font-bold hover:text-ink">Cancel</button>
     </Modal>
   );
 }
@@ -275,19 +283,18 @@ function Picker({ position, players, taken, budgetLeft, onPick, onClose }: {
   return (
     <Modal onClose={onClose}>
       <div className="flex items-center justify-between">
-        <h3 className="text-white text-lg font-black">{position ? `Pick your ${POSITION_LABEL[position].toLowerCase()}` : "Pick a player"}</h3>
-        <button onClick={onClose} className="text-purple-400 font-semibold">Cancel</button>
+        <h3 className="text-ink text-xl font-black">{position ? `Pick your ${POSITION_LABEL[position].toLowerCase()}` : "Pick a player"}</h3>
+        <button onClick={onClose} className="text-violet-600 font-extrabold">Cancel</button>
       </div>
       {position && (
-        <p className="text-zinc-400 text-sm">
+        <p className="text-ink-2 text-sm">
           Anyone can play here, but they score as their own position. {POSITION_LABEL[position]}s are listed first.
         </p>
       )}
-      {FANTASY_RULES.prices && <p className="text-zinc-400 text-sm">You can spend up to {formatPrice(Math.max(0, budgetLeft))}.</p>}
-      <div className="flex gap-2">
+      {FANTASY_RULES.prices && <p className="text-ink-2 text-sm">You can spend up to {formatPrice(Math.max(0, budgetLeft))}.</p>}
+      <div className="flex flex-wrap gap-2">
         {(FANTASY_RULES.prices ? (["price", "points", "form", "selected"] as const) : (["points", "form", "selected"] as const)).map((s) => (
-          <button key={s} onClick={() => setSort(s)}
-            className={`px-3 py-1 rounded-full border text-sm ${sort === s ? "bg-purple-600 border-purple-600 text-white" : "border-zinc-700 text-zinc-300"}`}>
+          <button key={s} onClick={() => setSort(s)} className={chipClass(sort === s)}>
             {s === "price" ? "Price" : s === "points" ? "Points" : s === "form" ? "Form" : "Most picked"}
           </button>
         ))}
@@ -297,13 +304,13 @@ function Picker({ position, players, taken, budgetLeft, onPick, onClose }: {
           const affordable = p.price <= budgetLeft;
           return (
             <button key={p.id} disabled={!affordable} onClick={() => onPick(p.id)}
-              className="w-full flex items-center gap-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 p-2 text-left">
-              <div className="relative w-9 aspect-[785/1085] rounded overflow-hidden bg-zinc-700 shrink-0">
-                {p.imageUrl && <Image src={p.imageUrl} alt={p.name} fill sizes="36px" className="object-cover" />}
+              className={`${card} w-full flex items-center gap-3 rounded-2xl border-2 border-transparent enabled:hover:border-violet-300 disabled:opacity-40 p-2.5 text-left transition-colors`}>
+              <div className="relative w-11 aspect-[785/1085] rounded-[7px] overflow-hidden bg-lilac-2 shrink-0">
+                {p.imageUrl && <Image src={p.imageUrl} alt={p.name} fill sizes="44px" className="object-cover" />}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-white font-bold">{p.name}</div>
-                <div className="text-zinc-500 text-xs flex items-center gap-1.5">
+                <div className="text-ink text-[17px] font-black">{p.name}</div>
+                <div className="text-ink-3 text-[13px] flex items-center gap-1.5">
                   <span className={`${POSITION_BG[p.position]} text-white font-black rounded px-1`}>{p.position}</span>
                   {p.totalPoints} pts · form {p.form} · {p.selectedBy}%
                 </div>
@@ -314,9 +321,9 @@ function Picker({ position, players, taken, budgetLeft, onPick, onClose }: {
                 )}
               </div>
               {FANTASY_RULES.prices && <span className="text-right">
-                <span className={`block font-black tabular-nums ${affordable ? "text-white" : "text-red-400"}`}>{formatPrice(p.price)}</span>
+                <span className={`block font-black tabular-nums ${affordable ? "text-ink" : "text-red-600"}`}>{formatPrice(p.price)}</span>
                 {p.priceChange !== 0 && (
-                  <span className={`block text-[11px] font-bold ${p.priceChange > 0 ? "text-green-400" : "text-red-400"}`}>
+                  <span className={`block text-[11px] font-bold ${p.priceChange > 0 ? "text-green-600" : "text-red-600"}`}>
                     {p.priceChange > 0 ? "▲" : "▼"} {(Math.abs(p.priceChange) / 10).toFixed(1)}
                   </span>
                 )}
@@ -324,7 +331,7 @@ function Picker({ position, players, taken, budgetLeft, onPick, onClose }: {
             </button>
           );
         })}
-        {options.length === 0 && <p className="text-zinc-500 text-sm">Everyone is already in your team.</p>}
+        {options.length === 0 && <p className="text-ink-3 text-sm">Everyone is already in your team.</p>}
       </div>
     </Modal>
   );

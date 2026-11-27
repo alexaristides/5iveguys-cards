@@ -19,17 +19,21 @@ export interface PitchSlot {
 }
 
 const ROWS: FantasyPosition[] = ["FWD", "MID", "DEF", "GK"];
+/** Same colours as the app (mobile/src/lib/theme.ts POSITION_COLOR). */
 export const POSITION_BG: Record<FantasyPosition, string> = {
-  GK: "bg-yellow-600", DEF: "bg-blue-700", MID: "bg-green-700", FWD: "bg-red-700",
+  GK: "bg-amber-500", DEF: "bg-blue-600", MID: "bg-green-600", FWD: "bg-rose-600",
 };
 
-/** The 7 on a pitch, attack at the top. */
+/** Mown stripes, eight bands like the app's pitch. */
+const STRIPES = "repeating-linear-gradient(to bottom, #24A148 0 12.5%, #2BAE50 12.5% 25%)";
+
+/** The 7 on a bright pitch, attack at the top. */
 export function FantasyPitch({ slots }: { slots: PitchSlot[] }) {
   return (
-    <div className="relative rounded-2xl bg-[#1e6b2e] overflow-hidden py-5 flex flex-col justify-around gap-4 min-h-[460px]">
-      <div className="absolute inset-2.5 border border-white/20 rounded" />
-      <div className="absolute left-1/2 -top-9 w-20 h-20 -translate-x-1/2 rounded-full border border-white/20" />
-      <div className="absolute bottom-2.5 left-[27%] right-[27%] h-[14%] border border-b-0 border-white/20" />
+    <div className="relative rounded-[22px] bg-pitch overflow-hidden py-5 flex flex-col justify-around gap-3 min-h-[460px] shadow-card" style={{ backgroundImage: STRIPES }}>
+      <div className="absolute inset-2.5 border-2 border-white/45 rounded-md" />
+      <div className="absolute left-1/2 -top-10 w-20 h-20 -translate-x-1/2 rounded-full border-2 border-white/45" />
+      <div className="absolute bottom-2.5 left-[27%] right-[27%] h-[14%] border-2 border-b-0 border-white/45" />
       {ROWS.map((pos) => (
         <div key={pos} className="relative flex justify-evenly items-start">
           {slots.filter((s) => (s.position ?? s.player?.position) === pos).map((s) => <Token key={s.key} slot={s} />)}
@@ -47,36 +51,36 @@ function Token({ slot }: { slot: PitchSlot }) {
       type="button"
       onClick={slot.onClick}
       disabled={!slot.onClick}
-      className="w-20 flex flex-col items-center enabled:hover:scale-105 transition-transform"
+      className="relative w-[84px] flex flex-col items-center enabled:hover:scale-105 transition-transform"
     >
       <div
-        className={`relative w-12 aspect-[785/1085] rounded-md overflow-hidden border-[1.5px] bg-black/30 flex items-center justify-center
-          ${slot.fresh ? "border-amber-400 border-2" : "border-white/70"} ${!player ? "border-dashed" : ""} ${slot.dim ? "opacity-40" : ""}`}
+        className={`relative w-[54px] aspect-[785/1085] rounded-[9px] overflow-hidden flex items-center justify-center
+          ${slot.fresh ? "border-[3px] border-yellow-400" : "border-2 border-white"} ${player ? "bg-white/20" : "border-dashed bg-white/10"} ${slot.dim ? "opacity-45" : ""}`}
       >
         {player?.imageUrl ? (
-          <Image src={player.imageUrl} alt={player.name} fill sizes="48px" className="object-cover" />
+          <Image src={player.imageUrl} alt={player.name} fill sizes="54px" className="object-cover" />
         ) : (
-          <span className="text-white text-2xl font-light">{player ? player.name[0] : "+"}</span>
-        )}
-        {slot.badge && (
-          <span className={`absolute top-0.5 right-0.5 w-4 h-4 rounded-full border border-black text-[9px] font-black text-black flex items-center justify-center
-            ${slot.badge === "C" ? "bg-amber-400" : "bg-zinc-200"}`}>
-            {slot.badge}
-          </span>
+          <span className="text-white text-3xl font-light">{player ? player.name[0] : "+"}</span>
         )}
         {flag && (
           <span title={flag.label} style={{ backgroundColor: flag.color }}
-            className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full border border-black text-[9px] font-black text-black flex items-center justify-center">
+            className="absolute top-[3px] left-[3px] w-[18px] h-[18px] rounded-full border-[1.5px] border-white text-[11px] font-black text-white flex items-center justify-center">
             !
           </span>
         )}
       </div>
-      <span className={`-mt-1.5 max-w-20 truncate rounded px-1.5 text-[11px] font-extrabold text-white
-        ${player ? "bg-black/75" : POSITION_BG[slot.position ?? "MID"]}`}>
+      {slot.badge && (
+        <span className={`absolute -top-1.5 right-1.5 w-6 h-6 rounded-full border-2 border-white text-xs font-black text-[#111] flex items-center justify-center
+          ${slot.badge === "C" ? "bg-yellow-400" : "bg-gray-200"}`}>
+          {slot.badge}
+        </span>
+      )}
+      <span className={`relative -mt-2 max-w-[84px] truncate rounded-[7px] px-1.5 py-0.5 text-xs font-extrabold shadow-[0_1px_3px_rgba(0,0,0,0.15)]
+        ${player ? "bg-white text-ink" : `${POSITION_BG[slot.position ?? "MID"]} text-white`}`}>
         {player?.name ?? slot.position ?? "Any"}
       </span>
       {slot.caption && (
-        <span className={`mt-0.5 rounded px-1.5 text-[11px] font-black tabular-nums ${slot.dim ? "bg-white/60 text-zinc-500" : "bg-white/90 text-zinc-900"}`}>
+        <span className={`mt-[3px] rounded-[7px] px-1.5 text-xs font-black tabular-nums ${slot.dim ? "bg-white/70 text-ink-3" : "bg-violet-600 text-white"}`}>
           {slot.caption}
         </span>
       )}
