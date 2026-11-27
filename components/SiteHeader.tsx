@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { Logo } from "./Logo";
+import { PRINT_SHOP } from "@/lib/print-shop";
 
 const LINKS = [
   { href: "/shop", label: "Shop" },
@@ -98,7 +99,7 @@ export default function SiteHeader({ variant = "dark", signInTo = "/dashboard" }
             href="/shop"
             className={`md:hidden px-3 py-1.5 rounded-full border text-xs font-bold ${t.shop}`}
           >
-            Shop packs
+            {PRINT_SHOP.forSale ? "Shop packs" : "Packs soon"}
           </Link>
 
           {status === "loading" ? (

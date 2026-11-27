@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { parseCart } from "@/lib/print-shop";
+import { PRINT_SHOP, parseCart } from "@/lib/print-shop";
 import { ShopError, createCheckout } from "@/lib/print-shop-db";
 
 /** Starts a Stripe Checkout for the basket ({ items: [{ packId, qty }], zone: "uk" | "world" }). Returns { url }. */
 export async function POST(req: NextRequest) {
+  if (!PRINT_SHOP.forSale) {
+    return NextResponse.json({ error: "The packs aren't on sale yet. Coming soon!" }, { status: 503 });
+  }
   const cart = parseCart(await req.json().catch(() => null));
   if (!cart.ok) return NextResponse.json({ error: cart.error }, { status: 400 });
   try {

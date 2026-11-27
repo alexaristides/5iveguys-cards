@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PRINT_SHOP, formatPounds, isFirstEdition, packImage } from "@/lib/print-shop";
 
-/** The printed-packs promo on the home pages. Links to /shop. */
+/** The printed-packs promo on the home pages ("coming soon" while PRINT_SHOP.forSale is off). Links to /shop. */
 export default function ShopBanner() {
   const firstEdition = isFirstEdition(new Date());
   return (
@@ -13,7 +13,9 @@ export default function ShopBanner() {
         <div className="relative z-10 p-6 sm:p-10">
           <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/40 bg-amber-300/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-amber-200">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-300" aria-hidden />
-            {firstEdition ? (
+            {!PRINT_SHOP.forSale ? (
+              "Coming soon"
+            ) : firstEdition ? (
               <>
                 1st Edition<span className="hidden sm:inline"> · order by {PRINT_SHOP.printStarts}</span>
               </>
@@ -26,7 +28,9 @@ export default function ShopBanner() {
             <br className="hidden sm:block" /> posted to your door
           </h2>
           <p className="mt-3 text-zinc-400 text-sm sm:text-base max-w-md">
-            {firstEdition
+            {!PRINT_SHOP.forSale
+              ? "1st Edition packs of the real squad are on the way. Buying packs is coming soon."
+              : firstEdition
               ? `Every card in orders placed before ${PRINT_SHOP.printStarts} is 1st Edition, and we post them by ${PRINT_SHOP.postBy}.`
               : "Rip a squad pack, or pick a player's pack to guarantee their card."}
           </p>
@@ -37,7 +41,7 @@ export default function ShopBanner() {
             </span>
           </p>
           <span className="mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-black transition group-hover:bg-amber-100">
-            Shop the packs <span className="transition-transform group-hover:translate-x-0.5">→</span>
+            {PRINT_SHOP.forSale ? "Shop the packs" : "Take a look"} <span className="transition-transform group-hover:translate-x-0.5">→</span>
           </span>
         </div>
         <div className="relative h-56 sm:h-72 md:h-full md:min-h-[320px]" aria-hidden>

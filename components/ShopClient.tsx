@@ -63,7 +63,18 @@ function Stepper({ qty, onChange, label }: { qty: number; onChange: (n: number) 
   );
 }
 
-export default function ShopClient({ open, firstEdition, promise }: { open: boolean; firstEdition: boolean; promise: string }) {
+export default function ShopClient({
+  forSale,
+  open,
+  firstEdition,
+  promise,
+}: {
+  /** false = packs are shown as "coming soon": no basket, nothing to add. */
+  forSale: boolean;
+  open: boolean;
+  firstEdition: boolean;
+  promise: string;
+}) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [zone, setZone] = useState<Zone>("uk");
   const [basketOpen, setBasketOpen] = useState(false);
@@ -71,10 +82,11 @@ export default function ShopClient({ open, firstEdition, promise }: { open: bool
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!forSale) return;
     const saved = load<Record<string, number>>(CART_KEY, {});
     setCart(Object.fromEntries(Object.entries(saved).filter(([id, n]) => PRINT_PACKS.some((p) => p.id === id) && n > 0)));
     setZone(load<Zone>(ZONE_KEY, "uk") === "world" ? "world" : "uk");
-  }, []);
+  }, [forSale]);
 
   function setQty(id: string, n: number) {
     setCart((c) => {
@@ -163,7 +175,13 @@ export default function ShopClient({ open, firstEdition, promise }: { open: bool
               <p className="text-zinc-500 text-xs leading-snug mt-0.5">{p.blurb}</p>
             </div>
             <div className="mt-auto">
-              <Stepper qty={cart[p.id] ?? 0} onChange={(n) => setQty(p.id, n)} label={p.title} />
+              {forSale ? (
+                <Stepper qty={cart[p.id] ?? 0} onChange={(n) => setQty(p.id, n)} label={p.title} />
+              ) : (
+                <p className="w-full py-2.5 rounded-xl border border-amber-300/30 bg-amber-300/10 text-amber-200 text-center text-sm font-semibold">
+                  Coming soon
+                </p>
+              )}
             </div>
           </article>
         ))}
