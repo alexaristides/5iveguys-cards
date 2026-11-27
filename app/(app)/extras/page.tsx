@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { AppShell, card, cardLink, LinkRow, primaryButton, SectionTitle } from "@/components/AppShell";
-import { signInBasic } from "@/components/SignInScreen";
+import { goToSignIn } from "@/components/SignInScreen";
 import { WORLDS, worldName } from "@/lib/worlds";
 
 interface World { slug: string; name: string; isActive: boolean; stats: { spendablePoints: number; cardCount: number; totalCards: number } }
@@ -46,7 +46,7 @@ export default function ExtrasPage() {
       {status === "unauthenticated" ? (
         <div className={`${card} p-4 flex items-center gap-3`}>
           <p className="flex-1 text-ink-2 text-sm">Sign in to see your points and your cards.</p>
-          <button onClick={() => signInBasic("/extras")} className={`${primaryButton} shrink-0 h-11`}>Sign in</button>
+          <button onClick={() => goToSignIn("/extras")} className={`${primaryButton} shrink-0 h-11`}>Sign in</button>
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 gap-2.5">

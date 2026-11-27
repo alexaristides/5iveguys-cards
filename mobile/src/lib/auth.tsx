@@ -14,6 +14,8 @@ interface AuthState {
   /** Google sign-in via the website's NextAuth flow in the system auth sheet. */
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
+  /** Take a session token the API handed back (email sign-in: /api/mobile/auth/email). */
+  signInWithToken: (token: string) => Promise<void>;
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
 }
@@ -113,6 +115,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await applyToken(next);
   }, [applyToken]);
 
+  const signInWithToken = useCallback((next: string) => applyToken(next), [applyToken]);
+
   const signOut = useCallback(async () => {
     await api("/api/mobile/auth/signout", { method: "POST" }).catch(() => {});
     await applyToken(null);
@@ -124,8 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applyToken]);
 
   const value = useMemo(
-    () => ({ ready, signedIn: !!token, signInWithGoogle, signInWithApple, signOut, deleteAccount }),
-    [ready, token, signInWithGoogle, signInWithApple, signOut, deleteAccount],
+    () => ({ ready, signedIn: !!token, signInWithGoogle, signInWithApple, signInWithToken, signOut, deleteAccount }),
+    [ready, token, signInWithGoogle, signInWithApple, signInWithToken, signOut, deleteAccount],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

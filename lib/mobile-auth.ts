@@ -7,6 +7,7 @@
 //   (ASWebAuthenticationSession), which runs the normal NextAuth Google flow
 //   and finishes at /api/mobile/auth/web-finish → redirect to the app with a token.
 // - Apple: native Sign in with Apple, identity token posted to /api/mobile/auth/apple.
+// - Email: a 6-digit code (lib/email-sign-in.ts), checked by /api/mobile/auth/email.
 
 import { randomBytes } from "crypto";
 import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT } from "jose";
@@ -174,8 +175,8 @@ export async function revokeGoogleToken(token: string) {
 
 // ── Apple ───────────────────────────────────────────────────────────────────
 
-const APPLE_ISSUER = "https://appleid.apple.com";
-const appleJwks = createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"));
+export const APPLE_ISSUER = "https://appleid.apple.com";
+export const appleJwks = createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"));
 
 export async function verifyAppleIdentityToken(identityToken: string) {
   const audience = [process.env.APPLE_BUNDLE_ID!];

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { Logo } from "./Logo";
-import { signInBasic } from "./SignInScreen";
+import { goToSignIn } from "./SignInScreen";
 
 const LINKS = [
   { href: "/fantasy", label: "Fantasy" },
@@ -117,7 +117,7 @@ export default function SiteHeader({ variant = "dark", signInTo = "/fantasy" }: 
           ) : (
             <button
               type="button"
-              onClick={() => signInBasic(signInTo)}
+              onClick={() => goToSignIn(signInTo)}
               className={`hidden md:inline-flex px-4 py-2 rounded-xl text-sm font-semibold transition ${t.signIn}`}
             >
               Sign in
@@ -169,7 +169,7 @@ export default function SiteHeader({ variant = "dark", signInTo = "/fantasy" }: 
               ) : (
                 <button
                   type="button"
-                  onClick={() => signInBasic(signInTo)}
+                  onClick={() => goToSignIn(signInTo)}
                   className={`w-full mt-1 px-3 py-2.5 rounded-lg font-semibold ${t.menuSignIn}`}
                 >
                   Sign in

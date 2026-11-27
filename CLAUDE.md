@@ -48,6 +48,12 @@ NextAuth v4 + PrismaAdapter + Google OAuth. The `youtube.force-ssl` scope is man
 
 New users receive 100 free starting points (via the `createUser` NextAuth event in `lib/auth.ts`).
 
+Three ways to sign in, on the website (`components/SignInScreen.tsx`, also at `/sign-in?callbackUrl=…`) and in the app (`mobile/src/app/sign-in.tsx`). `GET /api/sign-in/options` says which are set up, so neither shows one that doesn't work.
+- **Google**: NextAuth (above); signing in asks for name and email only (`signInBasic`), YouTube only when connecting it for points.
+- **Apple**: native in the app (`/api/mobile/auth/apple`); on the website `lib/apple-web.ts` (`/api/sign-in/apple` → Apple → form-post to `/api/sign-in/apple/callback`), shown once `APPLE_SERVICES_ID` is set. The Services ID is grouped with the app's App ID so Apple gives the same user id on both and `resolveMobileUser` finds the same profile. Apple only returns to `https://www.5iveg.com/api/sign-in/apple/callback` (registered on the Services ID), so it can't be tried on localhost.
+- **Email code**: `lib/email-sign-in.ts`. `POST /api/sign-in/email` sends a 6-digit code (10 min, 5 tries, 5 codes an hour per address, stored hashed in `EmailSignInCode`); `/api/sign-in/email/verify` (website, sets the cookie) or `/api/mobile/auth/email` (app, returns a token) checks it. It signs in to the profile with that email, or makes one after asking for a name (`needsName`). Shown once `RESEND_API_KEY` and `EMAIL_FROM` (a sender on a domain verified in Resend) are set.
+- Apple-on-web and email sign in without NextAuth's provider flow: they create a `Session` row and set NextAuth's session cookie themselves (`lib/web-session.ts`).
+
 ### iOS app architecture
 
 - **Fantasy only (user, 2026-11-27):** "strip down the 5G app… just make it a fantasy app… the less features, the easier it is to get approved." The app is now Fantasy Div 1 plus Man of the Match voting and player ratings: tabs **My Team · Players · MOTM · Leagues · How to play** (five is the most iOS shows before a "More" tab) (`src/app/(tabs)/`), plus the team picker, points, league, history and player screens under `src/app/fantasy/`. The YouTube, Players (ratings/MOTM), Cards/packs/shop, Game/5IVE STREET, worlds and in-app Fantasy admin screens were **deleted from `mobile/`, not flagged off** (as were `FEATURES` and `CHANNELS`). To bring one back, restore its files from `main` before PR "fantasy-only app" (commit `de34d18`, e.g. `git checkout de34d18 -- mobile/src/app/play`) and re-add its tab/stack entries. The website and every API are unchanged and still serve all of it; the fantasy admin is the web page `/admin/fantasy`. `mobile/street/` stays (the website serves the game at `/street`), but the app no longer bundles it.
@@ -61,6 +67,7 @@ New users receive 100 free starting points (via the `createUser` NextAuth event 
 - **Auth:** the app holds the token of a real NextAuth database `Session` row and sends `Authorization: Bearer <token>`. `middleware.ts` rewrites that into the NextAuth session cookie, so every route's `getServerSession()` works unchanged.
   - Google: the app opens `/api/mobile/auth/web-start?basic=1` in the iOS auth sheet → `/mobile-auth?basic=1` runs the normal NextAuth Google flow → `/api/mobile/auth/web-finish` redirects to `fiveguys://auth?token=…`. `basic=1` (build 10 on) asks Google for name and email only, with `include_granted_scopes` so a website fan's existing YouTube access isn't dropped; older builds leave it out and still ask for YouTube. A `link-ticket` let older builds' Apple users link Google (Connect YouTube); the fantasy-only app doesn't use it.
   - Apple: `/api/mobile/auth/apple` verifies the identity token (needs `APPLE_*` env vars).
+  - Email: the `sign-in-email` sheet sends the code with `/api/sign-in/email` and trades it for a token at `/api/mobile/auth/email`.
   - `DELETE /api/account` deletes the user (App Store requirement).
 - Game logic is shared, not copied: the app imports `lib/match-engine.ts`, `lib/football.ts`, `lib/exhibition.ts` etc. via the `@shared/*` alias (see `mobile/metro.config.js`). Keep those files free of Next/Prisma imports.
 
@@ -186,7 +193,9 @@ STRIPE_SECRET_KEY           # Stripe (Genius Technologies' account): live key in
 STRIPE_WEBHOOK_SECRET       # Optional: signs /api/store/webhook (the cron sync covers it without)
 CRON_SECRET                 # Vercel cron auth (shop order sync)
 SHOP_EMAIL_TO               # Optional: new-order emails (default CONSENT_EMAIL_TO)
-RESEND_API_KEY              # Resend (free account at resend.com), sends the /consent and new-order emails
+RESEND_API_KEY              # Resend (free account at resend.com), sends the /consent and new-order emails and sign-in codes
+EMAIL_FROM                  # Sender for sign-in codes, on a domain verified in Resend (e.g. "5iveG <hello@5iveg.com>")
+APPLE_SERVICES_ID           # Website Sign in with Apple (Services ID grouped with com.fiveguysfc.cards)
 CONSENT_EMAIL_TO            # Where signed player consents are emailed
 CONSENT_EMAIL_FROM          # Optional sender on a domain verified in Resend (default onboarding@resend.dev)
 APPLE_BUNDLE_ID             # com.fiveguysfc.cards (Sign in with Apple audience; also the IAP bundle check)

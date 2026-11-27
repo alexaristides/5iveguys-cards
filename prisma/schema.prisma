@@ -88,6 +88,18 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+/// Email sign-in (lib/email-sign-in.ts): the current 6-digit code for an address, hashed.
+/// A new code replaces the old one; the row is deleted once the code is used.
+model EmailSignInCode {
+  email     String   @id
+  codeHash  String
+  expires   DateTime
+  attempts  Int      @default(0)
+  sentAt    DateTime
+  hourStart DateTime
+  hourSends Int
+}
+
 // ---------- Channels ----------
 
 model Channel {

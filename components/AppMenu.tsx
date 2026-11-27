@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { signInBasic } from "@/components/SignInScreen";
+import { goToSignIn } from "@/components/SignInScreen";
 
 /**
  * The burger menu: Extras (everything the website has beyond the app), then the app's Settings sheet:
@@ -92,7 +92,7 @@ export function AppMenu() {
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => signInBasic(path)}
+                    onClick={() => goToSignIn(path)}
                     className="flex-1 h-[52px] rounded-2xl bg-violet-600 hover:bg-violet-500 text-white text-[17px] font-extrabold"
                   >
                     Sign in
