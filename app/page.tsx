@@ -8,6 +8,7 @@ import { WORLDS } from "@/lib/worlds";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import ShopBanner from "@/components/ShopBanner";
+import { PRINT_SHOP } from "@/lib/print-shop";
 
 const HERO_CARDS = [
   { src: "/cards/home/Ryan_Home.jpg", cls: "left-0 top-10 -rotate-[11deg]" },
@@ -93,7 +94,7 @@ export default function HomePage() {
                 href="/shop"
                 className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 text-sm font-semibold text-white hover:bg-white/5 transition"
               >
-                Shop printed packs →
+                {PRINT_SHOP.forSale ? "Shop printed packs →" : "Printed packs: coming soon →"}
               </Link>
             </div>
             <p className="mt-4 text-zinc-600 text-xs">

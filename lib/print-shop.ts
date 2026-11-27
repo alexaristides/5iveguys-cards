@@ -9,6 +9,11 @@ export const SUPPORT_EMAIL = "support@5iveg.com";
 export const SELLER = "Genius Technologies Ltd, trading as 5iveG";
 
 export const PRINT_SHOP = {
+  /**
+   * false = the shop shows the packs as "coming soon" and checkout refuses new orders (existing
+   * orders still sync and show in /admin/orders). Set to true to sell again.
+   */
+  forSale: false as boolean,
   currency: "gbp",
   /** One pack on its own. */
   packPence: 999,
