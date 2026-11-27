@@ -7,13 +7,18 @@ import { CHIPS, FANTASY_POINTS as P, FANTASY_RULES as R, formatPrice } from "./f
 /** "+3" or "−2" (a real minus sign). */
 const signed = (n: number) => (n < 0 ? `−${-n}` : `+${n}`);
 
-export function fantasyGuide(season: { budget: number; secondHalfFrom: number | null }) {
+/**
+ * `autoLineup`: the app lines the 7 up for you, so it doesn't tell fans to choose where each one plays.
+ */
+export function fantasyGuide(season: { budget: number; secondHalfFrom: number | null }, opts: { autoLineup?: boolean } = {}) {
   const sections: { title: string; body: string }[] = [
     {
       title: "Your team",
       body: (R.prices ? `Pick 7 of the 5ive Guys with a ${formatPrice(season.budget)} budget ` : "Pick any 7 of the 5ive Guys (there are no prices) ")
-        + "and play them wherever you like: 1 in goal, 2–4 in defence, 1–3 in midfield and 1–3 up front. "
-        + "Everyone scores as their own position wherever you play them, so a forward in defence still scores as a forward. "
+        + (opts.autoLineup
+          ? "and the app lines them up for you. Everyone scores as their own position, so a forward always scores as a forward. "
+          : "and play them wherever you like: 1 in goal, 2–4 in defence, 1–3 in midfield and 1–3 up front. "
+            + "Everyone scores as their own position wherever you play them, so a forward in defence still scores as a forward. ")
         + "It's 7-a-side, so there's no bench: all 7 play. Your team locks at each gameweek's deadline.",
     },
     {

@@ -1,27 +1,17 @@
-import { useEffect, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { router } from "expo-router";
-import { Image } from "expo-image";
-import * as Haptics from "expo-haptics";
-import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { router, useFocusEffect } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { CHIPS, FANTASY_RULES } from "@shared/fantasy";
 import { AppHeader } from "@/components/AppHeader";
-import { Button, Panel, SectionTitle } from "@/components/ui";
-import { api, ApiError } from "@/lib/api";
-import { AuthCancelled, useAuth } from "@/lib/auth";
-import { useChannel } from "@/lib/channel";
-import { useAccount, useMe, useRefreshOnFocus, useVideos } from "@/lib/queries";
-import { colors } from "@/lib/theme";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function timeAgo(iso: string) {
-  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.round(hrs / 24)}d ago`;
-}
+import { FantasyPitch, type PitchSlot } from "@/components/fantasy/FantasyPitch";
+import { HowItWorks } from "@/components/fantasy/HowItWorks";
+import { RankMove } from "@/components/fantasy/LeaderRow";
+import { ErrorText, Loading, Panel, SectionTitle } from "@/components/ui";
+import { formatCountdown, formatDeadline, lineupFromPicks, slotPositions } from "@/lib/fantasy";
+import { useFantasy, useFantasyGameweek } from "@/lib/queries";
+import { colors, HERO_GRADIENT, shadow } from "@/lib/theme";
+import type { FantasyGameweek, FantasyGameweekResult, FantasyOverview } from "@/lib/types";
 
 function useNow(intervalMs: number) {
   const [now, setNow] = useState(() => Date.now());
@@ -32,151 +22,252 @@ function useNow(intervalMs: number) {
   return now;
 }
 
-export default function YouTubeTab() {
-  const { slug, name } = useChannel();
-  const queryClient = useQueryClient();
-  const { connectYouTube } = useAuth();
-  const me = useMe();
-  const account = useAccount();
-  const videos = useVideos();
-  const [syncing, setSyncing] = useState(false);
-  const [claiming, setClaiming] = useState(false);
-  const now = useNow(1000);
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const openGameweek = (number: number) => router.push({ pathname: "/fantasy/gameweek/[number]", params: { number: String(number) } });
+const openPlayer = (id: string) => router.push({ pathname: "/fantasy/player/[id]", params: { id } });
 
-  useRefreshOnFocus(me.refetch);
+/** My Team: what to do next, this gameweek's points and your 7 on the pitch. */
+export default function MyTeamTab() {
+  const fantasy = useFantasy();
+  const data = fantasy.data;
+  const current = data?.team ? data.currentGameweek : null;
+  const gameweek = useFantasyGameweek(current);
+  const now = useNow(30_000);
 
-  const refreshAll = () => Promise.all([me.refetch(), account.refetch(), videos.refetch()]);
+  // Native tabs mount up front, so refetch on every visit: deadlines, transfers and points move.
+  const { refetch } = fantasy;
+  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
+  const refresh = () => Promise.all([fantasy.refetch(), current !== null && gameweek.refetch()]);
 
-  async function connect() {
-    try {
-      await connectYouTube();
-      await account.refetch();
-      sync();
-    } catch (err) {
-      if (!(err instanceof AuthCancelled)) Alert.alert("Couldn't connect YouTube", (err as Error).message);
-    }
+  let body;
+  if (!data) {
+    body = fantasy.error ? <ErrorText>{fantasy.error.message}</ErrorText> : <Loading />;
+  } else if (!data.season) {
+    body = (
+      <>
+        <Hero eyebrow="COMING SOON" title="Kicking off soon ⚽">
+          When the 5ive Guys&apos; season starts you&apos;ll pick 7 of the real players and score points from every match.
+        </Hero>
+        <HowItWorks />
+      </>
+    );
+  } else if (!data.team) {
+    body = <Welcome data={data} now={now} />;
+  } else {
+    body = <Home data={data} now={now} gameweek={gameweek.data?.gameweek.number === current ? gameweek.data : null} />;
   }
-
-  async function sync() {
-    setSyncing(true);
-    try {
-      const res = await api<{ pointsEarned: number; isSubscribed: boolean; likedCount: number }>(
-        "/api/youtube/sync",
-        { body: { channelSlug: slug } },
-      );
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        res.pointsEarned > 0 ? `+${res.pointsEarned} points!` : "All synced",
-        res.pointsEarned > 0
-          ? `Thanks for supporting ${name}.`
-          : "Nothing new yet. Check back soon.",
-      );
-      queryClient.invalidateQueries({ queryKey: ["me", slug] });
-    } catch (err) {
-      if (err instanceof ApiError && (err.status === 403 || err.data.error === "No YouTube access token")) {
-        Alert.alert("Connect YouTube", "Allow access to your YouTube account so your fan points can update.", [
-          { text: "Not now", style: "cancel" },
-          { text: "Connect", onPress: connect },
-        ]);
-      } else {
-        Alert.alert("Sync failed", (err as Error).message);
-      }
-    } finally {
-      setSyncing(false);
-    }
-  }
-
-  async function claimDaily() {
-    setClaiming(true);
-    try {
-      const res = await api<{ claimed: boolean; pointsEarned?: number }>(
-        `/api/channels/${slug}/daily-reward`, { method: "POST" },
-      );
-      if (res.claimed) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await me.refetch();
-    } catch (err) {
-      Alert.alert("Couldn't claim", (err as Error).message);
-    } finally {
-      setClaiming(false);
-    }
-  }
-
-  const hasYouTube = account.data?.hasYoutubeScope ?? false;
-  const lastSynced = me.data?.youtubeSync?.lastSynced;
-  const nextDaily = me.data?.lastDailyReward ? new Date(me.data.lastDailyReward).getTime() + DAY_MS : 0;
-  const dailyReady = !!me.data && nextDaily <= now;
-  const msLeft = Math.max(0, nextDaily - now);
-  const countdown = `${Math.floor(msLeft / 3_600_000)}h ${String(Math.floor((msLeft % 3_600_000) / 60_000)).padStart(2, "0")}m ${String(Math.floor((msLeft % 60_000) / 1000)).padStart(2, "0")}s`;
 
   return (
     <View style={styles.screen}>
-      <AppHeader />
+      <AppHeader title="My Team" />
       <ScrollView
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
-        refreshControl={<RefreshControl refreshing={false} onRefresh={refreshAll} tintColor={colors.text2} />}
+        refreshControl={<RefreshControl refreshing={fantasy.isRefetching} onRefresh={refresh} tintColor={colors.accent} />}
       >
-        <Panel style={styles.syncPanel}>
-          <Text style={styles.syncTitle}>Fan points</Text>
-          <Text style={styles.syncSub}>
-            You get points for being a fan of {name}.{" "}
-            {hasYouTube
-              ? lastSynced ? `Last synced ${timeAgo(lastSynced)}.` : "Sync to collect them."
-              : "Connect YouTube to collect them."}
-          </Text>
-          {hasYouTube ? (
-            <Button title="Sync YouTube" onPress={sync} loading={syncing} color={colors.youtube} />
-          ) : (
-            <Button title="Connect YouTube" onPress={connect} color={colors.youtube} />
-          )}
-        </Panel>
-
-        <Panel style={styles.dailyPanel}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rowTitle}>🎁 Daily reward</Text>
-            <Text style={styles.rowSub}>{dailyReady ? "+50 points ready to claim" : `Next in ${countdown}`}</Text>
-          </View>
-          <Button title="Claim" onPress={claimDaily} disabled={!dailyReady} loading={claiming} style={{ height: 40 }} />
-        </Panel>
-
-        <SectionTitle>Latest videos</SectionTitle>
-        <View style={{ gap: 12 }}>
-          {(videos.data ?? []).map((v) => (
-            <Pressable
-              key={v.videoId}
-              onPress={() => router.push({ pathname: "/video/[videoId]", params: { videoId: v.videoId, title: v.title } })}
-              style={({ pressed }) => [styles.video, pressed && { opacity: 0.8 }]}
-            >
-              <Image
-                source={{ uri: v.thumbnailUrl ?? `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg` }}
-                style={styles.thumb}
-                contentFit="cover"
-              />
-              <View style={{ flex: 1, gap: 4 }}>
-                <Text numberOfLines={2} style={styles.videoTitle}>{v.title}</Text>
-                <Text style={styles.rowSub}>
-                  {timeAgo(v.publishedAt)}{v.watchedByMe ? "  ·  ✓ watched" : ""}
-                </Text>
-              </View>
-            </Pressable>
-          ))}
-          {videos.data?.length === 0 && <Text style={styles.rowSub}>No videos yet.</Text>}
-        </View>
+        {body}
       </ScrollView>
+    </View>
+  );
+}
+
+/** No team yet: what the game is and one big button. */
+function Welcome({ data, now }: { data: FantasyOverview; now: number }) {
+  const next = data.gameweeks.find((g) => g.number === data.nextGameweek);
+  return (
+    <>
+      <Hero
+        eyebrow={next ? `GAMEWEEK ${next.number}` : "FANTASY DIV 1"}
+        title="Pick your team"
+        action={next ? { label: "Pick my team", onPress: () => router.push("/fantasy/edit") } : undefined}
+        footer={next ? <DeadlineLine gameweek={next} now={now} /> : undefined}
+      >
+        Choose any {FANTASY_RULES.squadSize} of the 5ive Guys and score points from their real Division 1 matches. It&apos;s free and takes a minute.
+      </Hero>
+      {!next && <Text style={styles.muted}>No gameweek is open for picks right now. Check back soon.</Text>}
+      <HowItWorks />
+    </>
+  );
+}
+
+function Home({ data, now, gameweek }: { data: FantasyOverview; now: number; gameweek: FantasyGameweekResult | null }) {
+  const team = data.team!;
+  const players = useMemo(() => new Map(data.players.map((p) => [p.id, p])), [data.players]);
+  const next = data.gameweeks.find((g) => g.number === data.nextGameweek);
+  const draft = team.draft;
+  const chip = draft?.chip ? CHIPS.find((c) => c.id === draft.chip) : null;
+  const live = gameweek?.gameweek.status === "live";
+
+  const lineup = draft ? lineupFromPicks(draft.picks, players) : null;
+  const slots: PitchSlot[] = lineup
+    ? slotPositions(lineup.formation).map((position, i) => {
+        const p = players.get(lineup.slots[i] ?? "") ?? null;
+        return {
+          key: `s${i}`, position, player: p,
+          caption: p && p.lastPoints !== null ? `${p.lastPoints} pts` : undefined,
+          badge: p?.id === draft?.captainId ? "C" : p?.id === draft?.viceCaptainId ? "V" : null,
+          onPress: p ? () => openPlayer(p.id) : undefined,
+        };
+      })
+    : [];
+
+  const nextCard = next ? (
+    <Hero
+      eyebrow={`GAMEWEEK ${next.number}${next.name ? ` · ${next.name.toUpperCase()}` : ""}`}
+      title={draft ? "Your team is in ✓" : "Pick your team"}
+      action={{ label: "Change my team", onPress: () => router.push("/fantasy/edit") }}
+      footer={<DeadlineLine gameweek={next} now={now} />}
+    >
+      {[
+        "Make any changes before the deadline.",
+        team.freeTransfers === null ? "Changes are free until then." : `You have ${plural(team.freeTransfers, "free change")}.`,
+        chip ? `${chip.emoji} ${chip.name} is on.` : null,
+      ].filter(Boolean).join(" ")}
+    </Hero>
+  ) : (
+    <Panel><Text style={styles.muted}>No gameweek is open for changes right now. Check back soon.</Text></Panel>
+  );
+
+  const pointsCard = gameweek?.entry ? (
+    <Pressable onPress={() => openGameweek(gameweek.gameweek.number)} accessibilityRole="button" accessibilityLabel={`Gameweek ${gameweek.gameweek.number} points`}>
+      {({ pressed }) => (
+        <Panel style={[styles.points, pressed && { opacity: 0.8 }]}>
+          <View style={{ flex: 1 }}>
+            <View style={styles.pointsHead}>
+              <Text style={styles.pointsLabel}>GAMEWEEK {gameweek.gameweek.number} POINTS</Text>
+              {live && <View style={styles.live}><Text style={styles.liveText}>LIVE</Text></View>}
+            </View>
+            <Text style={styles.pointsValue}>{gameweek.score?.total ?? 0}</Text>
+            <Text style={styles.pointsLink}>See who scored ›</Text>
+          </View>
+          <View style={styles.pointsSide}>
+            <Mini label="Average" value={gameweek.average ?? "–"} />
+            <Mini label="Highest" value={gameweek.highest ?? "–"} />
+          </View>
+        </Panel>
+      )}
+    </Pressable>
+  ) : null;
+
+  return (
+    <>
+      <View style={styles.teamRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.teamName} numberOfLines={1}>{team.name}</Text>
+          <Text style={styles.teamSub}>{plural(team.totalPoints, "point")} this season</Text>
+        </View>
+        <Pressable
+          onPress={() => router.navigate("/leagues")}
+          style={({ pressed }) => [styles.rank, pressed && { opacity: 0.7 }]}
+          accessibilityRole="button"
+          accessibilityLabel={`Ranked ${team.rank} of ${team.teamCount}`}
+        >
+          <View style={styles.rankRow}>
+            <RankMove rank={team.rank} previous={team.previousRank} />
+            <Text style={styles.rankValue}>#{team.rank}</Text>
+          </View>
+          <Text style={styles.rankLabel}>of {team.teamCount}</Text>
+        </Pressable>
+      </View>
+
+      {live ? <>{pointsCard}{nextCard}</> : <>{nextCard}{pointsCard}</>}
+
+      {lineup && (
+        <>
+          <SectionTitle>{next ? `Your team for gameweek ${next.number}` : "Your team"}</SectionTitle>
+          <Text style={styles.hint}>C = captain (double points), V = vice-captain. Tap a player for their stats.</Text>
+          <FantasyPitch slots={slots} />
+        </>
+      )}
+
+      <Pressable onPress={() => router.push("/fantasy/history")} style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.7 }]} accessibilityRole="button">
+        <Text style={styles.linkRowText}>📈  Your points, week by week</Text>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
+    </>
+  );
+}
+
+/** The bright purple-to-pink card at the top: what's happening and the one thing to do. */
+function Hero({ eyebrow, title, children, action, footer }: {
+  eyebrow: string; title: string; children: ReactNode;
+  action?: { label: string; onPress: () => void }; footer?: ReactNode;
+}) {
+  return (
+    <LinearGradient colors={HERO_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+      <Text style={styles.heroEyebrow}>{eyebrow}</Text>
+      <Text style={styles.heroTitle}>{title}</Text>
+      <Text style={styles.heroBody}>{children}</Text>
+      {footer}
+      {action && (
+        <Pressable onPress={action.onPress} accessibilityRole="button" style={({ pressed }) => [styles.heroButton, pressed && { opacity: 0.85 }]}>
+          <Text style={styles.heroButtonText}>{action.label}</Text>
+        </Pressable>
+      )}
+    </LinearGradient>
+  );
+}
+
+function DeadlineLine({ gameweek, now }: { gameweek: FantasyGameweek; now: number }) {
+  return (
+    <View style={styles.deadline}>
+      <Text style={styles.deadlineText}>⏰  Deadline {formatDeadline(gameweek.deadline)}</Text>
+      <View style={styles.countdown}>
+        <Text style={styles.countdownText}>{formatCountdown(new Date(gameweek.deadline).getTime() - now)}</Text>
+      </View>
+    </View>
+  );
+}
+
+function Mini({ label, value }: { label: string; value: number | string }) {
+  return (
+    <View style={{ alignItems: "center" }}>
+      <Text style={styles.miniValue}>{value}</Text>
+      <Text style={styles.miniLabel}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 16, paddingBottom: 40 },
-  syncPanel: { gap: 12, borderColor: "rgba(255,0,51,0.35)" },
-  syncTitle: { color: colors.text, fontSize: 22, fontWeight: "900" },
-  syncSub: { color: colors.text2, fontSize: 14 },
-  dailyPanel: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12 },
-  rowTitle: { color: colors.text, fontSize: 16, fontWeight: "700" },
-  rowSub: { color: colors.text3, fontSize: 13, marginTop: 2 },
-  video: { flexDirection: "row", gap: 12, alignItems: "center" },
-  thumb: { width: 132, height: 74, borderRadius: 10, backgroundColor: colors.card },
-  videoTitle: { color: colors.text, fontSize: 14, fontWeight: "600", lineHeight: 19 },
+  content: { padding: 16, paddingTop: 4, paddingBottom: 120, gap: 14 },
+  muted: { color: colors.text2, fontSize: 15, textAlign: "center", lineHeight: 21 },
+  hero: { borderRadius: 24, padding: 20, gap: 8, ...shadow, shadowOpacity: 0.25, shadowColor: "#7C3AED" },
+  heroEyebrow: { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "900", letterSpacing: 1.2 },
+  heroTitle: { color: colors.white, fontSize: 30, fontWeight: "900" },
+  heroBody: { color: "rgba(255,255,255,0.95)", fontSize: 16, lineHeight: 22, fontWeight: "500" },
+  heroButton: {
+    marginTop: 8, height: 54, borderRadius: 16, backgroundColor: colors.white, alignItems: "center", justifyContent: "center",
+  },
+  heroButtonText: { color: colors.accent, fontSize: 18, fontWeight: "900" },
+  deadline: {
+    flexDirection: "row", alignItems: "center", gap: 10, marginTop: 6, backgroundColor: "rgba(255,255,255,0.16)",
+    borderRadius: 14, paddingHorizontal: 12, paddingVertical: 9,
+  },
+  deadlineText: { flex: 1, color: colors.white, fontSize: 14, fontWeight: "700" },
+  countdown: { backgroundColor: colors.white, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5 },
+  countdownText: { color: colors.pink, fontSize: 14, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  teamRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  teamName: { color: colors.text, fontSize: 24, fontWeight: "900" },
+  teamSub: { color: colors.text2, fontSize: 15, fontWeight: "600", marginTop: 2 },
+  rank: { backgroundColor: colors.card, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 8, alignItems: "center", ...shadow },
+  rankRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  rankValue: { color: colors.text, fontSize: 20, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  rankLabel: { color: colors.text3, fontSize: 12, fontWeight: "700" },
+  points: { flexDirection: "row", alignItems: "center" },
+  pointsHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  pointsLabel: { color: colors.text3, fontSize: 12, fontWeight: "900", letterSpacing: 0.8 },
+  live: { backgroundColor: colors.danger, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 },
+  liveText: { color: colors.white, fontSize: 11, fontWeight: "900" },
+  pointsValue: { color: colors.accent, fontSize: 56, fontWeight: "900", fontVariant: ["tabular-nums"], lineHeight: 62 },
+  pointsLink: { color: colors.accent, fontSize: 14, fontWeight: "800" },
+  pointsSide: { gap: 12, paddingLeft: 16, borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.border, paddingRight: 4 },
+  miniValue: { color: colors.text, fontSize: 20, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  miniLabel: { color: colors.text3, fontSize: 12, fontWeight: "600" },
+  hint: { color: colors.text2, fontSize: 13, marginTop: -6 },
+  linkRow: {
+    flexDirection: "row", alignItems: "center", backgroundColor: colors.card, borderRadius: 18, padding: 16, ...shadow,
+  },
+  linkRowText: { flex: 1, color: colors.text, fontSize: 16, fontWeight: "800" },
+  chevron: { color: colors.text3, fontSize: 22, fontWeight: "600" },
 });

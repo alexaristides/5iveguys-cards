@@ -1,38 +1,18 @@
 import { useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
+import { STEPS } from "@/components/fantasy/HowItWorks";
 import { AuthCancelled, useAuth } from "@/lib/auth";
-import { api } from "@/lib/api";
-import { CHANNELS } from "@/lib/config";
-import { imageUri } from "@/lib/images";
-import { Button } from "@/components/ui";
-import { colors, RARITY_ORDER, rarityColor } from "@/lib/theme";
-import type { DbCard } from "@/lib/types";
-
-/** Three of the rarest cards, fanned out, as the welcome art (public endpoint). */
-function useHeroCards() {
-  return useQuery({
-    queryKey: ["hero-cards"],
-    queryFn: async () => {
-      const { cards } = await api<{ cards: DbCard[] }>(`/api/channels/${CHANNELS[0].slug}/cards`);
-      return cards
-        .filter((c) => c.position !== "Moment")
-        .sort((a, b) => RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity))
-        .slice(0, 3);
-    },
-    staleTime: Infinity,
-  });
-}
+import { colors, shadow } from "@/lib/theme";
 
 export default function SignIn() {
   const insets = useSafeAreaInsets();
   const { signInWithGoogle, signInWithApple } = useAuth();
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [busy, setBusy] = useState<"google" | "apple" | null>(null);
-  const { data: hero } = useHeroCards();
 
   useEffect(() => {
     AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => {});
@@ -50,52 +30,42 @@ export default function SignIn() {
   }
 
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 24 }]}>
+    <View style={[styles.wrap, { paddingTop: insets.top + 28, paddingBottom: insets.bottom + 20 }]}>
+      <LinearGradient colors={[colors.accentSoft, colors.bg]} style={StyleSheet.absoluteFill} end={{ x: 0.5, y: 0.5 }} />
       <View style={styles.hero}>
-        {hero && hero.length === 3 ? (
-          <View style={styles.fan}>
-            {[hero[1], hero[0], hero[2]].map((c, i) => (
-              <Image
-                key={c.id}
-                source={{ uri: imageUri(c.imageUrl) }}
-                contentFit="cover"
-                style={[
-                  styles.fanCard,
-                  { borderColor: rarityColor[c.rarity], zIndex: i === 1 ? 2 : 1 },
-                  { transform: [{ translateX: (i - 1) * 78 }, { translateY: i === 1 ? -8 : 10 }, { rotate: `${(i - 1) * 12}deg` }] },
-                ]}
-              />
-            ))}
+        <Image source={require("../../assets/icon.png")} style={styles.logo} />
+        <Text style={styles.title}>5iveG Fantasy</Text>
+        <Text style={styles.sub}>Fantasy football for the 5ive Guys&apos; real Division 1 season.</Text>
+      </View>
+
+      <View style={styles.steps}>
+        {STEPS.map((s) => (
+          <View key={s.title} style={styles.step}>
+            <Text style={styles.stepEmoji}>{s.emoji}</Text>
+            <Text style={styles.stepText}><Text style={styles.stepTitle}>{s.title}.</Text> {s.body}</Text>
           </View>
-        ) : (
-          <Text style={styles.logo}>⚽</Text>
-        )}
-        <Text style={styles.title}>5iveG</Text>
-        <Text style={styles.sub}>
-          Be a fan of 5ive Guys or Other Guys, get points and rate the players.
-        </Text>
+        ))}
       </View>
 
       <View style={styles.buttons}>
         {appleAvailable && (
           <AppleAuthentication.AppleAuthenticationButton
-            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
-            cornerRadius={14}
+            buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+            cornerRadius={16}
             style={styles.apple}
             onPress={() => !busy && run("apple")}
           />
         )}
-        <Button
-          title="Sign in with Google"
+        <Pressable
           onPress={() => run("google")}
-          loading={busy === "google"}
           disabled={!!busy}
-          variant="secondary"
-        />
-        <Text style={styles.note}>
-          Sign in with Google to connect YouTube and collect your fan points.
-        </Text>
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.google, (pressed || !!busy) && { opacity: 0.7 }]}
+        >
+          {busy === "google" ? <ActivityIndicator color={colors.text} /> : <Text style={styles.googleText}><Text style={styles.g}>G</Text>  Continue with Google</Text>}
+        </Pressable>
+        <Text style={styles.note}>Free to play. We only use your name and email.</Text>
       </View>
     </View>
   );
@@ -103,16 +73,22 @@ export default function SignIn() {
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: 24, justifyContent: "space-between" },
-  hero: { alignItems: "center", gap: 12 },
-  logo: { fontSize: 56 },
-  fan: { height: 230, width: "100%", alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  fanCard: {
-    position: "absolute", width: 128, height: 179, borderRadius: 12, borderWidth: 2,
-    backgroundColor: colors.card, shadowColor: "#000", shadowOpacity: 0.6, shadowRadius: 12, shadowOffset: { width: 0, height: 6 },
-  },
+  hero: { alignItems: "center", gap: 10 },
+  logo: { width: 108, height: 108, borderRadius: 26, marginBottom: 6, ...shadow, shadowOpacity: 0.3 },
   title: { color: colors.text, fontSize: 34, fontWeight: "900" },
-  sub: { color: colors.text2, fontSize: 16, textAlign: "center", lineHeight: 22 },
+  sub: { color: colors.text2, fontSize: 17, textAlign: "center", lineHeight: 23, fontWeight: "500" },
+  steps: { backgroundColor: colors.card, borderRadius: 22, padding: 16, gap: 12, ...shadow },
+  step: { flexDirection: "row", alignItems: "center", gap: 12 },
+  stepEmoji: { fontSize: 22, width: 30, textAlign: "center" },
+  stepText: { flex: 1, color: colors.text2, fontSize: 15, lineHeight: 20 },
+  stepTitle: { color: colors.text, fontWeight: "900" },
   buttons: { gap: 12 },
-  apple: { height: 48 },
-  note: { color: colors.text3, fontSize: 12, textAlign: "center", marginTop: 4 },
+  apple: { height: 54 },
+  google: {
+    height: 54, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border,
+    alignItems: "center", justifyContent: "center",
+  },
+  googleText: { color: colors.text, fontSize: 18, fontWeight: "700" },
+  g: { color: "#4285F4", fontWeight: "900" },
+  note: { color: colors.text3, fontSize: 13, textAlign: "center", marginTop: 2 },
 });

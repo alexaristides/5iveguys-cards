@@ -4,7 +4,7 @@ import {
   priceChanges, scoreEntry, sellingPrice, teamValue, transferCostFor,
   type FantasyPosition, type PlayerStats, type SquadPlayer,
 } from "../fantasy";
-import { autoComplete, changeFormation, EMPTY_LINEUP, FORMATIONS, lineupFromIds, lineupFromPicks, lineupIds, lineupPositions } from "../fantasy-lineup";
+import { arrangeLineup, autoComplete, changeFormation, EMPTY_LINEUP, FORMATIONS, lineupFromIds, lineupFromPicks, lineupIds, lineupPositions } from "../fantasy-lineup";
 
 const stats = (s: Partial<PlayerStats>): PlayerStats => ({ ...EMPTY_STATS, played: true, playedMost: true, ...s });
 
@@ -324,6 +324,25 @@ describe("lineup editing", () => {
     expect(l.slots[0]).toBe("f1");
     expect(l.formation).toEqual({ DEF: 2, MID: 2, FWD: 2 });
     expect(l.slots.slice(5)).toEqual(["gk", "f2"]);
+  });
+
+  it("arranges any 7 into a legal team, as many as possible in their own position", () => {
+    const natural = arrangeLineup(["f1", "m1", "gk", "d1", "m2", "d2", "f2"], players);
+    expect(natural.formation).toEqual({ DEF: 2, MID: 2, FWD: 2 });
+    expect(natural.slots).toEqual(["gk", "d1", "d2", "m1", "m2", "f1", "f2"]);
+
+    // No keeper and four forwards: one of them goes in goal, and it's still a valid 7.
+    const odd = arrangeLineup(["f1", "f2", "f3", "m1", "d1", "d2", "m2"], players);
+    expect(isValidTeam(lineupPositions(odd))).toBe(true);
+    expect(new Set(odd.slots)).toEqual(new Set(["f1", "f2", "f3", "m1", "d1", "d2", "m2"]));
+    expect(lineupPositions(odd).filter((p, i) => p === players.get(odd.slots[i]!)!.position)).toHaveLength(6);
+  });
+
+  it("arranges a part-picked team, leaving the rest of the slots empty", () => {
+    const l = arrangeLineup(["gk", "gk2", "f1"], new Map([...players, ["gk2", { id: "gk2", position: "GK" as const, price: 0, isActive: true }]]));
+    expect(l.slots.filter(Boolean)).toHaveLength(3);
+    expect(l.slots[0]).toBe("gk");
+    expect(lineupIds(l)).toBeNull();
   });
 
   it("auto-fills within the money left", () => {
