@@ -119,8 +119,8 @@ function Home({ data, now, gameweek }: { data: FantasyOverview; now: number; gam
       footer={<DeadlineLine gameweek={next} now={now} />}
     >
       {[
-        "Make any changes before the deadline.",
-        team.freeTransfers === null ? "Changes are free until then." : `You have ${plural(team.freeTransfers, "free change")}.`,
+        "Change players, formation or captain before the deadline.",
+        team.freeTransfers === null ? "Changes are free until then." : `You have ${plural(team.freeTransfers, "free player change")}.`,
         chip ? `${chip.emoji} ${chip.name} is on.` : null,
       ].filter(Boolean).join(" ")}
     </Hero>
@@ -174,8 +174,18 @@ function Home({ data, now, gameweek }: { data: FantasyOverview; now: number; gam
 
       {lineup && (
         <>
-          <SectionTitle>{next ? `Your team for gameweek ${next.number}` : "Your team"}</SectionTitle>
-          <Text style={styles.hint}>C = captain (double points), V = vice-captain. Tap a player for their stats.</Text>
+          <SectionTitle
+            right={next ? (
+              <Pressable onPress={() => router.push("/fantasy/edit")} hitSlop={8} accessibilityRole="button">
+                <Text style={styles.edit}>Edit team</Text>
+              </Pressable>
+            ) : null}
+          >
+            {next ? `Your team for gameweek ${next.number}` : "Your team"}
+          </SectionTitle>
+          <Text style={styles.hint}>
+            C = captain (double points), V = vice-captain. Tap a player for their stats{next ? ", or Edit team to change players, formation or captain" : ""}.
+          </Text>
           <FantasyPitch slots={slots} />
         </>
       )}
@@ -265,6 +275,7 @@ const styles = StyleSheet.create({
   miniValue: { color: colors.text, fontSize: 20, fontWeight: "900", fontVariant: ["tabular-nums"] },
   miniLabel: { color: colors.text3, fontSize: 12, fontWeight: "600" },
   hint: { color: colors.text2, fontSize: 13, marginTop: -6 },
+  edit: { color: colors.accent, fontSize: 16, fontWeight: "800" },
   linkRow: {
     flexDirection: "row", alignItems: "center", backgroundColor: colors.card, borderRadius: 18, padding: 16, ...shadow,
   },

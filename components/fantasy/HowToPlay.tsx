@@ -17,8 +17,7 @@ export function Steps() {
  * the details and the chips. Every number comes from the shared rules.
  */
 export function HowToPlay({ budget, secondHalfFrom }: { budget: number; secondHalfFrom: number | null }) {
-  // The team picker lines the 7 up for you, as in the app.
-  const guide = fantasyGuide({ budget, secondHalfFrom }, { autoLineup: true });
+  const guide = fantasyGuide({ budget, secondHalfFrom });
   const chips = guide.sections.find((s) => s.title === "Chips");
 
   return (

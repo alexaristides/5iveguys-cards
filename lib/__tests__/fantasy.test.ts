@@ -4,7 +4,10 @@ import {
   priceChanges, scoreEntry, sellingPrice, teamValue, transferCostFor,
   type FantasyPosition, type PlayerStats, type SquadPlayer,
 } from "../fantasy";
-import { arrangeLineup, autoComplete, changeFormation, EMPTY_LINEUP, FORMATIONS, lineupFromIds, lineupFromPicks, lineupIds, lineupPositions } from "../fantasy-lineup";
+import {
+  addPlayer, arrangeLineup, autoComplete, changeFormation, EMPTY_LINEUP, FORMATIONS, lineupFromIds, lineupFromPicks, lineupIds, lineupPositions,
+  removePlayer, swapSlots,
+} from "../fantasy-lineup";
 
 const stats = (s: Partial<PlayerStats>): PlayerStats => ({ ...EMPTY_STATS, played: true, playedMost: true, ...s });
 
@@ -165,22 +168,26 @@ describe("prices and the bank", () => {
 describe("transfers", () => {
   const week = (transfersMade = 0, chip: null | "wildcard" | "free_hit" = null, hasEntry = true) => ({ hasEntry, transfersMade, chip });
 
-  it("is unlimited until the first team locks, then one a week", () => {
+  it("is unlimited until the first team locks, then two a week", () => {
     expect(freeTransfersFor([])).toBeNull();
     expect(freeTransfersFor([week(0, null, false)])).toBeNull();
-    expect(freeTransfersFor([week(0, null, false), week()])).toBe(1);
+    expect(freeTransfersFor([week(0, null, false), week()])).toBe(2);
   });
 
   it("saves unused transfers up to 5", () => {
-    expect(freeTransfersFor([week(), week(), week()])).toBe(3);
+    expect(freeTransfersFor([week(), week()])).toBe(4);
+    expect(freeTransfersFor([week(), week(), week()])).toBe(5);
     expect(freeTransfersFor(Array.from({ length: 9 }, () => week()))).toBe(5);
-    expect(freeTransfersFor([week(), week(), week(2)])).toBe(1);
-    expect(freeTransfersFor([week(), week(), week(4)])).toBe(1);
+    expect(freeTransfersFor([week(), week(1)])).toBe(3);
+    expect(freeTransfersFor([week(), week(2)])).toBe(2);
+    expect(freeTransfersFor([week(), week(), week(4)])).toBe(2);
+    expect(freeTransfersFor([week(), week(), week(6)])).toBe(2);
   });
 
   it("keeps saved transfers through a Wildcard or Free Hit", () => {
-    expect(freeTransfersFor([week(), week(), week(6, "wildcard")])).toBe(3);
-    expect(freeTransfersFor([week(), week(5, "free_hit")])).toBe(2);
+    expect(freeTransfersFor([week(), week(6, "wildcard")])).toBe(4);
+    expect(freeTransfersFor([week(), week(), week(6, "wildcard")])).toBe(5);
+    expect(freeTransfersFor([week(), week(5, "free_hit")])).toBe(4);
   });
 
   it("charges 4 points per extra transfer, nothing on a Wildcard or Free Hit", () => {
@@ -343,6 +350,19 @@ describe("lineup editing", () => {
     expect(l.slots.filter(Boolean)).toHaveLength(3);
     expect(l.slots[0]).toBe("gk");
     expect(lineupIds(l)).toBeNull();
+  });
+
+  it("puts a new signing in a free spot in their own position, else any free spot", () => {
+    const l = removePlayer(removePlayer(lineupFromIds(["gk", "d1", "d2", "d3", "m1", "m2", "f1"], players), "d3"), "f1");
+    expect(addPlayer(l, "f2", players).slots).toEqual(["gk", "d1", "d2", null, "m1", "m2", "f2"]);
+    expect(addPlayer(l, "m3", players).slots).toEqual(["gk", "d1", "d2", "m3", "m1", "m2", null]);
+  });
+
+  it("moves a player by swapping two spots, keeping the formation", () => {
+    const l = lineupFromIds(["gk", "d1", "d2", "d3", "m1", "m2", "f1"], players);
+    const moved = swapSlots(l, 3, 6);
+    expect(moved.slots).toEqual(["gk", "d1", "d2", "f1", "m1", "m2", "d3"]);
+    expect(moved.formation).toEqual(l.formation);
   });
 
   it("auto-fills within the money left", () => {

@@ -120,6 +120,23 @@ export function placePlayer(l: Lineup, index: number, id: string): Lineup {
   return { ...l, slots };
 }
 
+/** Add a player to a free slot in their own position if there is one, else the first free slot. */
+export function addPlayer(l: Lineup, id: string, players: Map<string, { position: FantasyPosition }>): Lineup {
+  if (l.slots.includes(id)) return l;
+  const positions = slotPositions(l.formation);
+  const own = players.get(id)?.position;
+  const j = positions.findIndex((p, k) => p === own && !l.slots[k]);
+  const index = j >= 0 ? j : l.slots.indexOf(null);
+  return index >= 0 ? placePlayer(l, index, id) : l;
+}
+
+/** Swap whoever is in two slots (either can be empty): moving a player to another spot. */
+export function swapSlots(l: Lineup, a: number, b: number): Lineup {
+  const slots = [...l.slots];
+  [slots[a], slots[b]] = [slots[b], slots[a]];
+  return { ...l, slots };
+}
+
 export function removePlayer(l: Lineup, id: string): Lineup {
   return { ...l, slots: l.slots.map((s) => (s === id ? null : s)) };
 }

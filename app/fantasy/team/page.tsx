@@ -15,10 +15,16 @@ import {
   CHIP_IDS, CHIPS, entryError, FANTASY_RULES, formatCountdown, formatDeadline, PLAYER_STATUS, POSITION_LABEL, seasonHalf,
   transferCostFor, transfersBetween, type Chip, type SquadPlayer,
 } from "@/lib/fantasy";
-import { arrangeLineup, lineupFromPicks, lineupIds, lineupPositions, slotPositions } from "@/lib/fantasy-lineup";
+import {
+  addPlayer, arrangeLineup, changeFormation, EMPTY_LINEUP, FORMATIONS, formationLabel, lineupFromPicks, lineupIds, lineupPositions,
+  removePlayer, slotPositions, swapSlots, type Formation, type Lineup,
+} from "@/lib/fantasy-lineup";
 
 const SIZE = FANTASY_RULES.squadSize;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+/** Defensive to attacking: 4-1-1 … 2-1-3. */
+const SHAPES = [...FORMATIONS].sort((a, b) => b.DEF - a.DEF || b.MID - a.MID);
+const ROW_NAME = { GK: "in goal", DEF: "in defence", MID: "in midfield", FWD: "up front" } as const;
 
 /** JSON from the site's API, failing with the server's error message like the app's api(). */
 async function api<T>(path: string, body?: unknown): Promise<T> {
@@ -32,8 +38,8 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
 
 /**
  * Pick your team for the next gameweek, one step at a time, as in the app (mobile/src/app/fantasy/edit.tsx):
- * 7 players (lined up for you), a captain, a team name the first time, and optional chips. The big
- * button always does the next step.
+ * 7 players in a formation (lined up for you until you choose one or move someone), a captain, a team
+ * name the first time, and optional chips. The big button always does the next step.
  */
 export default function FantasyTeamPage() {
   const { status } = useSession();
@@ -73,10 +79,11 @@ function Editor({ data }: { data: FantasyOverview }) {
   const opts = { budget: season.budget, from: baseline, draft: draft?.saved ? draft.picks : null };
   const available = team?.availableChips ?? CHIP_IDS;
 
-  // The saved team keeps its layout until its players change; then the app lines them up again.
-  const [start] = useState(() => (draft ? lineupFromPicks(draft.picks, players) : null));
-  const startIds = useMemo(() => (start?.slots.filter((id): id is string => !!id) ?? []), [start]);
-  const [picked, setPicked] = useState<string[]>(startIds);
+  const [start] = useState<Lineup | null>(() => (draft ? lineupFromPicks(draft.picks, players) : null));
+  const [lineup, setLineup] = useState<Lineup>(start ?? EMPTY_LINEUP);
+  // A new team lines itself up around the players picked until the fan chooses a formation or moves
+  // someone. A saved team keeps its formation, and new signings take the free spots.
+  const [auto, setAuto] = useState(!start);
   const [captain, setCaptain] = useState<string | null>(draft?.captainId ?? null);
   const [vice, setVice] = useState<string | null>(draft?.viceCaptainId ?? null);
   const [chip, setChip] = useState<Chip | null>(draft?.chip ?? null);
@@ -91,9 +98,8 @@ function Editor({ data }: { data: FantasyOverview }) {
   const [alert, setAlert] = useState<AlertSpec | null>(null);
   const [statsFor, setStatsFor] = useState<string | null>(null);
 
-  const unchanged = !!start && picked.length === startIds.length && picked.every((id) => startIds.includes(id));
-  const lineup = unchanged ? start! : arrangeLineup(picked, players);
-  const ordered = lineup.slots.filter((id): id is string => !!id);
+  const ordered = useMemo(() => lineup.slots.filter((id): id is string => !!id), [lineup]);
+  const picked = ordered;
 
   const captainId = captain && picked.includes(captain) ? captain : null;
   // The vice defaults to someone else in the team, but only once there's a captain to stand in for.
@@ -125,16 +131,17 @@ function Editor({ data }: { data: FantasyOverview }) {
     setTouched(true);
   }
 
+  const without = (id: string) => (auto ? arrangeLineup(picked.filter((x) => x !== id), players) : removePlayer(lineup, id));
+
   function toggle(id: string) {
     if (picked.includes(id)) {
-      change(setPicked, picked.filter((x) => x !== id));
+      change(setLineup, without(id));
       return;
     }
     if (picked.length >= SIZE) return;
-    const next = [...picked, id];
-    change(setPicked, next);
+    change(setLineup, auto ? arrangeLineup([...picked, id], players) : addPlayer(lineup, id, players));
     // That's the 7: back to the team, where the captain is the next step.
-    if (next.length === SIZE) setTimeout(() => setPicking(false), 350);
+    if (picked.length + 1 === SIZE) setTimeout(() => setPicking(false), 350);
   }
 
   function makeCaptain(id: string) {
@@ -155,6 +162,26 @@ function Editor({ data }: { data: FantasyOverview }) {
   const chooseCaptain = () => chooseFrom("Who's your captain?", "Your captain scores double points.", makeCaptain);
   const chooseVice = () => chooseFrom("Who's your vice-captain?", "They score double if your captain doesn't play.", makeVice, captainId);
 
+  function chooseFormation(f: Formation) {
+    if (formationLabel(f) === formationLabel(lineup.formation)) return;
+    setAuto(false);
+    change(setLineup, changeFormation(lineup, f, players));
+  }
+
+  /** Move a player to another spot: swap with whoever is there (or into an empty spot). */
+  function move(index: number) {
+    const id = lineup.slots[index]!;
+    const spots = slotPositions(lineup.formation).map((pos, j) => ({ j, pos })).filter(({ j }) => j !== index);
+    setSheet({
+      title: `Move ${nameOf(id)} to…`,
+      message: `They still score as a ${POSITION_LABEL[players.get(id)!.position].toLowerCase()}, wherever they play.`,
+      actions: spots.map(({ j, pos }) => ({
+        label: lineup.slots[j] ? `Swap with ${nameOf(lineup.slots[j]!)} (${ROW_NAME[pos]})` : `Empty spot ${ROW_NAME[pos]}`,
+        run: () => { setAuto(false); change(setLineup, swapSlots(lineup, index, j)); },
+      })),
+    });
+  }
+
   function onSlot(index: number) {
     const id = lineup.slots[index];
     if (!id) { setPicking(true); return; }
@@ -162,9 +189,11 @@ function Editor({ data }: { data: FantasyOverview }) {
     const actions: SheetAction[] = [];
     if (id !== captainId) actions.push({ label: "Make captain (double points)", run: () => makeCaptain(id) });
     if (captainId && id !== captainId && id !== viceId) actions.push({ label: "Make vice-captain", run: () => makeVice(id) });
-    actions.push({ label: "Swap for someone else", run: () => { change(setPicked, picked.filter((x) => x !== id)); setPicking(true); } });
+    actions.push({ label: "Swap for someone else", run: () => { change(setLineup, without(id)); setPicking(true); } });
+    // Let the first sheet slide away before the second comes up, as on the phone.
+    actions.push({ label: "Move to another spot", run: () => setTimeout(() => move(index), 300) });
     actions.push({ label: "See their stats", run: () => setStatsFor(id) });
-    actions.push({ label: "Take out of my team", destructive: true, run: () => change(setPicked, picked.filter((x) => x !== id)) });
+    actions.push({ label: "Take out of my team", destructive: true, run: () => change(setLineup, without(id)) });
 
     setSheet({
       title: `${p.name} · ${POSITION_LABEL[p.position]}`,
@@ -180,7 +209,8 @@ function Editor({ data }: { data: FantasyOverview }) {
   }
 
   function reset() {
-    setPicked(startIds);
+    setLineup(start ?? EMPTY_LINEUP);
+    setAuto(!start);
     setCaptain(draft?.captainId ?? null);
     setVice(draft?.viceCaptainId ?? null);
     setChip(draft?.chip ?? null);
@@ -317,8 +347,29 @@ function Editor({ data }: { data: FantasyOverview }) {
         {baseline && free !== null && <Transfers made={made} free={free} cost={transferCost} chip={chip} />}
 
         <Step n={1} done={stepPlayers} title={`Pick ${SIZE} players`} right={<span className="text-violet-600 text-[16px] font-black tabular-nums">{picked.length}/{SIZE}</span>}>
-          Any {SIZE} of the 5ive Guys. We line them up for you, and they always score as their own position.
+          Any {SIZE} of the 5ive Guys, in any formation. Tap a player to swap or move them. Everyone scores as their own position.
         </Step>
+        <div role="radiogroup" aria-label="Formation" className="mb-3 flex gap-1.5">
+          {SHAPES.map((f) => {
+            const label = formationLabel(f);
+            const on = label === formationLabel(lineup.formation);
+            return (
+              <button
+                key={label}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                aria-label={`Formation ${label}`}
+                onClick={() => chooseFormation(f)}
+                className={`h-10 min-w-0 flex-1 rounded-xl border-[1.5px] text-[15px] font-black tabular-nums transition-colors ${
+                  on ? "border-violet-600 bg-violet-600 text-white" : "border-lilac-line bg-white text-ink hover:border-violet-300 active:opacity-70"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
         <FantasyPitch slots={slots} />
         <Button
           title={picked.length ? "Change players" : `Choose your ${SIZE} players`}

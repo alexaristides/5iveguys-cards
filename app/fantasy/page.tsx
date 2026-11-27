@@ -142,8 +142,8 @@ function Home({ data, now, gameweek, openPlayer }: {
       footer={<DeadlineLine gameweek={next} now={now} />}
     >
       {[
-        "Make any changes before the deadline.",
-        team.freeTransfers === null ? "Changes are free until then." : `You have ${plural(team.freeTransfers, "free change")}.`,
+        "Change players, formation or captain before the deadline.",
+        team.freeTransfers === null ? "Changes are free until then." : `You have ${plural(team.freeTransfers, "free player change")}.`,
         chip ? `${chip.emoji} ${chip.name} is on.` : null,
       ].filter(Boolean).join(" ")}
     </Hero>
@@ -196,8 +196,14 @@ function Home({ data, now, gameweek, openPlayer }: {
 
       {lineup && (
         <>
-          <SectionTitle>{next ? `Your team for gameweek ${next.number}` : "Your team"}</SectionTitle>
-          <p className="!mt-2 text-ink-2 text-[13px]">C = captain (double points), V = vice-captain. Tap a player for their stats.</p>
+          <SectionTitle
+            right={next ? <Link href="/fantasy/team" className="shrink-0 whitespace-nowrap text-violet-600 hover:text-violet-700 text-[16px] font-extrabold">Edit team</Link> : null}
+          >
+            {next ? `Your team for gameweek ${next.number}` : "Your team"}
+          </SectionTitle>
+          <p className="!mt-2 text-ink-2 text-[13px]">
+            C = captain (double points), V = vice-captain. Tap a player for their stats{next ? ", or Edit team to change players, formation or captain" : ""}.
+          </p>
           <FantasyPitch slots={slots} />
         </>
       )}

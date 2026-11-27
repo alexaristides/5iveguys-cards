@@ -12,7 +12,10 @@ import { FantasyPitch, type PitchSlot } from "@/components/fantasy/FantasyPitch"
 import { Screen } from "@/components/Screen";
 import { Button, ErrorText, Loading } from "@/components/ui";
 import { api } from "@/lib/api";
-import { arrangeLineup, formatCountdown, formatDeadline, lineupFromPicks, lineupIds, lineupPositions, slotPositions } from "@/lib/fantasy";
+import {
+  addPlayer, arrangeLineup, changeFormation, EMPTY_LINEUP, formatCountdown, formatDeadline, FORMATIONS, formationLabel, lineupFromPicks,
+  lineupIds, lineupPositions, removePlayer, slotPositions, swapSlots, type Formation, type Lineup,
+} from "@/lib/fantasy";
 import { imageUri } from "@/lib/images";
 import { useFantasy } from "@/lib/queries";
 import { colors, POSITION_COLOR, shadow } from "@/lib/theme";
@@ -20,10 +23,14 @@ import type { FantasyOverview, FantasyPlayer } from "@/lib/types";
 
 const SIZE = FANTASY_RULES.squadSize;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+/** Defensive to attacking: 4-1-1 … 2-1-3. */
+const SHAPES = [...FORMATIONS].sort((a, b) => b.DEF - a.DEF || b.MID - a.MID);
+const ROW_NAME = { GK: "in goal", DEF: "in defence", MID: "in midfield", FWD: "up front" } as const;
 
 /**
- * Pick your team for the next gameweek, one step at a time: 7 players (lined up for you), a
- * captain, a team name the first time, and optional chips. The big button always does the next step.
+ * Pick your team for the next gameweek, one step at a time: 7 players (lined up for you until you
+ * choose a formation or move someone), a captain, a team name the first time, and optional chips.
+ * The big button always does the next step.
  */
 export default function FantasyEditScreen() {
   const fantasy = useFantasy();
@@ -51,10 +58,11 @@ function Editor({ data }: { data: FantasyOverview }) {
   const opts = { budget: season.budget, from: baseline, draft: draft?.saved ? draft.picks : null };
   const available = team?.availableChips ?? CHIP_IDS;
 
-  // The saved team keeps its layout until its players change; then the app lines them up again.
-  const [start] = useState(() => (draft ? lineupFromPicks(draft.picks, players) : null));
-  const startIds = useMemo(() => (start?.slots.filter((id): id is string => !!id) ?? []), [start]);
-  const [picked, setPicked] = useState<string[]>(startIds);
+  const [start] = useState<Lineup | null>(() => (draft ? lineupFromPicks(draft.picks, players) : null));
+  const [lineup, setLineup] = useState<Lineup>(start ?? EMPTY_LINEUP);
+  // A new team lines itself up around the players picked until the fan chooses a formation or moves
+  // someone. A saved team keeps its formation, and new signings take the free spots.
+  const [auto, setAuto] = useState(!start);
   const [captain, setCaptain] = useState<string | null>(draft?.captainId ?? null);
   const [vice, setVice] = useState<string | null>(draft?.viceCaptainId ?? null);
   const [chip, setChip] = useState<Chip | null>(draft?.chip ?? null);
@@ -65,9 +73,8 @@ function Editor({ data }: { data: FantasyOverview }) {
   const [touched, setTouched] = useState(false);
   const [openedAt] = useState(() => Date.now());
 
-  const unchanged = !!start && picked.length === startIds.length && picked.every((id) => startIds.includes(id));
-  const lineup = unchanged ? start! : arrangeLineup(picked, players);
-  const ordered = lineup.slots.filter((id): id is string => !!id);
+  const ordered = useMemo(() => lineup.slots.filter((id): id is string => !!id), [lineup]);
+  const picked = ordered;
 
   const captainId = captain && picked.includes(captain) ? captain : null;
   // The vice defaults to someone else in the team, but only once there's a captain to stand in for.
@@ -91,19 +98,20 @@ function Editor({ data }: { data: FantasyOverview }) {
     setTouched(true);
   }
 
+  const without = (id: string) => (auto ? arrangeLineup(picked.filter((x) => x !== id), players) : removePlayer(lineup, id));
+
   function toggle(id: string) {
     if (picked.includes(id)) {
       Haptics.selectionAsync();
-      change(setPicked, picked.filter((x) => x !== id));
+      change(setLineup, without(id));
       return;
     }
     if (picked.length >= SIZE) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
-    const next = [...picked, id];
-    change(setPicked, next);
-    if (next.length === SIZE) {
+    change(setLineup, auto ? arrangeLineup([...picked, id], players) : addPlayer(lineup, id, players));
+    if (picked.length + 1 === SIZE) {
       // That's the 7: back to the team, where the captain is the next step.
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTimeout(() => setPicking(false), 350);
@@ -135,6 +143,38 @@ function Editor({ data }: { data: FantasyOverview }) {
   const chooseCaptain = () => chooseFrom("Who's your captain?", "Your captain scores double points.", makeCaptain);
   const chooseVice = () => chooseFrom("Who's your vice-captain?", "They score double if your captain doesn't play.", makeVice, captainId);
 
+  function chooseFormation(f: Formation) {
+    if (formationLabel(f) === formationLabel(lineup.formation)) return;
+    Haptics.selectionAsync();
+    setAuto(false);
+    change(setLineup, changeFormation(lineup, f, players));
+  }
+
+  /** Move a player to another spot: swap with whoever is there (or into an empty spot). */
+  function move(index: number) {
+    const id = lineup.slots[index]!;
+    const positions = slotPositions(lineup.formation);
+    const spots = positions.map((pos, j) => ({ j, pos })).filter(({ j }) => j !== index);
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: `Move ${nameOf(id)} to…`,
+        message: "They still score as a " + POSITION_LABEL[players.get(id)!.position].toLowerCase() + ", wherever they play.",
+        options: [
+          ...spots.map(({ j, pos }) => (lineup.slots[j] ? `Swap with ${nameOf(lineup.slots[j]!)} (${ROW_NAME[pos]})` : `Empty spot ${ROW_NAME[pos]}`)),
+          "Cancel",
+        ],
+        cancelButtonIndex: spots.length,
+        userInterfaceStyle: "light",
+      },
+      (i) => {
+        if (i >= spots.length) return;
+        Haptics.selectionAsync();
+        setAuto(false);
+        change(setLineup, swapSlots(lineup, index, spots[i].j));
+      },
+    );
+  }
+
   function onSlot(index: number) {
     const id = lineup.slots[index];
     if (!id) { setPicking(true); return; }
@@ -142,9 +182,11 @@ function Editor({ data }: { data: FantasyOverview }) {
     const actions: { label: string; run: () => void; destructive?: boolean }[] = [];
     if (id !== captainId) actions.push({ label: "Make captain (double points)", run: () => makeCaptain(id) });
     if (captainId && id !== captainId && id !== viceId) actions.push({ label: "Make vice-captain", run: () => makeVice(id) });
-    actions.push({ label: "Swap for someone else", run: () => { change(setPicked, picked.filter((x) => x !== id)); setPicking(true); } });
+    actions.push({ label: "Swap for someone else", run: () => { change(setLineup, without(id)); setPicking(true); } });
+    // A second action sheet can't open while the first is still closing.
+    actions.push({ label: "Move to another spot", run: () => setTimeout(() => move(index), 350) });
     actions.push({ label: "See their stats", run: () => router.push({ pathname: "/fantasy/player/[id]", params: { id } }) });
-    actions.push({ label: "Take out of my team", destructive: true, run: () => change(setPicked, picked.filter((x) => x !== id)) });
+    actions.push({ label: "Take out of my team", destructive: true, run: () => change(setLineup, without(id)) });
 
     ActionSheetIOS.showActionSheetWithOptions(
       {
@@ -168,7 +210,8 @@ function Editor({ data }: { data: FantasyOverview }) {
 
   function reset() {
     Haptics.selectionAsync();
-    setPicked(startIds);
+    setLineup(start ?? EMPTY_LINEUP);
+    setAuto(!start);
     setCaptain(draft?.captainId ?? null);
     setVice(draft?.viceCaptainId ?? null);
     setChip(draft?.chip ?? null);
@@ -318,8 +361,26 @@ function Editor({ data }: { data: FantasyOverview }) {
       {baseline && free !== null && <Transfers made={made} free={free} cost={transferCost} chip={chip} />}
 
       <Step n={1} done={stepPlayers} title={`Pick ${SIZE} players`} right={<Text style={styles.count}>{picked.length}/{SIZE}</Text>}>
-        Any {SIZE} of the 5ive Guys. We line them up for you, and they always score as their own position.
+        Any {SIZE} of the 5ive Guys, in any formation. Tap a player to swap or move them. Everyone scores as their own position.
       </Step>
+      <View style={styles.formations} accessibilityRole="radiogroup" accessibilityLabel="Formation">
+        {SHAPES.map((f) => {
+          const label = formationLabel(f);
+          const on = label === formationLabel(lineup.formation);
+          return (
+            <Pressable
+              key={label}
+              onPress={() => chooseFormation(f)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: on }}
+              accessibilityLabel={`Formation ${label}`}
+              style={({ pressed }) => [styles.formation, on && styles.formationOn, pressed && !on && { opacity: 0.7 }]}
+            >
+              <Text style={[styles.formationText, on && { color: colors.white }]}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
       <FantasyPitch slots={slots} />
       <Button
         title={picked.length ? "Change players" : `Choose your ${SIZE} players`}
@@ -568,6 +629,13 @@ const styles = StyleSheet.create({
   stepTitle: { flex: 1, color: colors.text, fontSize: 20, fontWeight: "900" },
   stepHint: { color: colors.text2, fontSize: 14, lineHeight: 20 },
   count: { color: colors.accent, fontSize: 16, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  formations: { flexDirection: "row", gap: 6, marginBottom: 12 },
+  formation: {
+    flex: 1, height: 40, borderRadius: 12, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border,
+    alignItems: "center", justifyContent: "center",
+  },
+  formationOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  formationText: { color: colors.text, fontSize: 15, fontWeight: "900", fontVariant: ["tabular-nums"] },
   captains: { gap: 12, paddingVertical: 4, paddingRight: 8 },
   capItem: { width: 70, alignItems: "center", gap: 6 },
   capArt: {

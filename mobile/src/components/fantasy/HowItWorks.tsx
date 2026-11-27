@@ -5,7 +5,7 @@ import { Panel, SectionTitle } from "@/components/ui";
 import { colors } from "@/lib/theme";
 
 export const STEPS = [
-  { emoji: "👕", title: `Pick ${FANTASY_RULES.squadSize} players`, body: "Any of the 5ive Guys. No prices, no budget." },
+  { emoji: "👕", title: `Pick ${FANTASY_RULES.squadSize} players`, body: "Any of the 5ive Guys, in any formation. No prices, no budget." },
   { emoji: "⭐", title: "Choose a captain", body: "Your captain scores double points." },
   { emoji: "⚽", title: "Score points", body: "Goals, assists, clean sheets and more, from our real matches." },
   { emoji: "🏆", title: "Beat your mates", body: "Start a league and share the code." },
