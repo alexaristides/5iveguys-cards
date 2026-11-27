@@ -1,24 +1,11 @@
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import SupportForm from "@/components/SupportForm";
-import { PRINT_SHOP, SUPPORT_EMAIL } from "@/lib/print-shop";
+import { SUPPORT_EMAIL } from "@/lib/print-shop";
 
 export const metadata = { title: "Support" };
 
 const FAQ: { q: string; a: React.ReactNode }[] = [
-  {
-    q: "When will my printed packs arrive?",
-    a: (
-      <>
-        Orders placed before {PRINT_SHOP.printStarts} are 1st Edition: we start printing on {PRINT_SHOP.printStarts} and aim to
-        post them by {PRINT_SHOP.postBy}. Later orders go into the next print run. Any problem with an order? Email{" "}
-        <a href={`mailto:${SUPPORT_EMAIL}`} className="text-purple-400 underline hover:text-purple-300">
-          {SUPPORT_EMAIL}
-        </a>{" "}
-        with your order number.
-      </>
-    ),
-  },
   {
     q: "How do I sign in?",
     a: "Use Sign in with Google on the website. In the iPhone app you can also use Sign in with Apple.",

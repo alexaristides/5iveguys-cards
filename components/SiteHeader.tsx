@@ -2,15 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { Logo } from "./Logo";
-import { PRINT_SHOP } from "@/lib/print-shop";
+import { signInBasic } from "./SignInScreen";
 
 const LINKS = [
-  { href: "/shop", label: "Shop" },
-  { href: "/game", label: "Play" },
   { href: "/fantasy", label: "Fantasy" },
+  { href: "/extras", label: "Extras" },
   { href: "/support", label: "Help" },
 ];
 
@@ -20,7 +19,6 @@ const TONES = {
     bar: "border-white/[0.06] bg-[#0a0a0a]/80",
     link: "text-zinc-400 hover:text-white",
     linkOn: "text-white bg-white/[0.06]",
-    shop: "bg-amber-400/15 border-amber-400/40 text-amber-200",
     avatar: "ring-white/10 hover:ring-purple-500/60",
     signIn: "bg-white text-black hover:bg-zinc-200",
     burger: "text-zinc-300",
@@ -36,7 +34,6 @@ const TONES = {
     bar: "border-lilac-line bg-white/85",
     link: "text-ink-2 hover:text-ink",
     linkOn: "text-violet-700 bg-violet-100",
-    shop: "bg-amber-100 border-amber-300 text-amber-800",
     avatar: "ring-lilac-line hover:ring-violet-400",
     signIn: "bg-violet-600 text-white hover:bg-violet-500",
     burger: "text-ink-2",
@@ -51,13 +48,12 @@ const TONES = {
 };
 
 /**
- * The site's top bar on the public pages and the signed-in home: logo, the main sections, and
- * sign in or the account menu. (The team pages under /[channelSlug] have their own Navbar.)
- * `signInTo` is where signing in lands (the signed-in home, My Team, unless a page wants people back on it).
- * `tabs` swaps the main links for the app's tabs (AppShell); phones have those in the bottom tab bar instead.
+ * The top bar on the pages outside the app screens (terms, privacy, help, the games, your collection):
+ * logo, the main sections, and sign in or the account menu. (The team pages under /[channelSlug] have
+ * their own Navbar; the app screens have AppShell.) `signInTo` is where signing in lands.
  */
-export default function SiteHeader({ variant = "dark", signInTo = "/fantasy", tabs }: {
-  variant?: keyof typeof TONES; signInTo?: string; tabs?: { href: string; label: string; active: boolean }[];
+export default function SiteHeader({ variant = "dark", signInTo = "/fantasy" }: {
+  variant?: keyof typeof TONES; signInTo?: string;
 }) {
   const path = usePathname();
   const { data: session, status } = useSession();
@@ -76,7 +72,7 @@ export default function SiteHeader({ variant = "dark", signInTo = "/fantasy", ta
 
   const user = session?.user;
   const active = (href: string) => path === href || path.startsWith(`${href}/`);
-  const nav = tabs ?? LINKS.map((l) => ({ ...l, active: active(l.href) }));
+  const nav = LINKS.map((l) => ({ ...l, active: active(l.href) }));
 
   return (
     <header className={`sticky top-0 z-40 border-b backdrop-blur-xl ${t.bar}`}>
@@ -91,24 +87,14 @@ export default function SiteHeader({ variant = "dark", signInTo = "/fantasy", ta
               key={l.href}
               href={l.href}
               aria-current={l.active ? "page" : undefined}
-              className={`px-3 py-2 rounded-lg transition-colors ${tabs ? "font-bold" : "font-medium"} ${l.active ? t.linkOn : t.link}`}
+              className={`px-3 py-2 rounded-lg transition-colors font-medium ${l.active ? t.linkOn : t.link}`}
             >
               {l.label}
-              {l.href === "/shop" && <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-amber-400 align-middle" aria-hidden />}
             </Link>
           ))}
         </nav>
 
         <div className="ml-auto flex items-center gap-2" ref={menuRef}>
-          {!tabs && (
-            <Link
-              href="/shop"
-              className={`md:hidden px-3 py-1.5 rounded-full border text-xs font-bold ${t.shop}`}
-            >
-              {PRINT_SHOP.forSale ? "Shop packs" : "Packs soon"}
-            </Link>
-          )}
-
           {status === "loading" ? (
             <div className="w-9 h-9" />
           ) : user ? (
@@ -131,7 +117,7 @@ export default function SiteHeader({ variant = "dark", signInTo = "/fantasy", ta
           ) : (
             <button
               type="button"
-              onClick={() => signIn("google", { callbackUrl: signInTo })}
+              onClick={() => signInBasic(signInTo)}
               className={`hidden md:inline-flex px-4 py-2 rounded-xl text-sm font-semibold transition ${t.signIn}`}
             >
               Sign in
@@ -157,7 +143,7 @@ export default function SiteHeader({ variant = "dark", signInTo = "/fantasy", ta
                   {user.email && <p className={`text-xs truncate ${t.email}`}>{user.email}</p>}
                 </div>
               )}
-              <div className={tabs ? "hidden" : "md:hidden"}>
+              <div className="md:hidden">
                 {LINKS.map((l) => (
                   <Link key={l.href} href={l.href} className={`block px-3 py-2 rounded-lg ${t.item}`}>
                     {l.label}
@@ -172,9 +158,6 @@ export default function SiteHeader({ variant = "dark", signInTo = "/fantasy", ta
                   <Link href="/extras" className={`block px-3 py-2 rounded-lg ${t.item}`}>
                     Extras
                   </Link>
-                  <Link href="/settings" className={`block px-3 py-2 rounded-lg ${t.item}`}>
-                    Settings
-                  </Link>
                   <button
                     type="button"
                     onClick={() => signOut({ callbackUrl: "/" })}
@@ -186,7 +169,7 @@ export default function SiteHeader({ variant = "dark", signInTo = "/fantasy", ta
               ) : (
                 <button
                   type="button"
-                  onClick={() => signIn("google", { callbackUrl: signInTo })}
+                  onClick={() => signInBasic(signInTo)}
                   className={`w-full mt-1 px-3 py-2.5 rounded-lg font-semibold ${t.menuSignIn}`}
                 >
                   Sign in

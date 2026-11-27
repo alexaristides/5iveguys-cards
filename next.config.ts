@@ -19,6 +19,8 @@ const nextConfig: NextConfig = {
     return [
       { source: "/draft", destination: "/street", permanent: false },
       { source: "/game/worldcup", destination: "/street", permanent: false },
+      // Printed packs aren't sold any more (the website is the fantasy app). /shop/thanks stays for past orders.
+      { source: "/shop", destination: "/", permanent: false },
     ];
   },
 };

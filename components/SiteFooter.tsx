@@ -4,18 +4,11 @@ import { SELLER, SUPPORT_EMAIL } from "@/lib/print-shop";
 
 const COLUMNS: { title: string; links: { href: string; label: string; plain?: boolean }[] }[] = [
   {
-    title: "Shop",
-    links: [
-      { href: "/shop", label: "1st Edition packs" },
-      { href: "/terms#shop", label: "Delivery and refunds" },
-    ],
-  },
-  {
     title: "Play",
     links: [
-      { href: "/street", label: "5IVE STREET", plain: true },
-      { href: "/game", label: "All games" },
       { href: "/fantasy", label: "Fantasy" },
+      { href: "/extras", label: "Extras" },
+      { href: "/street", label: "5IVE STREET", plain: true },
     ],
   },
   {
@@ -29,16 +22,16 @@ const COLUMNS: { title: string; links: { href: string; label: string; plain?: bo
   },
 ];
 
-/** The site's footer: sections, help, legal and who runs it. `light` for the bright Fantasy pages. */
+/** The site's footer on the public and Extras pages: sections, help, legal and who runs it. `light` for bright pages. */
 export default function SiteFooter({ light }: { light?: boolean }) {
   const link = light ? "text-ink-3 hover:text-violet-700 transition-colors" : "text-zinc-500 hover:text-white transition-colors";
   return (
     <footer className={`border-t ${light ? "border-lilac-line bg-white" : "border-white/[0.06] bg-[#0a0a0a]"}`}>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 grid gap-10 md:grid-cols-[2fr_1fr_1fr]">
         <div className="space-y-4">
           <Logo className="h-7" ink={light} />
           <p className={`${light ? "text-ink-3" : "text-zinc-500"} text-sm leading-relaxed max-w-xs`}>
-            The fan app for 5ive Guys: printed trading cards, the 5IVE STREET game and fantasy football.
+            The fantasy football app for the 5ive Guys YouTube channel, plus trading cards and the 5IVE STREET game.
           </p>
         </div>
         {COLUMNS.map((c) => (
