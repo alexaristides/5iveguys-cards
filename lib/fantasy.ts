@@ -39,7 +39,7 @@ export const FANTASY_RULES = {
   /** Each season starts with this budget (£50.0m) unless the admin sets another. */
   defaultBudget: 500,
   /** Free transfers gained each gameweek, and how many can be saved up. */
-  freeTransfersPerWeek: 1,
+  freeTransfersPerWeek: 2,
   maxFreeTransfers: 5,
   /** Points deducted per transfer beyond the free ones. */
   transferCost: 4,
@@ -352,7 +352,7 @@ export interface LockedWeek {
 /**
  * Free transfers for the next gameweek, replaying the team's locked gameweeks in order.
  * Returns null while the team has never been locked (picking the first team is free).
- * One a week, saved up to 5; Wildcard and Free Hit weeks don't use any.
+ * Two a week (the user's rule, 2026-11-27; FPL gives one), saved up to 5; Wildcard and Free Hit weeks don't use any.
  */
 export function freeTransfersFor(history: LockedWeek[]) {
   let free: number | null = null;

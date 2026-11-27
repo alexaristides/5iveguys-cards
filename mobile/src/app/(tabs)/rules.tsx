@@ -10,10 +10,7 @@ import { colors } from "@/lib/theme";
 /** How to play: the four steps, then the details. Every number comes from the shared rules. */
 export default function HowToPlayTab() {
   const season = useFantasy().data?.season;
-  const guide = fantasyGuide(
-    { budget: season?.budget ?? FANTASY_RULES.defaultBudget, secondHalfFrom: season?.secondHalfFrom ?? null },
-    { autoLineup: true },
-  );
+  const guide = fantasyGuide({ budget: season?.budget ?? FANTASY_RULES.defaultBudget, secondHalfFrom: season?.secondHalfFrom ?? null });
   const chips = guide.sections.find((s) => s.title === "Chips");
 
   return (
