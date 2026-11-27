@@ -28,9 +28,9 @@ export function SignInScreen({ callbackUrl = "/fantasy" }: { callbackUrl?: strin
       <main className="relative mx-auto flex min-h-[100dvh] max-w-md flex-col justify-between gap-8 px-6 pt-[calc(28px+env(safe-area-inset-top))] pb-[calc(20px+env(safe-area-inset-bottom))]">
         <div className="flex flex-col items-center gap-2.5 pt-6 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/5iveg-app-icon.png" alt="" className="mb-1.5 w-[108px] h-[108px] rounded-[26px] shadow-[0_3px_10px_rgba(46,16,101,0.3)]" />
+          <img src="/brand/5iveguys-badge.png" alt="" className="mb-1.5 w-[108px] h-[108px] rounded-[26px] shadow-[0_3px_10px_rgba(46,16,101,0.3)]" />
           <h1 className="text-[34px] leading-tight font-black">5iveG Fantasy</h1>
-          <p className="text-ink-2 text-[17px] leading-[23px] font-medium">Fantasy football for the 5ive Guys&apos; real Division 1 season.</p>
+          <p className="text-ink-2 text-[17px] leading-[23px] font-medium">Fantasy football for our real Division 1 season.</p>
         </div>
 
         <div className="rounded-[22px] bg-white p-4 space-y-3 shadow-card">

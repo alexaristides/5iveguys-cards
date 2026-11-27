@@ -24,7 +24,7 @@ export function HowToPlay({ budget, secondHalfFrom }: { budget: number; secondHa
   return (
     <div className="flex flex-col gap-3">
       <p className="text-ink-2 text-[16px] leading-[22px] font-medium">
-        Fantasy football for the 5ive Guys&apos; real Division 1 season, with Fantasy Premier League&apos;s rules made for 7-a-side.
+        Fantasy football for our real Division 1 season, with Fantasy Premier League&apos;s rules made for 7-a-side.
       </p>
       <HowItWorks title={null} />
 

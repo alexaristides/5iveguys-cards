@@ -102,7 +102,7 @@ function TabHeader({ title }: { title: string }) {
       <div className="max-w-2xl mx-auto flex items-center justify-between px-4 pt-[calc(8px+env(safe-area-inset-top))] pb-2.5 md:pt-7 md:pb-3">
         <div className="flex items-center gap-2.5 min-w-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/5iveg-app-icon.png" alt="" className="w-[34px] h-[34px] rounded-[9px] md:hidden" />
+          <img src="/brand/5iveguys-badge.png" alt="" className="w-[34px] h-[34px] rounded-[9px] md:hidden" />
           <h1 className="text-ink text-[26px] md:text-[32px] leading-tight font-black truncate">{title}</h1>
         </div>
         <div className="md:hidden">

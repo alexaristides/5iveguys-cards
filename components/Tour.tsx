@@ -60,7 +60,7 @@ function Welcome() {
   return (
     <div className="flex flex-col items-center gap-[18px]">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/5iveg-app-icon.png" alt="" className="h-[170px] w-[170px] rounded-[40px] shadow-[0_3px_10px_rgba(46,16,101,0.3)]" />
+      <img src="/brand/5iveguys-badge.png" alt="" className="h-[170px] w-[170px] rounded-[40px] shadow-[0_3px_10px_rgba(46,16,101,0.3)]" />
       <div className="rounded-2xl bg-white px-3.5 py-2 shadow-card">
         <span className="text-ink text-[15px] font-black">⚽ Fantasy Div 1</span>
       </div>
@@ -169,9 +169,9 @@ export function Tour({ onDone }: { onDone: () => void }) {
   const [index, setIndex] = useState(0);
 
   const pages: PageSpec[] = [
-    { key: "welcome", title: "Fantasy football for the 5ive Guys", body: "Play along with their real Division 1 season. It's free.", art: <Welcome /> },
+    { key: "welcome", title: "Fantasy football for the 5ive Guys", body: "Play along with our real Division 1 season. It's free.", art: <Welcome /> },
     { key: "pick", title: "Pick any 7 players", body: "Choose 7 of the 5ive Guys. No prices, no budget: just the players you rate.", art: <PickSeven photos={photos} /> },
-    { key: "points", title: "Score from real matches", body: "Goals, assists and clean sheets in their real games score you points. Your captain scores double.", art: <Points photo={photos[0]} /> },
+    { key: "points", title: "Score from real matches", body: "Goals, assists and clean sheets in our real games score you points. Your captain scores double.", art: <Points photo={photos[0]} /> },
     { key: "motm", title: "Vote Man of the Match", body: "After every video, pick the player of the match and see who the fans chose.", art: <Motm photo={photos[3]} /> },
     { key: "league", title: "Beat your mates", body: "Start a league, share the code, and see who finishes top.", art: <League /> },
   ];

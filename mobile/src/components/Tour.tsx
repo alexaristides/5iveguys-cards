@@ -39,7 +39,7 @@ function Face({ photo, size, ring }: { photo?: Photo; size: number; ring?: strin
 function Welcome() {
   return (
     <View style={{ alignItems: "center", gap: 18 }}>
-      <Image source={require("../../assets/icon.png")} style={styles.icon} />
+      <Image source={require("../../assets/5iveguys-badge.png")} style={styles.icon} />
       <View style={styles.pill}><Text style={styles.pillText}>⚽ Fantasy Div 1</Text></View>
     </View>
   );
@@ -165,7 +165,7 @@ export function Tour({ onDone }: { onDone: () => void }) {
     {
       key: "welcome",
       title: "Fantasy football for the 5ive Guys",
-      body: "Play along with their real Division 1 season. It's free.",
+      body: "Play along with our real Division 1 season. It's free.",
       art: <Welcome />,
     },
     {
@@ -177,7 +177,7 @@ export function Tour({ onDone }: { onDone: () => void }) {
     {
       key: "points",
       title: "Score from real matches",
-      body: "Goals, assists and clean sheets in their real games score you points. Your captain scores double.",
+      body: "Goals, assists and clean sheets in our real games score you points. Your captain scores double.",
       art: <Points photo={photos[0]} />,
     },
     {

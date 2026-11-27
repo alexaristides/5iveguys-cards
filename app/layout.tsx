@@ -3,7 +3,7 @@ import "./globals.css";
 import Providers from "./providers";
 
 const description =
-  "The fantasy football app for the 5ive Guys YouTube channel, plus trading cards of the real players and the 5IVE STREET game.";
+  "The 5ive Guys fantasy football app. Pick 7 of our players, score points from our real Division 1 matches, vote Man of the Match and beat your mates.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.5iveg.com"),
