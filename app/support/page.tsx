@@ -1,9 +1,24 @@
-import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 import SupportForm from "@/components/SupportForm";
+import { PRINT_SHOP, SUPPORT_EMAIL } from "@/lib/print-shop";
 
-export const metadata = { title: "Support — 5iveG" };
+export const metadata = { title: "Support" };
 
 const FAQ: { q: string; a: React.ReactNode }[] = [
+  {
+    q: "When will my printed packs arrive?",
+    a: (
+      <>
+        Orders placed before {PRINT_SHOP.printStarts} are 1st Edition: we start printing on {PRINT_SHOP.printStarts} and aim to
+        post them by {PRINT_SHOP.postBy}. Later orders go into the next print run. Any problem with an order? Email{" "}
+        <a href={`mailto:${SUPPORT_EMAIL}`} className="text-purple-400 underline hover:text-purple-300">
+          {SUPPORT_EMAIL}
+        </a>{" "}
+        with your order number.
+      </>
+    ),
+  },
   {
     q: "How do I sign in?",
     a: "Use Sign in with Google on the website. In the iPhone app you can also use Sign in with Apple.",
@@ -48,13 +63,12 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
 
 export default function SupportPage() {
   return (
-    <main className="min-h-screen bg-[#0a0a0a] px-6 py-16">
+    <main className="min-h-screen bg-[#0a0a0a]">
+      <SiteHeader />
+      <div className="px-6 py-12 sm:py-16">
       <div className="max-w-2xl mx-auto space-y-8 text-zinc-400 text-sm leading-relaxed">
         <div>
-          <Link href="/" className="text-zinc-600 text-xs hover:text-zinc-400 transition-colors">
-            ← Back
-          </Link>
-          <h1 className="text-white text-3xl font-bold mt-4">Support</h1>
+          <h1 className="text-white text-3xl font-bold">Support</h1>
           <p className="mt-2">Help with the 5iveG app and website. Can&rsquo;t find your answer? Send us a message.</p>
         </div>
 
@@ -69,6 +83,13 @@ export default function SupportPage() {
 
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">Contact us</h2>
+          <p>
+            Email{" "}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-purple-400 underline hover:text-purple-300">
+              {SUPPORT_EMAIL}
+            </a>{" "}
+            or send us a message here.
+          </p>
           <SupportForm />
         </section>
 
@@ -84,6 +105,8 @@ export default function SupportPage() {
           Google LLC.
         </p>
       </div>
+      </div>
+      <SiteFooter />
     </main>
   );
 }

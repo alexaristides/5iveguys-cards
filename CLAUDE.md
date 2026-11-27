@@ -147,11 +147,23 @@ Schema changes: use `npm run db:push` (no migration files; direct push to DB).
 | Team | 150 pts | 3 | 75% common / 20% rare / 5% epic |
 | Legend | 400 pts | 5 | 50/25/20/5% + guaranteed epic+ |
 
+### Website look
+
+The 5iveG brand lives in `public/brand` (badge + wordmark, made by `scripts/brand-logo.mjs`): `components/Logo.tsx` (`Logo` white, `ThemedLogo` for the light/dark Navbar). Public pages and the signed-in home use `components/SiteHeader.tsx` (logo, Shop · Play · Fantasy · Help, sign-in or account menu) and `components/SiteFooter.tsx` (sections, help, legal, seller); the team pages keep `Navbar`. `components/ShopBanner.tsx` promotes the printed packs on both home pages. Favicons are file conventions in `app/` (`icon.svg`, `favicon.ico`, `apple-icon.png`), plus `app/manifest.ts` and link previews `app/opengraph-image.jpg` and `app/shop/opengraph-image.jpg` (rendered from HTML with headless Chrome). Page titles use the root template "%s · 5iveG", so set plain titles. `public/brand/street-squad.jpg` is a 5IVE STREET screenshot (team select, headless Chrome with SwiftShader).
+
+### Printed card shop (`/shop`)
+
+Physical 1st Edition packs sold on the website through Stripe Checkout (the app doesn't sell them yet). Rules in `lib/print-shop.ts` (pure): the squad pack plus 16 player packs (pictures in `public/shop/packs`, cut from the print files), £9.99 a pack and any 3 for £25 (a Stripe coupon per number of bundles, made on first use), delivery £2.99 UK / £7.99 worldwide (the buyer picks the zone in the basket; Checkout only accepts addresses in it), orders paid before `firstEditionCutoff` (14 Dec) are 1st Edition and posted by 20 Dec, no refunds (with the statutory-rights line). Stripe and DB side in `lib/print-shop-db.ts`: `createCheckout`, and `recordCheckout` (idempotent, by session id) called from the thanks page (`/shop/thanks`), the webhook (`/api/store/webhook`, only with `STRIPE_WEBHOOK_SECRET`) and a 10-minute cron (`/api/cron/shop-sync`, needs `CRON_SECRET`). Each new order is a `PrintOrder` row and an email to `SHOP_EMAIL_TO` (or `CONSENT_EMAIL_TO`). `/admin/orders` (ADMIN_SECRET) lists orders, the packs to make and addresses to post, and marks orders posted; player packs add `playerSharePence` to that player's earnings in `/admin/packs`. Seller: Genius Technologies Ltd, trading as 5iveG; help at support@5iveg.com (Cloudflare Email Routing → the boutmeapp Gmail, label "5iveG"). Test locally against a scratch Postgres, never the prod DB that `.env` points at.
+
+### Player consent (`/consent`)
+
+The link sent to squad players to get their permission to sell cards and packs with their face, and their bank details for their share (`/consent?team=OGFC&player=Ramin` opens on one player). Each signed form is emailed in full to `CONSENT_EMAIL_TO` via Resend (`app/api/consent/route.ts`), replying to the player; the player gets nothing. To show it's really them, a selfie is required: taken with the front camera, shrunk to a ≤1024 px JPEG on the phone, and attached inline beside their card in the email (never stored). Players in both teams tick "I play for … too" once. Resend is a free account (the Vercel Marketplace's free plan is disabled): without a verified domain it sends from `onboarding@resend.dev`, which only reaches the Resend account's own email, so `CONSENT_EMAIL_TO` must be that address. Nothing is stored in the database, and the form never logs what was sent. The wording and checks are in `lib/player-consent.ts`: the agreement is with the company (`COMPANY`, Genius Technologies Ltd, trading as 5iveG; a brand can't hold the rights), and `CONSENT_VERSION` is bumped whenever the wording changes. The form deliberately doesn't say how much the share is. Payouts are made by hand.
+
 ### Admin
 
 `GET /api/admin/stats` requires `x-admin-secret` header matching `ADMIN_SECRET` env var.
 
-Support: `/support` (FAQ + contact form → `SupportMessage` rows; it's the App Store Support URL and the app's Settings → Help & Support). There's no email on 5iveg.com, so messages are read at `/admin/support` (same admin secret).
+Support: `/support` (FAQ + contact form → `SupportMessage` rows; it's the App Store Support URL and the app's Settings → Help & Support). Messages are read at `/admin/support` (same admin secret). 5iveg.com's DNS is on Cloudflare (moved from GoDaddy 2026-11-20; the site's A/CNAME are DNS-only to Vercel) and support@5iveg.com forwards to the boutmeapp Gmail.
 
 ### Points wording (YouTube policy)
 
@@ -168,6 +180,13 @@ YOUTUBE_CHANNEL_ID          # Channel to track engagement on
 DATABASE_URL                # PostgreSQL
 GOOGLE_SITE_VERIFICATION    # Hardcoded in layout.tsx — update there, not env
 ADMIN_SECRET                # Optional, gates /api/admin/stats
+STRIPE_SECRET_KEY           # Stripe (Genius Technologies' account): live key in Production, test key in Preview/Development
+STRIPE_WEBHOOK_SECRET       # Optional: signs /api/store/webhook (the cron sync covers it without)
+CRON_SECRET                 # Vercel cron auth (shop order sync)
+SHOP_EMAIL_TO               # Optional: new-order emails (default CONSENT_EMAIL_TO)
+RESEND_API_KEY              # Resend (free account at resend.com), sends the /consent and new-order emails
+CONSENT_EMAIL_TO            # Where signed player consents are emailed
+CONSENT_EMAIL_FROM          # Optional sender on a domain verified in Resend (default onboarding@resend.dev)
 APPLE_BUNDLE_ID             # com.fiveguysfc.cards (Sign in with Apple audience; also the IAP bundle check)
 APPLE_APP_APPLE_ID          # Optional, defaults to 6821596728 (App Store Connect app id, for Production purchase checks)
 SHOP_DEV_PURCHASES          # Local next dev only: "1" allows /api/shop/dev test purchases

@@ -1,14 +1,16 @@
-import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 
-export const metadata = { title: "Privacy Policy — 5iveG" };
+export const metadata = { title: "Privacy Policy" };
 
 export default function PrivacyPage() {
   return (
-    <main className="min-h-screen bg-[#0a0a0a] px-6 py-16">
+    <main className="min-h-screen bg-[#0a0a0a]">
+      <SiteHeader />
+      <div className="px-6 py-12 sm:py-16">
       <div className="max-w-2xl mx-auto space-y-8 text-zinc-400 text-sm leading-relaxed">
         <div>
-          <Link href="/" className="text-zinc-600 text-xs hover:text-zinc-400 transition-colors">← Back</Link>
-          <h1 className="text-white text-3xl font-bold mt-4">Privacy Policy</h1>
+          <h1 className="text-white text-3xl font-bold">Privacy Policy</h1>
           <p className="text-zinc-600 text-xs mt-1">Last updated: November 2026</p>
         </div>
 
@@ -28,6 +30,7 @@ export default function PrivacyPage() {
             <li><span className="text-white font-medium">YouTube channel activity</span> — if you connect YouTube: whether you subscribe to the channels in the App and which of their videos you have rated. Used to show your fan activity and work out your fan points.</li>
             <li><span className="text-white font-medium">Activity in the App</span> — your points, cards, player ratings, fantasy team, game results, and time spent watching channel videos in the App&rsquo;s player.</li>
             <li><span className="text-white font-medium">Purchases</span> — when you buy a player pack in the iPhone app: the App Store transaction ID, price, currency, the player you picked, when you bought it and the cards you got. Apple takes the payment; we never see your card or bank details.</li>
+            <li><span className="text-white font-medium">Shop orders</span> — when you buy printed card packs on the website: your name, email, delivery address, the packs you bought and what you paid. Stripe takes the payment; we never see your card details.</li>
             <li><span className="text-white font-medium">Support messages</span> — the name, email and message you send through the support form, so we can reply.</li>
           </ul>
           <p>We do not access your YouTube watch history, private videos, playlists, or any data unrelated to the channels in the App.</p>
@@ -37,11 +40,14 @@ export default function PrivacyPage() {
           <h2 className="text-white font-semibold text-base">How we use your data</h2>
           <ul className="space-y-2 list-disc list-inside">
             <li>Running your account: points, cards, ratings, games and your fantasy team.</li>
-            <li>Delivering the packs you buy, and paying each player their share of their packs.</li>
+            <li>Delivering the packs you buy (in the app, or by post for printed packs), and paying each player their share of their packs.</li>
             <li>Showing your name, avatar and points on fan leaderboards.</li>
             <li>Replying to support requests.</li>
           </ul>
-          <p>Your data is never used for advertising, sold to third parties, or shared outside the App.</p>
+          <p>
+            Your data is never used for advertising or sold to third parties. It&rsquo;s only shared with the services that run
+            the shop: Stripe, which takes the payment, and the postal service, which needs your address on the parcel.
+          </p>
         </section>
 
         <section className="space-y-3">
@@ -65,7 +71,8 @@ export default function PrivacyPage() {
             Your data is kept for as long as you have an account. In the iPhone app, Settings → Delete account
             permanently deletes your account and everything linked to it, and revokes the App&rsquo;s access to your
             Google and Apple accounts. Records of packs you bought are kept without your name or account, for our
-            accounts and the players&rsquo; earnings. You can also ask us to delete it through the{" "}
+            accounts and the players&rsquo; earnings. Printed pack orders are kept for six years, as UK accounting
+            rules require. You can also ask us to delete it through the{" "}
             <a href="/support" className="text-purple-400 underline hover:text-purple-300">support page</a>. You can
             remove the App&rsquo;s YouTube access at any time from your{" "}
             <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" className="text-purple-400 underline hover:text-purple-300">
@@ -86,7 +93,9 @@ export default function PrivacyPage() {
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">Contact</h2>
           <p>
-            For questions or data deletion requests, use the{" "}
+            Email{" "}
+            <a href="mailto:support@5iveg.com" className="text-purple-400 underline hover:text-purple-300">support@5iveg.com</a>, or for
+            questions or data deletion requests you can also use the{" "}
             <a href="/support" className="text-purple-400 underline hover:text-purple-300">support page</a>.
           </p>
         </section>
@@ -96,6 +105,8 @@ export default function PrivacyPage() {
           YouTube, Google LLC, Apple Inc., or any related entities.
         </p>
       </div>
+      </div>
+      <SiteFooter />
     </main>
   );
 }

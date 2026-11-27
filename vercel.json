@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/cleanup-lobbies",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/shop-sync",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

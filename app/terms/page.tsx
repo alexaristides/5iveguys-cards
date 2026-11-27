@@ -1,14 +1,17 @@
-import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
+import { DELIVERY, PRINT_SHOP, REFUND_POLICY, SELLER, SUPPORT_EMAIL, formatPounds } from "@/lib/print-shop";
 
-export const metadata = { title: "Terms of Service — 5iveG" };
+export const metadata = { title: "Terms of Service" };
 
 export default function TermsPage() {
   return (
-    <main className="min-h-screen bg-[#0a0a0a] px-6 py-16">
+    <main className="min-h-screen bg-[#0a0a0a]">
+      <SiteHeader />
+      <div className="px-6 py-12 sm:py-16">
       <div className="max-w-2xl mx-auto space-y-8 text-zinc-400 text-sm leading-relaxed">
         <div>
-          <Link href="/" className="text-zinc-600 text-xs hover:text-zinc-400 transition-colors">← Back</Link>
-          <h1 className="text-white text-3xl font-bold mt-4">Terms of Service</h1>
+          <h1 className="text-white text-3xl font-bold">Terms of Service</h1>
           <p className="text-zinc-600 text-xs mt-1">Last updated: November 2026</p>
         </div>
 
@@ -24,7 +27,7 @@ export default function TermsPage() {
           <h2 className="text-white font-semibold text-base">The App</h2>
           <p>
             The App is a free fan app for the 5ive Guys and Other Guys YouTube channels, with optional player packs
-            you can buy (below). Points, cards and fantasy scores have no real-world monetary value and cannot be
+            you can buy (below) and printed card packs sold on the website. Points, cards and fantasy scores have no real-world monetary value and cannot be
             exchanged for cash or prizes.
           </p>
         </section>
@@ -73,6 +76,41 @@ export default function TermsPage() {
           </ul>
         </section>
 
+        <section id="shop" className="space-y-3 scroll-mt-6">
+          <h2 className="text-white font-semibold text-base">Printed card packs (the website shop)</h2>
+          <ul className="space-y-2 list-disc list-inside">
+            <li>
+              Printed packs are sold by {SELLER}. Questions about an order:{" "}
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="text-purple-400 underline hover:text-purple-300">{SUPPORT_EMAIL}</a>.
+            </li>
+            <li>
+              Every pack has {PRINT_SHOP.cardCount} printed cards. A player pack has at least one card of that player and the rest
+              drawn at random from the 5ive Guys squad; a squad pack is all random. Which cards you get is down to luck, and
+              you may get duplicates.
+            </li>
+            <li>
+              Packs are {formatPounds(PRINT_SHOP.packPence)} each, and any {PRINT_SHOP.bundle.size} are{" "}
+              {formatPounds(PRINT_SHOP.bundle.pence)} (taken off at checkout). Prices are in pounds sterling. Payment is taken
+              by Stripe when you order.
+            </li>
+            <li>
+              Delivery is {formatPounds(DELIVERY.uk.pence)} to UK addresses (including the Isle of Man and the Channel Islands)
+              and {formatPounds(DELIVERY.world.pence)} everywhere else. Parcels are posted from the UK; any import charges
+              abroad are paid by the buyer.
+            </li>
+            <li>
+              Orders placed before {PRINT_SHOP.printStarts} 2026 are 1st Edition. We start printing on {PRINT_SHOP.printStarts}{" "}
+              and aim to post them by {PRINT_SHOP.postBy}. Later orders go into the next print run, and we&rsquo;ll email you
+              when they&rsquo;re on their way.
+            </li>
+            <li>
+              {REFUND_POLICY} If your order arrives damaged or something is missing, email us within 14 days of delivery,
+              with a photo, and we&rsquo;ll put it right.
+            </li>
+            <li>Make sure your delivery address is right at checkout: we post to the address you give.</li>
+          </ul>
+        </section>
+
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">Intellectual property</h2>
           <p>
@@ -103,6 +141,8 @@ export default function TermsPage() {
           YouTube, Google LLC, Apple Inc., or any related entities.
         </p>
       </div>
+      </div>
+      <SiteFooter />
     </main>
   );
 }

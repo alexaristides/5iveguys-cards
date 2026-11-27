@@ -8,6 +8,7 @@ import { useState, useRef, useEffect } from "react";
 import NotificationBell from "./NotificationBell";
 import ThemeToggle from "./ThemeToggle";
 import ChannelSwitcher from "./ChannelSwitcher";
+import { ThemedLogo } from "./Logo";
 
 interface ChannelInfo {
   slug: string;
@@ -83,13 +84,8 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
             {channel ? (
               <ChannelSwitcher current={channel} />
             ) : (
-              <Link href="/" className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center">
-                  <span className="text-white text-sm font-bold">5</span>
-                </div>
-                <span className="text-gray-900 dark:text-white font-semibold text-sm tracking-tight hidden sm:block">
-                  5iveG
-                </span>
+              <Link href="/dashboard" className="flex items-center" aria-label="5iveG home">
+                <ThemedLogo className="h-6" />
               </Link>
             )}
           </div>
