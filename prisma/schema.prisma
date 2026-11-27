@@ -225,6 +225,7 @@ model VideoMeta {
   publishedAt  DateTime
   title        String?
   thumbnailUrl String?
+  isShort      Boolean? // a YouTube Short (left out of MOTM); null = not checked yet (lib/youtube-uploads.ts)
 
   channel Channel? @relation(fields: [channelId], references: [id])
 

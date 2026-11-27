@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { refreshChannelUploads } from "@/lib/youtube-uploads";
+import { classifyShorts, refreshChannelUploads } from "@/lib/youtube-uploads";
 
 const PAGE_SIZE = 24;
 
@@ -20,13 +20,19 @@ export async function GET(
   const { searchParams } = req.nextUrl;
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
   const q = searchParams.get("q")?.trim() ?? "";
+  // YouTube Shorts are left out (MOTM, in the app and on the website); the world's Videos page asks for them with ?shorts=1.
+  const shorts = searchParams.get("shorts") === "1";
 
   // The newest videos, without waiting for someone to sync YouTube (throttled, never throws).
   if (page === 1 && !q) await refreshChannelUploads(channel);
+  // Videos stored before Shorts were tagged (or by a YouTube sync) get checked, newest first (bounded, never throws).
+  if (!shorts) await classifyShorts(channel.id);
 
   const where = {
     channelId: channel.id,
     ...(q ? { title: { contains: q, mode: "insensitive" as const } } : {}),
+    // Not yet checked counts as a video, so nothing disappears if YouTube can't be reached.
+    ...(shorts ? {} : { OR: [{ isShort: false }, { isShort: null }] }),
   };
 
   const [total, videos] = await Promise.all([
