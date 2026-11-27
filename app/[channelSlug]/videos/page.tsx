@@ -53,7 +53,7 @@ export default function VideosPage() {
 
   const fetchVideos = useCallback(async () => {
     setLoading(true);
-    const qs = new URLSearchParams({ page: String(page) });
+    const qs = new URLSearchParams({ page: String(page), shorts: "1" });
     if (debouncedSearch) qs.set("q", debouncedSearch);
     const res = await fetch(`/api/channels/${channelSlug}/videos?${qs}`);
     if (res.ok) {
