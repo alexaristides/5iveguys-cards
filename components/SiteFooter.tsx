@@ -29,29 +29,30 @@ const COLUMNS: { title: string; links: { href: string; label: string; plain?: bo
   },
 ];
 
-/** The site's footer: sections, help, legal and who runs it. */
-export default function SiteFooter() {
+/** The site's footer: sections, help, legal and who runs it. `light` for the bright Fantasy pages. */
+export default function SiteFooter({ light }: { light?: boolean }) {
+  const link = light ? "text-ink-3 hover:text-violet-700 transition-colors" : "text-zinc-500 hover:text-white transition-colors";
   return (
-    <footer className="border-t border-white/[0.06] bg-[#0a0a0a]">
+    <footer className={`border-t ${light ? "border-lilac-line bg-white" : "border-white/[0.06] bg-[#0a0a0a]"}`}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div className="space-y-4">
-          <Logo className="h-7" />
-          <p className="text-zinc-500 text-sm leading-relaxed max-w-xs">
+          <Logo className="h-7" ink={light} />
+          <p className={`${light ? "text-ink-3" : "text-zinc-500"} text-sm leading-relaxed max-w-xs`}>
             The fan app for 5ive Guys: printed trading cards, the 5IVE STREET game and fantasy football.
           </p>
         </div>
         {COLUMNS.map((c) => (
           <div key={c.title}>
-            <p className="text-zinc-300 text-xs font-semibold uppercase tracking-[0.14em] mb-3">{c.title}</p>
+            <p className={`${light ? "text-ink-2" : "text-zinc-300"} text-xs font-semibold uppercase tracking-[0.14em] mb-3`}>{c.title}</p>
             <ul className="space-y-2 text-sm">
               {c.links.map((l) => (
                 <li key={l.href}>
                   {l.plain ? (
-                    <a href={l.href} className="text-zinc-500 hover:text-white transition-colors">
+                    <a href={l.href} className={link}>
                       {l.label}
                     </a>
                   ) : (
-                    <Link href={l.href} className="text-zinc-500 hover:text-white transition-colors">
+                    <Link href={l.href} className={link}>
                       {l.label}
                     </Link>
                   )}
@@ -61,13 +62,13 @@ export default function SiteFooter() {
           </div>
         ))}
       </div>
-      <div className="border-t border-white/[0.04]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 flex flex-col sm:flex-row gap-2 sm:justify-between text-xs text-zinc-600">
+      <div className={`border-t ${light ? "border-lilac-line" : "border-white/[0.04]"}`}>
+        <div className={`max-w-6xl mx-auto px-4 sm:px-6 py-5 flex flex-col sm:flex-row gap-2 sm:justify-between text-xs ${light ? "text-ink-3" : "text-zinc-600"}`}>
           <p>
             © {new Date().getFullYear()} {SELLER}.
           </p>
           <p>
-            <Link href="/artist" className="hover:text-zinc-400">
+            <Link href="/artist" className={light ? "hover:text-ink-2" : "hover:text-zinc-400"}>
               Card artwork by Merle
             </Link>{" "}
             · Not affiliated with YouTube or Google.

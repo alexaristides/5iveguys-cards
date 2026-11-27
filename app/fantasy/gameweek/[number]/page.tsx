@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { FantasyPitch, type PitchSlot } from "@/components/fantasy/FantasyPitch";
-import { FantasyShell, panel, Spinner, type FantasyOverview } from "@/components/fantasy/FantasyShell";
+import { BackLink, card, FantasyShell, panel, SectionTitle, Spinner, type FantasyOverview } from "@/components/fantasy/FantasyShell";
 import { CHIPS, type Chip, type EntryScore, type GameweekStatus, type Pick } from "@/lib/fantasy";
 import { lineupFromPicks, slotPositions } from "@/lib/fantasy-lineup";
 
@@ -48,13 +48,13 @@ function Gameweek() {
 
   const nav = (
     <div className="flex items-center justify-between">
-      {prev !== undefined ? <Link href={href(prev)} className="text-purple-400 font-bold">‹ GW{prev}</Link> : <span />}
-      <h1 className="text-white text-2xl font-black">Gameweek {n}</h1>
-      {next !== undefined ? <Link href={href(next)} className="text-purple-400 font-bold">GW{next} ›</Link> : <span />}
+      {prev !== undefined ? <Link href={href(prev)} className="min-w-16 text-violet-600 hover:text-violet-700 font-extrabold">‹ GW{prev}</Link> : <span className="min-w-16" />}
+      <h1 className="text-ink text-2xl sm:text-3xl font-black">Gameweek {n}</h1>
+      {next !== undefined ? <Link href={href(next)} className="min-w-16 text-right text-violet-600 hover:text-violet-700 font-extrabold">GW{next} ›</Link> : <span className="min-w-16" />}
     </div>
   );
 
-  if (error) return <FantasyShell>{nav}<p className="text-red-400">{error}</p><Link href="/fantasy" className="text-purple-400">← Fantasy</Link></FantasyShell>;
+  if (error) return <FantasyShell><BackLink />{nav}<p className="text-red-600 font-semibold">{error}</p></FantasyShell>;
   if (!result || !overview) return <FantasyShell>{nav}<Spinner /></FantasyShell>;
 
   const { gameweek, team, entry, score, lines } = result;
@@ -81,55 +81,59 @@ function Gameweek() {
 
   return (
     <FantasyShell>
-      <Link href="/fantasy" className="text-purple-400 text-sm">← Fantasy</Link>
+      <BackLink />
       {nav}
-      <p className="text-zinc-400 text-sm text-center">{team.name}{team.manager ? ` · ${team.manager}` : ""}{matchLine ? ` — ${matchLine}` : ""}</p>
+      <div className="text-center -mt-2">
+        <p className="text-ink-2 text-sm font-semibold">{team.name}{team.manager ? ` · ${team.manager}` : ""}</p>
+        {matchLine && <p className="text-ink-3 text-[13px]">{matchLine}</p>}
+      </div>
 
       <section className={`${panel} flex items-center`}>
         <div className="flex-1 text-center">
-          <div className="text-white text-6xl font-black tabular-nums">{score?.total ?? "–"}</div>
-          <div className="text-amber-400 text-xs font-black tracking-widest">{live ? "LIVE POINTS" : "FINAL POINTS"}</div>
+          <div className="text-violet-600 text-[56px] sm:text-6xl leading-none font-black tabular-nums">{score?.total ?? "–"}</div>
+          <div className="mt-1 text-ink-3 text-xs font-black tracking-[0.08em]">{live ? "POINTS SO FAR" : "FINAL POINTS"}</div>
+          {live && <span className="mt-1.5 inline-block rounded-md bg-red-600 text-white text-[11px] font-black px-1.5">LIVE</span>}
         </div>
-        <div className="border-l border-zinc-800 pl-6 pr-2 text-center space-y-2">
-          <div><div className="text-white text-xl font-black">{result.average ?? "–"}</div><div className="text-zinc-500 text-xs">Average</div></div>
-          <div><div className="text-white text-xl font-black">{result.highest ?? "–"}</div><div className="text-zinc-500 text-xs">Highest</div></div>
-          <div><div className="text-white text-xl font-black">{result.gameweekRank ?? "–"}</div><div className="text-zinc-500 text-xs">GW rank</div></div>
+        <div className="border-l border-lilac-line pl-5 sm:pl-6 pr-1 text-center space-y-2">
+          <Side label="Average" value={result.average} />
+          <Side label="Highest" value={result.highest} />
+          <Side label="GW rank" value={result.gameweekRank} />
         </div>
       </section>
-      {live && <p className="text-zinc-400 text-sm text-center">Points update as match stats come in. Bonus points are provisional until the gameweek is final.</p>}
+      {live && <p className="text-ink-2 text-sm text-center">Points update as match stats come in. Bonus points are provisional until the gameweek is final.</p>}
       {(chip || entry?.transferCost) ? (
-        <p className="text-zinc-400 text-sm text-center">
+        <p className="text-ink-2 text-sm text-center font-semibold">
           {[chip ? `${chip.emoji} ${chip.name} played` : null, entry?.transferCost ? `−${entry.transferCost} pts for transfers` : null].filter(Boolean).join(" · ")}
         </p>
       ) : null}
 
-      {lineup ? <FantasyPitch slots={slots} /> : <p className="text-zinc-400">No team for this gameweek.</p>}
+      {lineup ? <FantasyPitch slots={slots} /> : <p className={`${panel} text-ink-2 text-center`}>No team for this gameweek.</p>}
 
       {lineup && (
         <section className="space-y-2">
-          <h2 className="text-white text-lg font-extrabold">Breakdown</h2>
+          <SectionTitle>Who scored what</SectionTitle>
           {lineup.slots.map((playerId) => {
             if (!playerId) return null;
             const s = scored.get(playerId);
             const l = lines[playerId] ?? [];
             const multiplier = s?.multiplier ?? 0;
             return (
-              <div key={playerId} className={`${panel} py-3`}>
-                <div className="flex justify-between items-center">
-                  <span className="text-white font-bold">
+              <div key={playerId} className={`${card} px-4 py-3`}>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-ink font-extrabold">
                     {players.get(playerId)?.name ?? "Unknown"}
-                    {playerId === score?.captainId && <span className="text-amber-400 text-sm ml-2">{multiplier === 3 ? "Triple captain" : "Captain"}</span>}
+                    {playerId === score?.captainId && <span className="ml-2 rounded-md bg-yellow-400 text-[#111] text-[11px] font-black px-1.5 py-0.5 align-middle">{multiplier === 3 ? "TRIPLE CAPTAIN" : "CAPTAIN"}</span>}
                   </span>
-                  <span className={`text-lg font-black tabular-nums ${multiplier ? "text-white" : "text-zinc-500"}`}>{s ? s.points * Math.max(1, multiplier) * doubled : 0}</span>
+                  <span className={`text-lg font-black tabular-nums ${multiplier ? "text-ink" : "text-ink-3"}`}>{s ? s.points * Math.max(1, multiplier) * doubled : 0}</span>
                 </div>
                 {l.length ? l.map((line) => (
-                  <div key={line.label} className="flex justify-between text-sm text-zinc-500">
+                  <div key={line.label} className="flex justify-between text-[13px] text-ink-3 py-0.5">
                     <span>{line.label}</span>
-                    <span className={line.points < 0 ? "text-red-400" : ""}>{line.points > 0 ? `+${line.points}` : line.points}</span>
+                    <span className={`font-semibold ${line.points < 0 ? "text-red-600" : "text-ink-2"}`}>{line.points > 0 ? `+${line.points}` : line.points}</span>
                   </div>
-                )) : <div className="text-sm text-zinc-500">{live ? "No stats yet" : "Didn't play"}</div>}
+                )) : <div className="text-[13px] text-ink-3">{live ? "No stats yet" : "Didn't play"}</div>}
                 {(multiplier > 1 || doubled > 1) && (
-                  <div className="text-xs text-amber-400 font-bold mt-1">×{multiplier > 1 ? multiplier : 1}{doubled > 1 ? " ×2 Double Points" : ""}</div>
+                  <div className="text-xs text-amber-700 font-extrabold mt-1">×{multiplier > 1 ? multiplier : 1}{doubled > 1 ? " ×2 Double Points" : ""}</div>
                 )}
               </div>
             );
@@ -137,5 +141,14 @@ function Gameweek() {
         </section>
       )}
     </FantasyShell>
+  );
+}
+
+function Side({ label, value }: { label: string; value: number | null }) {
+  return (
+    <div>
+      <div className="text-ink text-xl font-black tabular-nums">{value ?? "–"}</div>
+      <div className="text-ink-3 text-xs font-semibold">{label}</div>
+    </div>
   );
 }

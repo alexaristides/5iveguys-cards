@@ -1,7 +1,8 @@
 /** The 5iveG logo: the purple "5" badge with the wordmark (public/brand, made by scripts/brand-logo.mjs). */
-export function Logo({ className = "h-7" }: { className?: string }) {
+export function Logo({ className = "h-7", ink }: { className?: string; /** The dark-ink version, for light pages. */ ink?: boolean }) {
+  const src = ink ? "/brand/5iveg-logo-black.svg" : "/brand/5iveg-logo-white.svg";
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/brand/5iveg-logo-white.svg" alt="5iveG" width={516} height={145} className={`${className} w-auto`} />;
+  return <img src={src} alt="5iveG" width={516} height={145} className={`${className} w-auto`} />;
 }
 
 /** Just the badge. */
