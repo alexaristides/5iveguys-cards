@@ -48,6 +48,7 @@ function RootStack() {
         <Stack.Screen name="fantasy/gameweek/[number]" />
         <Stack.Screen name="fantasy/league/[id]" />
         <Stack.Screen name="fantasy/history" />
+        <Stack.Screen name="motm/[videoId]" />
         <Stack.Screen name="fantasy/player/[id]" options={{ ...sheet, sheetAllowedDetents: [0.7, 0.95] }} />
         <Stack.Screen name="fantasy/join" options={{ ...sheet, sheetAllowedDetents: [0.75] }} />
         <Stack.Screen name="tour" options={{ presentation: "fullScreenModal", animation: "fade" }} />

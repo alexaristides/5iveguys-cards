@@ -8,6 +8,38 @@ export interface Account {
   hasYoutubeScope: boolean;
 }
 
+// ── Man of the Match (GET /api/channels/[slug]/videos, …/videos/[videoId]/motm) ──
+
+export interface Video {
+  videoId: string;
+  title: string | null;
+  thumbnailUrl: string | null;
+  publishedAt: string;
+}
+
+export interface MotmCandidate {
+  /** One of the player's cards; send it back as `playerId` to vote. */
+  id: string;
+  name: string;
+  position: string | null;
+  imageUrl: string;
+  team: string;
+  /** From another team's squad (crossover videos). */
+  isGuest: boolean;
+  votes: number;
+  percent: number;
+}
+
+export interface MotmResults {
+  video: Video;
+  team: string;
+  totalVotes: number;
+  /** The candidate id you voted for. */
+  myVote: string | null;
+  /** Most votes first. */
+  candidates: MotmCandidate[];
+}
+
 // ── Fantasy Div 1 ──────────────────────────────────────────────────────────────
 
 export interface FantasyPlayer {
