@@ -18,7 +18,7 @@ export default function PrivacyPage() {
           <h2 className="text-white font-semibold text-base">Overview</h2>
           <p>
             5iveG (&ldquo;the App&rdquo;, on the web and on iPhone) is the fantasy football app for the 5ive Guys
-            YouTube channel. In the iPhone app you run a fantasy team, rate the players and vote for Man of the Match.
+            YouTube channel. In the iPhone app and on the website you run a fantasy team, rate the players and vote for Man of the Match.
             The website also has trading cards, points for fans of the 5ive Guys and Other Guys YouTube channels, and
             games. We only use your data to run the App. We do not sell, share, or monetise it.
           </p>
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
           <h2 className="text-white font-semibold text-base">Data we collect</h2>
           <ul className="space-y-2 list-disc list-inside">
             <li><span className="text-white font-medium">Account info</span> — your name, email address and profile picture from Google, or the name and email (which may be an Apple private relay address) from Sign in with Apple. Used to identify your account and show your name on leaderboards and in fantasy leagues.</li>
-            <li><span className="text-white font-medium">YouTube channel activity</span> — website only. Signing in with Google on the website asks for access to your YouTube account, so we can see whether you subscribe to the channels on the site and which of their videos you have rated. Used to show your fan activity and work out your fan points. The iPhone app&rsquo;s Google sign-in asks only for your name, email and profile picture, not your YouTube account.</li>
+            <li><span className="text-white font-medium">YouTube channel activity</span> — website only. Connecting YouTube for points on the website (in Extras) asks for access to your YouTube account, so we can see whether you subscribe to the channels on the site and which of their videos you have rated. Used to show your fan activity and work out your fan points. Signing in with Google, in the iPhone app or on the website, asks only for your name, email and profile picture, not your YouTube account.</li>
             <li><span className="text-white font-medium">Activity in the App</span> — your fantasy team, transfers and leagues, player ratings and Man of the Match votes; on the website also your points, cards, game results, and time spent watching channel videos in the website&rsquo;s video player.</li>
             <li><span className="text-white font-medium">Shop orders</span> — when you buy printed card packs on the website: your name, email, delivery address, the packs you bought and what you paid. Stripe takes the payment; we never see your card details.</li>
             <li><span className="text-white font-medium">Support messages</span> — the name, email and message you send through the support form, so we can reply.</li>
@@ -54,7 +54,7 @@ export default function PrivacyPage() {
           <h2 className="text-white font-semibold text-base">Google OAuth scopes used</h2>
           <ul className="space-y-2 list-disc list-inside">
             <li><code className="text-purple-400 text-xs">openid</code>, <code className="text-purple-400 text-xs">email</code>, <code className="text-purple-400 text-xs">profile</code> — basic Google identity. This is all the iPhone app asks for.</li>
-            <li><code className="text-purple-400 text-xs">https://www.googleapis.com/auth/youtube.force-ssl</code> — asked for only when you sign in with Google on the website, and used only to read your subscription status and video ratings for the channels on the site. We never post, comment, rate or subscribe on your behalf.</li>
+            <li><code className="text-purple-400 text-xs">https://www.googleapis.com/auth/youtube.force-ssl</code> — asked for only when you connect YouTube for points on the website, and used only to read your subscription status and video ratings for the channels on the site. We never post, comment, rate or subscribe on your behalf.</li>
           </ul>
           <p>
             The App&rsquo;s use of information received from Google APIs adheres to the{" "}
@@ -68,7 +68,7 @@ export default function PrivacyPage() {
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">Data retention and deletion</h2>
           <p>
-            Your data is kept for as long as you have an account. In the iPhone app, Settings → Delete account
+            Your data is kept for as long as you have an account. In the iPhone app (Settings) or on the website (the menu), Delete account
             permanently deletes your account and everything linked to it, and revokes the App&rsquo;s access to your
             Google and Apple accounts. Printed pack orders are kept for six years, as UK accounting
             rules require. You can also ask us to delete it through the{" "}

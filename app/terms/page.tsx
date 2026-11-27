@@ -26,10 +26,9 @@ export default function TermsPage() {
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">The App</h2>
           <p>
-            The App is the free fantasy football app for the 5ive Guys YouTube channel. In the iPhone app you pick a
-            fantasy team from the 5ive Guys squad, rate the players, vote for Man of the Match and play in private
-            leagues with your friends; fantasy football and player ratings are on the website too. The iPhone app has
-            no in-app purchases.
+            The App is the free fantasy football app for the 5ive Guys YouTube channel. In the iPhone app and on the
+            website you pick a fantasy team from the 5ive Guys squad, rate the players, vote for Man of the Match and
+            play in private leagues with your friends. The iPhone app has no in-app purchases.
           </p>
           <p>
             The website also has trading cards and points for the 5ive Guys and Other Guys YouTube channels, the

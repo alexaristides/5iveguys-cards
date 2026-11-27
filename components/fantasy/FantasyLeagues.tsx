@@ -1,96 +1,133 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { card, inputClass, panel, primaryButton, secondaryButton } from "@/components/fantasy/FantasyShell";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
-export interface LeagueRow {
-  rank: number; previousRank: number | null; id: string; name: string; manager: string | null; totalPoints: number; lastPoints: number | null; mine?: boolean;
+/**
+ * League tables and the bits every league screen shares, as in the app
+ * (mobile/src/components/fantasy/LeaderRow.tsx, mobile/src/lib/fantasy.ts, mobile/src/lib/api.ts).
+ */
+
+/** One team in a league table (GET /api/fantasy/leaderboard, /api/fantasy/leagues/[id]). */
+export interface FantasyLeagueRow {
+  rank: number;
+  previousRank: number | null;
+  id: string;
+  name: string;
+  manager: string | null;
+  image?: string | null;
+  totalPoints: number;
+  lastPoints: number | null;
+  mine?: boolean;
 }
 
 /** Green up, red down or grey level, from the rank a gameweek ago. */
 export function RankMove({ rank, previous }: { rank: number; previous: number | null }) {
-  if (previous === null) return <span className="inline-block w-4" />;
+  if (previous === null) return <span className="inline-block w-4 shrink-0" />;
   const up = rank < previous, down = rank > previous;
   return (
-    <span className={`inline-flex shrink-0 w-4 h-4 rounded-full items-center justify-center text-[8px] font-black text-white ${up ? "bg-green-600" : down ? "bg-red-600" : "bg-ink-3"}`}>
+    <span className={`inline-flex shrink-0 w-4 h-4 rounded-full items-center justify-center text-[8px] leading-none font-black text-white ${up ? "bg-green-600" : down ? "bg-red-600" : "bg-ink-3"}`}>
       {up ? "▲" : down ? "▼" : "•"}
     </span>
   );
 }
 
-/** A league table; team names link to their latest gameweek. */
-export function LeagueTable({ rows, lastGameweek, meId }: { rows: LeagueRow[]; lastGameweek: number | null; meId?: string | null }) {
+/** One team in a league table; `href` makes it a link (the team's latest points). */
+export function LeaderRow({ row, mine, href }: { row: FantasyLeagueRow; mine?: boolean; href?: string }) {
+  const cls = `flex items-center gap-2 rounded-[14px] border-2 px-3 py-[11px] shadow-card leading-tight ${
+    mine ? "border-violet-600 bg-violet-100" : "border-transparent bg-white"
+  } ${href ? "hover:shadow-[0_6px_18px_rgba(46,16,101,0.12)] active:opacity-70 transition" : ""}`;
+  const body = (
+    <>
+      <RankMove rank={row.rank} previous={row.previousRank} />
+      <span className={`w-[26px] shrink-0 text-[15px] font-black ${row.rank <= 3 ? "text-amber-700" : "text-ink-2"}`}>{row.rank}</span>
+      <span className="flex-1 min-w-0">
+        <span className="block text-ink text-[15px] font-extrabold truncate">{row.name}</span>
+        {row.manager ? <span className="block text-ink-3 text-[12px] truncate">{row.manager}</span> : null}
+      </span>
+      <span className="w-[54px] shrink-0 text-right text-ink-2 text-[15px] font-bold tabular-nums">{row.lastPoints ?? "–"}</span>
+      <span className="w-[54px] shrink-0 text-right text-ink text-[15px] font-black tabular-nums">{row.totalPoints}</span>
+    </>
+  );
+  return href ? <Link href={href} className={cls}>{body}</Link> : <div className={cls}>{body}</div>;
+}
+
+export function LeaderHeader() {
   return (
-    <div className={`${card} overflow-hidden`}>
-      <table className="w-full text-sm">
-        <thead className="text-ink-3 text-xs font-extrabold text-left">
-          <tr><th className="pl-4 pr-2 pt-3 pb-2 w-20">Rank</th><th className="pt-3 pb-2">Team</th><th className="text-right pt-3 pb-2 px-2">Last GW</th><th className="text-right pl-2 pr-4 pt-3 pb-2">Total</th></tr>
-        </thead>
-        <tbody>
-          {rows.map((t) => {
-            const mine = t.mine || t.id === meId;
-            return (
-              <tr key={t.id} className={`border-t border-lilac-line ${mine ? "bg-violet-50 shadow-[inset_3px_0_0_#7C3AED]" : ""}`}>
-                <td className="pl-4 pr-2 py-3">
-                  <span className="flex items-center gap-2">
-                    <RankMove rank={t.rank} previous={t.previousRank} />
-                    <span className={`font-black tabular-nums ${t.rank <= 3 ? "text-amber-700" : "text-ink-2"}`}>{t.rank}</span>
-                  </span>
-                </td>
-                <td className="py-3 min-w-0">
-                  {lastGameweek ? (
-                    <a href={`/fantasy/gameweek/${lastGameweek}?teamId=${t.id}`} className={`font-extrabold hover:text-violet-700 ${mine ? "text-violet-700" : "text-ink"}`}>{t.name}</a>
-                  ) : <span className={`font-extrabold ${mine ? "text-violet-700" : "text-ink"}`}>{t.name}</span>}
-                  {t.manager && <span className="block text-ink-3 text-xs">{t.manager}</span>}
-                </td>
-                <td className="text-right px-2 text-ink-2 font-bold tabular-nums">{t.lastPoints ?? "–"}</td>
-                <td className="text-right pl-2 pr-4 text-ink font-black tabular-nums">{t.totalPoints}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="flex px-3 mb-1.5 text-ink-3 text-[12px] font-extrabold">
+      <span className="w-[58px] shrink-0">Rank</span>
+      <span className="flex-1">Team</span>
+      <span className="w-[54px] shrink-0 text-right">Last GW</span>
+      <span className="w-[54px] shrink-0 text-right">Total</span>
     </div>
   );
 }
 
-/** Join a league with a code, or start one. */
-export function LeagueForms({ onDone }: { onDone?: () => void }) {
-  const router = useRouter();
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+/** JSON request to the site's API, throwing the route's own error message (like the app's `api`). */
+export async function api<T = unknown>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
+  const res = await fetch(path, {
+    method: opts.method ?? (opts.body === undefined ? "GET" : "POST"),
+    headers: opts.body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : `Request failed (${res.status})`);
+  return data as T;
+}
 
-  async function post(path: string, body: Record<string, string>) {
-    setBusy(true);
-    setError(null);
-    const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const json = await res.json().catch(() => ({}));
-    setBusy(false);
-    if (!res.ok) { setError(json.error ?? "Something went wrong."); return; }
-    onDone?.();
-    router.push(`/fantasy/league/${json.league.id}`);
-  }
+/** What "Invite friends" shares: the code, and a link that also works without the app. */
+export const inviteMessage = (league: { name: string; code: string }) =>
+  `Join my Fantasy Div 1 league "${league.name}" on 5iveG — code ${league.code}\n${window.location.origin}/fantasy/join/${league.code}`;
 
-  const input = `${inputClass} flex-1 h-12`;
-  return (
-    <div className={`${panel} space-y-3`}>
-      <div>
-        <h3 className="text-ink text-lg font-black">Play your mates 🏆</h3>
-        <p className="text-ink-2 text-sm">Start a league and send the code to your mates, or join theirs. Everyone&apos;s ranked on their season points.</p>
-      </div>
-      <div className="flex gap-2">
-        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={30} placeholder="New league name" className={input} />
-        <button disabled={busy || name.trim().length < 2} onClick={() => post("/api/fantasy/leagues", { name: name.trim() })} className={`${primaryButton} h-12 px-5`}>Start</button>
-      </div>
-      <div className="flex gap-2">
-        <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} maxLength={6}
-          placeholder="League code" className={`${input} tracking-widest`} />
-        <button disabled={busy || code.length !== 6} onClick={() => post("/api/fantasy/leagues/join", { code })} className={`${secondaryButton} h-12 px-5`}>Join</button>
-      </div>
-      {error && <p className="text-red-600 text-sm font-semibold">{error}</p>}
-    </div>
-  );
+/**
+ * The app's Share sheet: the phone's share sheet where the browser has one, else the invite is copied
+ * and `copied` is true for a couple of seconds.
+ */
+export function useShareInvite() {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(t);
+  }, [copied]);
+
+  const share = useCallback(async (league: { name: string; code: string }) => {
+    const text = inviteMessage(league);
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ text });
+        return;
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return; // closed the share sheet
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      window.prompt("Copy the invite:", text);
+    }
+  }, []);
+
+  return { share, copied };
+}
+
+/** For sheets over the page: Escape closes, and the page behind doesn't scroll. */
+export function useDismiss(onClose: () => void) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  useEffect(() => {
+    const before = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = before;
+    };
+  }, []);
 }

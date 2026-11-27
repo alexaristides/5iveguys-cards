@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
-import type { Viewport } from "next";
+import type { Metadata, Viewport } from "next";
 
-/** Fantasy has the app's bright look (the rest of the site is dark), so tint the phone's browser bar to match its light header. */
-export const viewport: Viewport = { themeColor: "#ffffff" };
+export const metadata: Metadata = { title: "My Team" };
+
+/** Fantasy is the My Team tab of the app-style site (AppShell): see app/(app)/layout.tsx. */
+export const viewport: Viewport = { themeColor: "#ffffff", viewportFit: "cover" };
 
 export default function FantasyLayout({ children }: { children: ReactNode }) {
   return children;

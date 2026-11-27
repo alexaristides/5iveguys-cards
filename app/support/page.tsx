@@ -1,35 +1,22 @@
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import SupportForm from "@/components/SupportForm";
-import { PRINT_SHOP, SUPPORT_EMAIL } from "@/lib/print-shop";
+import { SUPPORT_EMAIL } from "@/lib/print-shop";
 
 export const metadata = { title: "Support" };
 
 const FAQ: { q: string; a: React.ReactNode }[] = [
-  {
-    q: "When will my printed packs arrive?",
-    a: (
-      <>
-        Orders placed before {PRINT_SHOP.printStarts} are 1st Edition: we start printing on {PRINT_SHOP.printStarts} and aim to
-        post them by {PRINT_SHOP.postBy}. Later orders go into the next print run. Any problem with an order? Email{" "}
-        <a href={`mailto:${SUPPORT_EMAIL}`} className="text-purple-400 underline hover:text-purple-300">
-          {SUPPORT_EMAIL}
-        </a>{" "}
-        with your order number.
-      </>
-    ),
-  },
   {
     q: "How do I sign in?",
     a: "Use Sign in with Google on the website. In the iPhone app you can also use Sign in with Apple.",
   },
   {
     q: "How do I get points?",
-    a: "Points are on the website, not in the iPhone app. You get points for being a fan: sign in on the website, connect your YouTube account, and they add up on their own.",
+    a: "Points are on the website, not in the iPhone app. You get points for being a fan: sign in on the website, open Extras from the menu, connect your YouTube account, and they add up on their own.",
   },
   {
     q: "How do I vote for Man of the Match?",
-    a: "In the iPhone app, open the MOTM tab, pick a 5ive Guys video and tap the player you think was best. You can change your vote whenever you like.",
+    a: "In the iPhone app or on the website, open the MOTM tab, pick a 5ive Guys video and tap the player you think was best. You can change your vote whenever you like.",
   },
   {
     q: "How does Fantasy work?",
@@ -37,8 +24,8 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
       <>
         Pick any 7 players from the squad (there are no prices), choose a captain, and score points from their real matches.
         The full rules are on the{" "}
-        <a href="/fantasy" className="text-purple-400 underline hover:text-purple-300">
-          Fantasy page
+        <a href="/how-to-play" className="text-purple-400 underline hover:text-purple-300">
+          How to play tab
         </a>
         .
       </>
@@ -48,7 +35,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     q: "How do I delete my account?",
     a: (
       <>
-        In the iPhone app, open <span className="text-white">Settings → Delete account</span>. This permanently deletes
+        In the iPhone app, open <span className="text-white">Settings → Delete account</span>; on the website, open the menu and tap <span className="text-white">Delete account</span>. This permanently deletes
         your account, points, cards, fantasy team and match history. You can also ask us below, from the email address
         on your account, and we&rsquo;ll delete it for you.
       </>
