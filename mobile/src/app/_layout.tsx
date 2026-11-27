@@ -6,9 +6,6 @@ import { StatusBar } from "expo-status-bar";
 import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Tour } from "@/components/Tour";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { ChannelProvider } from "@/lib/channel";
-import { FEATURES } from "@/lib/config";
-import { ShopProvider } from "@/lib/shop";
 import { useTourSeen } from "@/lib/tour";
 import { colors } from "@/lib/theme";
 
@@ -18,11 +15,13 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 15_000 } },
 });
 
-// Refetch stale data (e.g. points) when the app returns to the foreground.
+// Refetch stale data (deadlines, points) when the app returns to the foreground.
 focusManager.setEventListener((handleFocus) => {
   const sub = AppState.addEventListener("change", (s) => handleFocus(s === "active"));
   return () => sub.remove();
 });
+
+const sheet = { presentation: "formSheet", sheetGrabberVisible: true, sheetCornerRadius: 24 } as const;
 
 function RootStack() {
   const { ready, signedIn } = useAuth();
@@ -38,74 +37,21 @@ function RootStack() {
   }, [signedIn]);
 
   if (!loaded) return null;
-  // First launch: what the app does, before anything else.
+  // First launch: what the app is, before anything else.
   if (!tourSeen) return <Tour onDone={markTourSeen} />;
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
       <Stack.Protected guard={signedIn}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="card/[cardId]"
-          options={{ presentation: "formSheet", sheetAllowedDetents: [0.92], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
-        />
-        <Stack.Screen
-          name="video/[videoId]"
-          options={{ presentation: "formSheet", sheetAllowedDetents: [0.6, 0.92], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
-        />
-        <Stack.Screen
-          name="motm/[videoId]"
-          options={{ presentation: "formSheet", sheetAllowedDetents: [0.92], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
-        />
-        <Stack.Screen name="worlds" options={{ presentation: "fullScreenModal" }} />
-        <Stack.Screen name="tour" options={{ presentation: "fullScreenModal", animation: "fade" }} />
-        <Stack.Screen
-          name="settings"
-          options={{ presentation: "formSheet", sheetAllowedDetents: [0.68], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
-        />
-      </Stack.Protected>
-      {/* Held back for launch (FEATURES in lib/config.ts); guarded so deep links can't reach them either. */}
-      <Stack.Protected guard={signedIn && FEATURES.packs}>
-        <Stack.Screen name="pack/[packId]" options={{ presentation: "fullScreenModal", animation: "fade" }} />
-      </Stack.Protected>
-      <Stack.Protected guard={signedIn && FEATURES.shop}>
-        <Stack.Screen
-          name="shop/[name]"
-          options={{ presentation: "formSheet", sheetAllowedDetents: [0.92], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
-        />
-        <Stack.Screen name="shop/open/[id]" options={{ presentation: "fullScreenModal", animation: "fade", gestureEnabled: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={signedIn && FEATURES.fantasy}>
         <Stack.Screen name="fantasy/edit" options={{ gestureEnabled: false }} />
         <Stack.Screen name="fantasy/gameweek/[number]" />
         <Stack.Screen name="fantasy/league/[id]" />
-        <Stack.Screen name="fantasy/admin/index" />
-        <Stack.Screen name="fantasy/admin/[id]" options={{ gestureEnabled: false }} />
         <Stack.Screen name="fantasy/history" />
-        <Stack.Screen
-          name="fantasy/player/[id]"
-          options={{ presentation: "formSheet", sheetAllowedDetents: [0.7, 0.95], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
-        />
-        <Stack.Screen
-          name="fantasy/join"
-          options={{ presentation: "formSheet", sheetAllowedDetents: [0.7], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
-        />
-        <Stack.Screen
-          name="fantasy/rules"
-          options={{ presentation: "formSheet", sheetAllowedDetents: [0.92], sheetGrabberVisible: true, sheetCornerRadius: 24 }}
-        />
-      </Stack.Protected>
-      <Stack.Protected guard={signedIn && FEATURES.game}>
-        <Stack.Screen name="play/cpu" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="play/exhibition" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="play/pvp" />
-        <Stack.Screen name="play/lobby/[id]" options={{ gestureEnabled: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={signedIn && FEATURES.street}>
-        <Stack.Screen
-          name="play/street"
-          options={{ gestureEnabled: false, animation: "fade", autoHideHomeIndicator: true }}
-        />
+        <Stack.Screen name="fantasy/player/[id]" options={{ ...sheet, sheetAllowedDetents: [0.7, 0.95] }} />
+        <Stack.Screen name="fantasy/join" options={{ ...sheet, sheetAllowedDetents: [0.75] }} />
+        <Stack.Screen name="tour" options={{ presentation: "fullScreenModal", animation: "fade" }} />
+        <Stack.Screen name="settings" options={{ ...sheet, sheetAllowedDetents: [0.62] }} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="sign-in" />
@@ -118,12 +64,8 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <ChannelProvider>
-          <ShopProvider>
-            <StatusBar style="light" />
-            <RootStack />
-          </ShopProvider>
-        </ChannelProvider>
+        <StatusBar style="dark" />
+        <RootStack />
       </AuthProvider>
     </QueryClientProvider>
   );

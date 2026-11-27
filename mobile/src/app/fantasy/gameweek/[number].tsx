@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { CHIPS } from "@shared/fantasy";
 import { FantasyPitch, type PitchSlot } from "@/components/fantasy/FantasyPitch";
-import { GameScreen } from "@/components/game/GameScreen";
+import { Screen } from "@/components/Screen";
 import { ErrorText, Loading, Panel } from "@/components/ui";
 import { lineupFromPicks, slotPositions } from "@/lib/fantasy";
 import { useFantasy, useFantasyGameweek } from "@/lib/queries";
@@ -36,10 +36,10 @@ export default function FantasyGameweekScreen() {
   const data = result.data?.gameweek.number === n ? result.data : null;
   if (!data || !fantasy.data) {
     return (
-      <GameScreen title="Points">
+      <Screen title="Points">
         {nav}
         {result.error ? <ErrorText>{result.error.message}</ErrorText> : <Loading />}
-      </GameScreen>
+      </Screen>
     );
   }
 
@@ -69,7 +69,7 @@ export default function FantasyGameweekScreen() {
     : [];
 
   return (
-    <GameScreen title="Points">
+    <Screen title="Points">
       {nav}
       <Text style={styles.team}>{team.name}{teamId && team.manager ? ` · ${team.manager}` : ""}</Text>
       {result90 ? <Text style={styles.result}>{result90}</Text> : null}
@@ -77,12 +77,12 @@ export default function FantasyGameweekScreen() {
       <Panel style={styles.hero}>
         <View style={{ alignItems: "center", flex: 1 }}>
           <Text style={styles.total}>{score?.total ?? "–"}</Text>
-          <Text style={styles.heroLabel}>{live ? "LIVE POINTS" : "FINAL POINTS"}</Text>
+          <Text style={styles.heroLabel}>{live ? "POINTS SO FAR" : "FINAL POINTS"}</Text>
         </View>
         <View style={styles.side}>
           <Side label="Average" value={data.average} />
           <Side label="Highest" value={data.highest} />
-          <Side label="GW rank" value={data.gameweekRank} />
+          <Side label="Your rank" value={data.gameweekRank} />
         </View>
       </Panel>
       {live && <Text style={styles.note}>Points update as the match stats come in. Bonus points are provisional until the gameweek is final.</Text>}
@@ -99,7 +99,7 @@ export default function FantasyGameweekScreen() {
         <Text style={styles.note}>No team for this gameweek.</Text>
       )}
 
-      {lineup && <Text style={styles.section}>Breakdown</Text>}
+      {lineup && <Text style={styles.section}>Who scored what</Text>}
       <View style={{ gap: 8 }}>
         {lineup?.slots.map((id) => {
           if (!id) return null;
@@ -132,7 +132,7 @@ export default function FantasyGameweekScreen() {
           );
         })}
       </View>
-    </GameScreen>
+    </Screen>
   );
 }
 
@@ -147,13 +147,13 @@ function Side({ label, value }: { label: string; value: number | null }) {
 
 const styles = StyleSheet.create({
   nav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  navArrow: { color: colors.accentHi, fontSize: 15, fontWeight: "800", minWidth: 64 },
+  navArrow: { color: colors.accent, fontSize: 15, fontWeight: "800", minWidth: 64 },
   navTitle: { color: colors.text, fontSize: 20, fontWeight: "900" },
   team: { color: colors.text2, fontSize: 14, fontWeight: "600", textAlign: "center" },
   result: { color: colors.text3, fontSize: 13, textAlign: "center", marginTop: 2, marginBottom: 10 },
   hero: { flexDirection: "row", alignItems: "center", paddingVertical: 18, marginTop: 6 },
-  total: { color: colors.text, fontSize: 56, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  heroLabel: { color: colors.gold, fontSize: 12, fontWeight: "900", letterSpacing: 1 },
+  total: { color: colors.accent, fontSize: 56, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  heroLabel: { color: colors.text3, fontSize: 12, fontWeight: "900", letterSpacing: 1 },
   side: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.border, paddingLeft: 18, paddingRight: 6, gap: 8 },
   sideValue: { color: colors.text, fontSize: 18, fontWeight: "900", fontVariant: ["tabular-nums"] },
   sideLabel: { color: colors.text3, fontSize: 11, fontWeight: "600" },
@@ -164,5 +164,5 @@ const styles = StyleSheet.create({
   rowPoints: { color: colors.text, fontSize: 18, fontWeight: "900", fontVariant: ["tabular-nums"] },
   line: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2 },
   lineLabel: { color: colors.text3, fontSize: 13 },
-  multiplier: { color: colors.gold, fontSize: 12, fontWeight: "800", marginTop: 4 },
+  multiplier: { color: colors.goldText, fontSize: 12, fontWeight: "800", marginTop: 4 },
 });

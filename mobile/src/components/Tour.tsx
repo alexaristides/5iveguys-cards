@@ -9,108 +9,95 @@ import Animated, {
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { useQuery } from "@tanstack/react-query";
-import { isSquadCard } from "@shared/motm";
-import { formatPence, PLAYER_PACK } from "@shared/player-packs";
 import { Button } from "@/components/ui";
-import { PackArt } from "@/components/PackArt";
 import { api } from "@/lib/api";
-import { CHANNELS, FEATURES } from "@/lib/config";
 import { imageUri } from "@/lib/images";
-import { colors, rarityColor } from "@/lib/theme";
-import type { DbCard } from "@/lib/types";
+import { colors, shadow } from "@/lib/theme";
 
-/** A couple of real cards for the pictures (public endpoint, so it works before sign-in). */
-function useTourCards() {
+/** The squad's Home Kit photos for the pictures (public endpoint, so it works before sign-in). */
+function useSquadPhotos() {
   return useQuery({
-    queryKey: ["tour-cards"],
+    queryKey: ["tour-squad"],
     queryFn: async () => {
-      const { cards } = await api<{ cards: DbCard[] }>(`/api/channels/${CHANNELS[0].slug}/cards`);
-      const kits = cards.filter((c) => c.kit === "Home Kit");
-      const special = cards.find((c) => c.rarity === "rare" && c.position !== "Moment") ?? kits[0];
-      return { rate: special ?? null, pack: kits.find((c) => c.name === "Ryan") ?? kits[0] ?? null, kits: kits.filter(isSquadCard) };
+      const { cards } = await api<{ cards: { name: string; kit: string | null; imageUrl: string }[] }>("/api/channels/5iveguysfc/cards");
+      return cards.filter((c) => c.kit === "Home Kit").map((c) => ({ name: c.name, imageUrl: c.imageUrl }));
     },
     staleTime: Infinity,
   });
 }
 
+type Photo = { name: string; imageUrl: string };
+
+function Face({ photo, size, ring }: { photo?: Photo; size: number; ring?: string }) {
+  return (
+    <View style={[styles.face, { width: size, height: size, borderRadius: size / 2, borderColor: ring ?? colors.white }]}>
+      {photo ? <Image source={{ uri: imageUri(photo.imageUrl) }} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" /> : null}
+    </View>
+  );
+}
+
 function Welcome() {
   return (
     <View style={{ alignItems: "center", gap: 18 }}>
-      <View style={styles.iconGlow}>
-        <Image source={require("../../assets/icon.png")} style={styles.icon} />
-      </View>
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        {CHANNELS.map((c) => <View key={c.slug} style={styles.pill}><Text style={styles.pillText}>{c.name}</Text></View>)}
-      </View>
+      <Image source={require("../../assets/icon.png")} style={styles.icon} />
+      <View style={styles.pill}><Text style={styles.pillText}>⚽ Fantasy Div 1</Text></View>
     </View>
   );
 }
 
-function Videos() {
+/** Seven faces on a little pitch, attack at the top. */
+function PickSeven({ photos }: { photos: Photo[] }) {
+  const rows = [[0], [1, 2], [3, 4, 5], [6]];
   return (
-    <LinearGradient colors={["#27272a", "#09090b"]} style={styles.thumb}>
-      <View style={styles.play}><View style={styles.playTriangle} /></View>
-      <View style={[styles.badge, { left: 12, bottom: 12 }]}><Text style={styles.badgeText}>⭐ Man of the Match</Text></View>
-      <View style={[styles.badge, { right: 12, top: 12, backgroundColor: "rgba(147,51,234,0.9)" }]}><Text style={styles.badgeText}>⚡ Points</Text></View>
-    </LinearGradient>
-  );
-}
-
-const BARS = [
-  { label: "PACE", value: 84, color: "#facc15" },
-  { label: "SKILL", value: 91, color: "#a855f7" },
-  { label: "AURA", value: 88, color: "#f97316" },
-  { label: "CLUTCH", value: 79, color: "#f43f5e" },
-];
-
-function Ratings({ card }: { card: DbCard | null }) {
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 18 }}>
-      <View style={[styles.rateCard, { borderColor: card ? rarityColor[card.rarity] : colors.border }]}>
-        {card && <Image source={{ uri: imageUri(card.imageUrl) }} style={StyleSheet.absoluteFill} contentFit="cover" />}
-        <View style={styles.ovr}><Text style={styles.ovrNum}>87</Text><Text style={styles.ovrLbl}>OVR</Text></View>
-      </View>
-      <View style={{ gap: 10, width: 130 }}>
-        {BARS.map((b) => (
-          <View key={b.label} style={{ gap: 4 }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-              <Text style={[styles.barLabel, { color: b.color }]}>{b.label}</Text>
-              <Text style={styles.barValue}>{b.value}</Text>
-            </View>
-            <View style={styles.barTrack}><View style={[styles.bar, { width: `${b.value}%`, backgroundColor: b.color }]} /></View>
-          </View>
-        ))}
-      </View>
+    <View style={styles.miniPitch}>
+      <View style={styles.miniLines} />
+      {rows.map((row, r) => (
+        <View key={r} style={styles.miniRow}>
+          {row.map((i) => <Face key={i} photo={photos[i]} size={58} />)}
+        </View>
+      ))}
     </View>
   );
 }
 
-function BackAPlayer({ card }: { card: DbCard | null }) {
+function Points({ photo }: { photo?: Photo }) {
+  const chips = [
+    { label: "Goal", pts: "+4", style: { top: 8, left: -6 } },
+    { label: "Assist", pts: "+3", style: { top: 70, right: -24 } },
+    { label: "Clean sheet", pts: "+5", style: { top: 150, left: -40 } },
+  ];
   return (
-    <View style={{ alignItems: "center" }}>
-      <PackArt playerName={card?.name ?? "Ryan"} imageUrl={card?.imageUrl} width={150} />
-      <View style={styles.share}>
-        <Text style={styles.shareText}>{formatPence(PLAYER_PACK.playerSharePence, { short: true })} to {card?.name ?? "the player"}</Text>
+    <View style={{ width: 200, height: 260, alignItems: "center", justifyContent: "center" }}>
+      <View>
+        <Face photo={photo} size={150} ring={colors.gold} />
+        <View style={styles.captain}><Text style={styles.captainText}>C</Text></View>
       </View>
+      <View style={styles.double}><Text style={styles.doubleText}>Captain = ×2</Text></View>
+      {chips.map((c) => (
+        <View key={c.label} style={[styles.ptsChip, c.style]}>
+          <Text style={styles.ptsChipPts}>{c.pts}</Text>
+          <Text style={styles.ptsChipLabel}>{c.label}</Text>
+        </View>
+      ))}
     </View>
   );
 }
 
-function Play() {
+function League() {
+  const rows = [
+    { rank: 1, name: "Sunday Legends", pts: 312, me: false },
+    { rank: 2, name: "You", pts: 298, me: true },
+    { rank: 3, name: "Big Sam's XI", pts: 271, me: false },
+  ];
   return (
-    <View style={{ flexDirection: "row", gap: 14 }}>
-      {FEATURES.fantasy && (
-        <LinearGradient colors={["#065f46", "#022c22"]} style={styles.playTile}>
-          <Text style={styles.playEmoji}>🏆</Text>
-          <Text style={styles.playName}>Fantasy{"\n"}Div 1</Text>
-        </LinearGradient>
-      )}
-      {FEATURES.street && (
-        <LinearGradient colors={["#7c2d12", "#1c1917"]} style={styles.playTile}>
-          <Text style={styles.playEmoji}>⚽</Text>
-          <Text style={styles.playName}>5IVE{"\n"}STREET</Text>
-        </LinearGradient>
-      )}
+    <View style={styles.table}>
+      {rows.map((r) => (
+        <View key={r.rank} style={[styles.tableRow, r.me && styles.tableRowMe]}>
+          <Text style={[styles.tableRank, r.rank === 1 && { color: colors.goldText }]}>{r.rank}</Text>
+          <Text style={styles.tableName}>{r.name}</Text>
+          <Text style={styles.tablePts}>{r.pts}</Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -145,11 +132,11 @@ function Page({ page, index, scrollX, width }: { page: PageSpec; index: number; 
   );
 }
 
-/** What the app does, in a few swipeable pages. Shown once on first launch; replay it from Settings. */
+/** The game in four swipeable pages. Shown once on first launch; replay it from Settings. */
 export function Tour({ onDone }: { onDone: () => void }) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { data: cards } = useTourCards();
+  const photos = useSquadPhotos().data ?? [];
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const scrollX = useSharedValue(0);
   const [index, setIndex] = useState(0);
@@ -158,37 +145,28 @@ export function Tour({ onDone }: { onDone: () => void }) {
   const pages: PageSpec[] = [
     {
       key: "welcome",
-      title: "Welcome to 5iveG",
-      body: "The fan app for 5ive Guys and Other Guys. Here's what you can do.",
+      title: "Fantasy football for the 5ive Guys",
+      body: "Play along with their real Division 1 season. It's free.",
       art: <Welcome />,
     },
     {
-      key: "videos",
-      title: "Never miss a video",
-      body: "Watch the latest videos, vote for Man of the Match and get points just for being a fan.",
-      art: <Videos />,
+      key: "pick",
+      title: "Pick any 7 players",
+      body: "Choose 7 of the 5ive Guys. No prices, no budget: just the players you rate.",
+      art: <PickSeven photos={photos} />,
     },
     {
-      key: "ratings",
-      title: "Rate the players",
-      body: "Score every player on pace, skill, aura and more. The fans' ratings decide their stats in the game.",
-      art: <Ratings card={cards?.rate ?? null} />,
+      key: "points",
+      title: "Score from real matches",
+      body: "Goals, assists and clean sheets in their real games score you points. Your captain scores double.",
+      art: <Points photo={photos[0]} />,
     },
-    ...(FEATURES.shop ? [{
-      key: "packs",
-      title: "Back your favourite player",
-      body: `Buy a player's pack: ${PLAYER_PACK.cardCount} cards with at least one of them, and ${formatPence(PLAYER_PACK.playerSharePence, { short: true })} goes straight to that player.`,
-      art: <BackAPlayer card={cards?.pack ?? null} />,
-    }] : []),
-    ...(FEATURES.fantasy || FEATURES.street ? [{
-      key: "play",
-      title: FEATURES.fantasy && FEATURES.street ? "Pick your team, then play" : FEATURES.fantasy ? "Play Fantasy Div 1" : "Play 5IVE STREET",
-      body: [
-        FEATURES.fantasy && "Pick 7 for Fantasy Div 1, score points from their real matches and take on your mates.",
-        FEATURES.street && "Then play them in 5IVE STREET, 3v3 street football.",
-      ].filter(Boolean).join(" "),
-      art: <Play />,
-    }] : []),
+    {
+      key: "league",
+      title: "Beat your mates",
+      body: "Start a league, share the code, and see who finishes top.",
+      art: <League />,
+    },
   ];
   const last = index === pages.length - 1;
 
@@ -219,10 +197,10 @@ export function Tour({ onDone }: { onDone: () => void }) {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom + 16 }]}>
-      <LinearGradient colors={["#2e1065", colors.bg]} style={StyleSheet.absoluteFill} end={{ x: 0.5, y: 0.6 }} />
+      <LinearGradient colors={[colors.accentSoft, colors.bg]} style={StyleSheet.absoluteFill} end={{ x: 0.5, y: 0.6 }} />
       <View style={styles.top}>
         {!last ? (
-          <Pressable onPress={finish} hitSlop={12}><Text style={styles.skip}>Skip</Text></Pressable>
+          <Pressable onPress={finish} hitSlop={12} accessibilityRole="button"><Text style={styles.skip}>Skip</Text></Pressable>
         ) : null}
       </View>
 
@@ -243,7 +221,7 @@ export function Tour({ onDone }: { onDone: () => void }) {
         <View style={styles.dots}>
           {pages.map((p, i) => <View key={p.key} style={[styles.dot, i === index && styles.dotOn]} />)}
         </View>
-        <Button title={last ? "Get started" : "Next"} onPress={next} style={{ alignSelf: "stretch" }} />
+        <Button title={last ? "Let's play" : "Next"} onPress={next} style={{ alignSelf: "stretch" }} />
       </View>
     </View>
   );
@@ -254,42 +232,44 @@ const styles = StyleSheet.create({
   top: { height: 44, alignItems: "flex-end", justifyContent: "center", paddingHorizontal: 20 },
   skip: { color: colors.text2, fontSize: 16, fontWeight: "700" },
   page: { flex: 1, paddingHorizontal: 28, justifyContent: "center" },
-  art: { height: 300, alignItems: "center", justifyContent: "center" },
-  copy: { gap: 10, marginTop: 28 },
+  art: { height: 320, alignItems: "center", justifyContent: "center" },
+  copy: { gap: 10, marginTop: 24 },
   title: { color: colors.text, fontSize: 30, fontWeight: "900", textAlign: "center" },
   body: { color: colors.text2, fontSize: 17, lineHeight: 24, textAlign: "center" },
   footer: { paddingHorizontal: 24, gap: 20, alignItems: "center" },
   dots: { flexDirection: "row", gap: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.cardHi },
-  dotOn: { width: 22, backgroundColor: colors.accentHi },
-  iconGlow: {
-    borderRadius: 40, shadowColor: colors.accentHi, shadowOpacity: 0.7, shadowRadius: 30, shadowOffset: { width: 0, height: 0 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.border },
+  dotOn: { width: 22, backgroundColor: colors.accent },
+  icon: { width: 170, height: 170, borderRadius: 40, ...shadow, shadowOpacity: 0.3 },
+  pill: { backgroundColor: colors.card, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 8, ...shadow },
+  pillText: { color: colors.text, fontWeight: "900", fontSize: 15 },
+  face: { overflow: "hidden", backgroundColor: colors.accentSoft, borderWidth: 3, ...shadow },
+  miniPitch: {
+    width: 260, height: 310, borderRadius: 24, backgroundColor: colors.pitch, paddingVertical: 18, justifyContent: "space-around",
+    overflow: "hidden", ...shadow, shadowOpacity: 0.2,
   },
-  icon: { width: 150, height: 150, borderRadius: 34 },
-  pill: { backgroundColor: colors.card, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: colors.border },
-  pillText: { color: colors.text, fontWeight: "700", fontSize: 13 },
-  thumb: { width: 280, height: 158, borderRadius: 18, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
-  play: { width: 64, height: 46, borderRadius: 14, backgroundColor: colors.youtube, alignItems: "center", justifyContent: "center" },
-  playTriangle: {
-    width: 0, height: 0, marginLeft: 4, borderTopWidth: 10, borderBottomWidth: 10, borderLeftWidth: 17,
-    borderTopColor: "transparent", borderBottomColor: "transparent", borderLeftColor: "#fff",
+  miniLines: { ...StyleSheet.absoluteFill, margin: 10, borderWidth: 2, borderColor: "rgba(255,255,255,0.45)", borderRadius: 8 },
+  miniRow: { flexDirection: "row", justifyContent: "space-evenly" },
+  captain: {
+    position: "absolute", top: 4, right: 4, width: 38, height: 38, borderRadius: 19, backgroundColor: colors.gold,
+    alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: colors.white,
   },
-  badge: { position: "absolute", backgroundColor: "rgba(0,0,0,0.75)", borderRadius: 10, paddingHorizontal: 9, paddingVertical: 5 },
-  badgeText: { color: "#fff", fontSize: 12, fontWeight: "800" },
-  rateCard: { width: 120, height: 168, borderRadius: 12, borderWidth: 2, overflow: "hidden", backgroundColor: colors.card },
-  ovr: {
-    position: "absolute", top: 6, left: 6, backgroundColor: "rgba(0,0,0,0.8)", borderRadius: 8,
-    paddingHorizontal: 6, paddingVertical: 2, alignItems: "center",
+  captainText: { color: "#111", fontSize: 18, fontWeight: "900" },
+  double: { marginTop: 14, backgroundColor: colors.goldSoft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6 },
+  doubleText: { color: colors.goldText, fontSize: 15, fontWeight: "900" },
+  ptsChip: {
+    position: "absolute", backgroundColor: colors.card, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6,
+    flexDirection: "row", alignItems: "center", gap: 6, ...shadow, shadowOpacity: 0.15,
   },
-  ovrNum: { color: "#fff", fontSize: 18, fontWeight: "900" },
-  ovrLbl: { color: colors.text2, fontSize: 8, fontWeight: "800" },
-  barLabel: { fontSize: 11, fontWeight: "900", letterSpacing: 1 },
-  barValue: { color: colors.text, fontSize: 11, fontWeight: "800" },
-  barTrack: { height: 6, borderRadius: 3, backgroundColor: colors.cardHi, overflow: "hidden" },
-  bar: { height: 6, borderRadius: 3 },
-  share: { marginTop: -14, backgroundColor: colors.gold, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6 },
-  shareText: { color: "#000", fontWeight: "900", fontSize: 14 },
-  playTile: { width: 130, height: 170, borderRadius: 20, padding: 16, justifyContent: "space-between", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
-  playEmoji: { fontSize: 44 },
-  playName: { color: "#fff", fontSize: 20, fontWeight: "900", lineHeight: 22 },
+  ptsChipPts: { color: colors.green, fontSize: 16, fontWeight: "900" },
+  ptsChipLabel: { color: colors.text, fontSize: 13, fontWeight: "800" },
+  table: { width: 290, gap: 10 },
+  tableRow: {
+    flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: colors.card, borderRadius: 16, paddingHorizontal: 16,
+    paddingVertical: 14, borderWidth: 2, borderColor: "transparent", ...shadow,
+  },
+  tableRowMe: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  tableRank: { width: 18, color: colors.text2, fontSize: 18, fontWeight: "900" },
+  tableName: { flex: 1, color: colors.text, fontSize: 17, fontWeight: "900" },
+  tablePts: { color: colors.accent, fontSize: 18, fontWeight: "900", fontVariant: ["tabular-nums"] },
 });

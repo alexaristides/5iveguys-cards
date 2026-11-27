@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { CHIPS, FANTASY_RULES, formatPrice } from "@shared/fantasy";
 import { RankMove } from "@/components/fantasy/LeaderRow";
-import { GameScreen } from "@/components/game/GameScreen";
+import { Screen } from "@/components/Screen";
 import { ErrorText, Loading, Panel } from "@/components/ui";
 import { useFantasyHistory } from "@/lib/queries";
 import { colors } from "@/lib/theme";
@@ -14,7 +14,7 @@ export default function FantasyHistoryScreen() {
   const data = history.data;
 
   return (
-    <GameScreen title="History">
+    <Screen title="History">
       {!data ? (history.error ? <ErrorText>{history.error.message}</ErrorText> : <Loading />) : (
         <>
           <Text style={styles.team}>{data.team.name}{data.team.manager ? ` · ${data.team.manager}` : ""}</Text>
@@ -68,7 +68,7 @@ export default function FantasyHistoryScreen() {
           )}
         </>
       )}
-    </GameScreen>
+    </Screen>
   );
 }
 

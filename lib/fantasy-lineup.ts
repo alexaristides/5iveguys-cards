@@ -2,7 +2,7 @@
  * Fantasy Div 1 — team editing shared by the website and the iOS app: formations, slots and
  * auto-fill for the 7 picks. Pure TypeScript; rules live in lib/fantasy.ts.
  */
-import { FANTASY_RULES, pickPositions, type FantasyPosition } from "./fantasy";
+import { FANTASY_RULES, pickPositions, positionCounts, type FantasyPosition } from "./fantasy";
 
 export interface LineupPlayer { id: string; position: FantasyPosition; price: number; isActive: boolean; totalPoints?: number }
 
@@ -49,6 +49,33 @@ export function lineupFromPicks(picks: { playerId: string; position?: FantasyPos
 /** Lay out players by their own positions. */
 export const lineupFromIds = (ids: string[], players: Map<string, LineupPlayer>) =>
   lineupFromPicks(ids.map((id) => ({ playerId: id })), players);
+
+/**
+ * Line up the players you've picked without asking where they play: the formation that puts the
+ * most of them in their own position (the first in FORMATIONS on a tie), with anyone left over in
+ * the free slots. Slots are only for show, since everyone scores as their own position, so any 7
+ * make a legal team. Fewer than 7 leave the rest of the slots empty.
+ */
+export function arrangeLineup(ids: string[], players: Map<string, { position: FantasyPosition }>): Lineup {
+  const own = (id: string) => players.get(id)?.position ?? "MID";
+  const picked = ids.slice(0, FANTASY_RULES.squadSize);
+  const c = positionCounts(picked.map(own));
+  let formation = FORMATIONS[0];
+  let bestFit = -1;
+  for (const f of FORMATIONS) {
+    const fit = Math.min(c.GK, 1) + Math.min(c.DEF, f.DEF) + Math.min(c.MID, f.MID) + Math.min(c.FWD, f.FWD);
+    if (fit > bestFit) { formation = f; bestFit = fit; }
+  }
+  const positions = slotPositions(formation);
+  const slots: (string | null)[] = Array(FANTASY_RULES.squadSize).fill(null);
+  const left: string[] = [];
+  for (const id of picked) {
+    const j = positions.findIndex((p, k) => p === own(id) && !slots[k]);
+    if (j >= 0) slots[j] = id; else left.push(id);
+  }
+  for (const id of left) slots[slots.indexOf(null)] = id;
+  return { formation, slots };
+}
 
 /** The position each slot plays, in slot order (what's saved with the picks). */
 export const lineupPositions = (l: Lineup) => slotPositions(l.formation);

@@ -4,7 +4,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { api, setApiToken, setUnauthorizedHandler } from "./api";
-import { API_URL, CHANNELS } from "./config";
+import { API_URL } from "./config";
 
 const TOKEN_KEY = "session_token";
 
@@ -13,8 +13,6 @@ interface AuthState {
   signedIn: boolean;
   /** Google sign-in via the website's NextAuth flow in the system auth sheet. */
   signInWithGoogle: () => Promise<void>;
-  /** Link Google (YouTube) to the current account, e.g. for Sign in with Apple users. */
-  connectYouTube: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
@@ -28,20 +26,15 @@ export function useAuth() {
   return ctx;
 }
 
-/** Make sure the user has stats (and welcome points) in every channel the app covers. */
-async function joinChannels() {
-  await Promise.all(
-    CHANNELS.map((c) => api(`/api/channels/${c.slug}/join`, { method: "POST" }).catch(() => {})),
-  );
-}
-
 export class AuthCancelled extends Error {}
 
-/** Opens web-start in the auth sheet and returns the session token it hands back. */
-async function runWebGoogleFlow(ticket?: string): Promise<string> {
+/**
+ * Opens web-start in the auth sheet and returns the session token it hands back. `basic=1` asks
+ * Google for name and email only: the app has no YouTube features, so it doesn't ask for YouTube access.
+ */
+async function runWebGoogleFlow(): Promise<string> {
   const redirect = Linking.createURL("auth");
-  const params = new URLSearchParams({ redirect });
-  if (ticket) params.set("ticket", ticket);
+  const params = new URLSearchParams({ redirect, basic: "1" });
   const result = await WebBrowser.openAuthSessionAsync(
     `${API_URL}/api/mobile/auth/web-start?${params}`,
     redirect,
@@ -50,14 +43,7 @@ async function runWebGoogleFlow(ticket?: string): Promise<string> {
   if (result.type !== "success") throw new AuthCancelled();
   const { queryParams } = Linking.parse(result.url);
   const token = queryParams?.token;
-  if (typeof token !== "string") {
-    if (ticket && queryParams?.error === "OAuthAccountNotLinked") {
-      throw new Error("That Google account already has its own 5iveG profile. To use it, sign out and choose Sign in with Google.");
-    }
-    throw new Error(ticket
-      ? "Couldn't connect that Google account. It may already belong to another profile."
-      : "Google sign-in failed. Please try again.");
-  }
+  if (typeof token !== "string") throw new Error("Google sign-in failed. Please try again.");
   return token;
 }
 
@@ -101,21 +87,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applyToken]);
 
   const signInWithGoogle = useCallback(async () => {
-    const next = await runWebGoogleFlow();
-    setApiToken(next);
-    await joinChannels();
-    await applyToken(next);
+    await applyToken(await runWebGoogleFlow());
   }, [applyToken]);
-
-  const connectYouTube = useCallback(async () => {
-    const { ticket } = await api<{ ticket: string }>("/api/mobile/auth/link-ticket", { method: "POST" });
-    const next = await runWebGoogleFlow(ticket);
-    const old = token;
-    await applyToken(next);
-    if (old) await fetch(`${API_URL}/api/mobile/auth/signout`, {
-      method: "POST", headers: { Authorization: `Bearer ${old}` }, credentials: "omit",
-    }).catch(() => {});
-  }, [applyToken, token]);
 
   const signInWithApple = useCallback(async () => {
     let credential: AppleAuthentication.AppleAuthenticationCredential;
@@ -137,8 +110,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fullName: credential.fullName,
       },
     });
-    setApiToken(next);
-    await joinChannels();
     await applyToken(next);
   }, [applyToken]);
 
@@ -153,8 +124,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applyToken]);
 
   const value = useMemo(
-    () => ({ ready, signedIn: !!token, signInWithGoogle, connectYouTube, signInWithApple, signOut, deleteAccount }),
-    [ready, token, signInWithGoogle, connectYouTube, signInWithApple, signOut, deleteAccount],
+    () => ({ ready, signedIn: !!token, signInWithGoogle, signInWithApple, signOut, deleteAccount }),
+    [ready, token, signInWithGoogle, signInWithApple, signOut, deleteAccount],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

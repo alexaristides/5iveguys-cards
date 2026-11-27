@@ -1,39 +1,4 @@
-import type { Rarity } from "@shared/cards";
-import type { StatsMap } from "@shared/card-rating";
 import type { Chip, EntryScore, FantasyPosition, GameweekStatus, Pick, PlayerStatus, Squad } from "@shared/fantasy";
-
-/** A card row from the database (as returned by the website's API). */
-export interface DbCard {
-  id: string;
-  name: string;
-  kit: string | null;
-  rarity: Rarity;
-  imageUrl: string;
-  backImageUrl?: string | null;
-  attribute: string | null;
-  position: string | null;
-  description?: string | null;
-  channelId?: string;
-}
-
-export interface Me {
-  points: number;
-  totalEarned: number;
-  watchTimeSeconds: number;
-  cardCount: number;
-  cards: { id: string; cardId: string; card: DbCard | null; obtainedAt: string }[];
-  youtubeSync: { isSubscribed: boolean; lastSynced: string | null } | null;
-  youtubeChannelId: string | null;
-  lastDailyReward: string | null;
-}
-
-/** A channel from the public /api/channels list. */
-export interface World {
-  slug: string;
-  name: string;
-  thumbnailUrl: string | null;
-  _count: { userStats: number };
-}
 
 export interface Account {
   id: string;
@@ -41,73 +6,6 @@ export interface Account {
   email: string | null;
   image: string | null;
   hasYoutubeScope: boolean;
-}
-
-export interface Video {
-  videoId: string;
-  title: string;
-  thumbnailUrl: string | null;
-  publishedAt: string;
-  watchedByMe: boolean;
-}
-
-export interface PackCardResult {
-  id: string;
-  name: string;
-  image: string;
-  rarity: Rarity;
-  kit?: string;
-  isDuplicate: boolean;
-  refundPoints: number;
-}
-
-export interface PackOpenResult {
-  cards: PackCardResult[];
-  remainingPoints: number;
-  totalRefund: number;
-  duplicateCount: number;
-}
-
-export interface VotesResponse {
-  averages: StatsMap;
-  userVote: StatsMap | null;
-  voteCount: number;
-  position: string | null;
-}
-
-export interface CollectionItem {
-  id: string;
-  cardId: string;
-  channel: { slug: string; name: string } | null;
-  card: DbCard | null;
-}
-
-export interface Record3 {
-  wins: number;
-  losses: number;
-  draws: number;
-}
-
-export interface MotmCandidate {
-  /** One of the player's cards; send it back as `playerId` to vote. */
-  id: string;
-  name: string;
-  position: string | null;
-  imageUrl: string;
-  team: string;
-  /** From another channel's squad (crossover videos). */
-  isGuest: boolean;
-  votes: number;
-  percent: number;
-}
-
-export interface MotmResults {
-  video: { videoId: string; title: string | null; thumbnailUrl: string | null; publishedAt: string };
-  team: string;
-  totalVotes: number;
-  myVote: string | null;
-  /** Most votes first. */
-  candidates: MotmCandidate[];
 }
 
 // ── Fantasy Div 1 ──────────────────────────────────────────────────────────────
@@ -265,55 +163,4 @@ export interface FantasyPlayerDetail {
     bonus: number;
     priceChange: number;
   }[];
-}
-
-// ── Player packs (GET /api/shop, /api/shop/packs) ──────────────────────────────
-
-export type RarityOdds = Record<Rarity, number>;
-
-export interface ShopPlayer {
-  name: string;
-  /** Their Home Kit card, shown on the pack. */
-  card: DbCard;
-  /** How many of their cards can come out of a pack. */
-  cards: number;
-  /** Odds of each rarity for the guaranteed card, in percent. */
-  odds: RarityOdds;
-  /** Packs fans have bought of this player. */
-  supporters: number;
-}
-
-export interface ShopData {
-  channel: { id: string; slug: string; name: string };
-  pack: { productId: string; cardCount: number; price: string; playerSharePence: number; otherOdds: RarityOdds };
-  players: ShopPlayer[];
-}
-
-export interface PlayerPackView {
-  id: string;
-  channelId: string | null;
-  /** Null for a paid pack whose player gets picked when it's opened. */
-  playerName: string | null;
-  status: "paid" | "opened";
-  paidAt: string | null;
-  openedAt: string | null;
-  card: DbCard | null;
-}
-
-export interface MyPacks {
-  unopened: PlayerPackView[];
-  opened: PlayerPackView[];
-}
-
-export interface OpenedCard extends DbCard {
-  isNew: boolean;
-  /** The player's guaranteed card (always the last one). */
-  guaranteed: boolean;
-}
-
-export interface OpenPackResult {
-  packId: string;
-  playerName: string | null;
-  cards: OpenedCard[];
-  alreadyOpened: boolean;
 }

@@ -2,7 +2,7 @@ import { ActionSheetIOS, Alert, Pressable, Share, StyleSheet, Text, View } from 
 import { router, useLocalSearchParams } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { LeaderHeader, LeaderRow } from "@/components/fantasy/LeaderRow";
-import { GameScreen } from "@/components/game/GameScreen";
+import { Screen } from "@/components/Screen";
 import { ErrorText, Loading } from "@/components/ui";
 import { api } from "@/lib/api";
 import { inviteMessage } from "@/lib/fantasy";
@@ -39,7 +39,7 @@ function Overall() {
   const board = useFantasyLeaderboard(100);
   const data = board.data;
   return (
-    <GameScreen title="Overall">
+    <Screen title="Everyone">
       <Text style={styles.sub}>
         {data ? `${data.teamCount} team${data.teamCount === 1 ? "" : "s"}` : " "}
         {data?.lastGameweek ? ` · after gameweek ${data.lastGameweek}` : ""}
@@ -50,7 +50,7 @@ function Overall() {
           {data.teams.length === 0 && <Text style={styles.sub}>No teams yet — be the first.</Text>}
         </>
       )}
-    </GameScreen>
+    </Screen>
   );
 }
 
@@ -63,7 +63,7 @@ function Private({ id }: { id: string }) {
     if (!data) return;
     const options = ["Invite friends", "Leave league", "Cancel"];
     ActionSheetIOS.showActionSheetWithOptions(
-      { title: data.league.name, message: `Code ${data.league.code}`, options, destructiveButtonIndex: 1, cancelButtonIndex: 2, userInterfaceStyle: "dark" },
+      { title: data.league.name, message: `Code ${data.league.code}`, options, destructiveButtonIndex: 1, cancelButtonIndex: 2, userInterfaceStyle: "light" },
       (i) => {
         if (i === 0) Share.share({ message: inviteMessage(data.league) });
         if (i === 1) {
@@ -87,7 +87,7 @@ function Private({ id }: { id: string }) {
   }
 
   return (
-    <GameScreen
+    <Screen
       title={data?.league.name ?? "League"}
       right={data?.league.isMember ? <Pressable onPress={menu} hitSlop={10} accessibilityLabel="League options"><Text style={styles.more}>•••</Text></Pressable> : null}
     >
@@ -98,7 +98,7 @@ function Private({ id }: { id: string }) {
               <Text style={styles.inviteLabel}>League code</Text>
               <Text style={styles.code}>{data.league.code}</Text>
             </View>
-            <Text style={styles.inviteAction}>Invite ›</Text>
+            <Text style={styles.inviteAction}>Invite mates ›</Text>
           </Pressable>
           <Text style={styles.sub}>
             {data.teamCount ?? data.teams.length} team{(data.teamCount ?? data.teams.length) === 1 ? "" : "s"}{data.lastGameweek ? ` · after gameweek ${data.lastGameweek}` : ""}
@@ -106,18 +106,17 @@ function Private({ id }: { id: string }) {
           <Table rows={data.teams} lastGameweek={data.lastGameweek} />
         </>
       )}
-    </GameScreen>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   sub: { color: colors.text2, fontSize: 14, marginBottom: 14 },
-  more: { color: colors.accentHi, fontSize: 18, fontWeight: "900" },
+  more: { color: colors.accent, fontSize: 18, fontWeight: "900" },
   invite: {
-    flexDirection: "row", alignItems: "center", backgroundColor: "#1f1530", borderRadius: 14, borderWidth: 1,
-    borderColor: colors.accent, padding: 14, marginBottom: 12,
+    flexDirection: "row", alignItems: "center", backgroundColor: colors.accentSoft, borderRadius: 18, padding: 14, marginBottom: 12,
   },
   inviteLabel: { color: colors.text3, fontSize: 12, fontWeight: "700" },
-  code: { color: colors.text, fontSize: 24, fontWeight: "900", letterSpacing: 3 },
-  inviteAction: { color: colors.accentHi, fontSize: 16, fontWeight: "800" },
+  code: { color: colors.accent, fontSize: 26, fontWeight: "900", letterSpacing: 3 },
+  inviteAction: { color: colors.accent, fontSize: 16, fontWeight: "900" },
 });

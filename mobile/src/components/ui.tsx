@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
-import { colors } from "@/lib/theme";
+import { colors, shadow } from "@/lib/theme";
 
 export function Button({
   title, onPress, variant = "primary", disabled, loading, style, color,
@@ -13,24 +13,22 @@ export function Button({
   style?: StyleProp<ViewStyle>;
   color?: string;
 }) {
-  const bg =
-    variant === "secondary" ? colors.cardHi : variant === "danger" ? "transparent" : color ?? colors.accent;
+  const bg = variant === "secondary" ? colors.accentSoft : variant === "danger" ? "transparent" : color ?? colors.accent;
+  const fg = variant === "secondary" ? colors.accent : variant === "danger" ? colors.danger : colors.white;
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!(disabled || loading) }}
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: bg, opacity: disabled ? 0.4 : pressed ? 0.8 : 1 },
+        { backgroundColor: bg, opacity: disabled ? 0.4 : pressed ? 0.85 : 1 },
         variant === "danger" && { borderWidth: 1, borderColor: colors.danger },
         style,
       ]}
     >
-      {loading ? (
-        <ActivityIndicator color="#fff" />
-      ) : (
-        <Text style={[styles.buttonText, variant === "danger" && { color: colors.danger }]}>{title}</Text>
-      )}
+      {loading ? <ActivityIndicator color={fg} /> : <Text style={[styles.buttonText, { color: fg }]}>{title}</Text>}
     </Pressable>
   );
 }
@@ -51,7 +49,7 @@ export function SectionTitle({ children, right }: { children: ReactNode; right?:
 export function Loading() {
   return (
     <View style={styles.center}>
-      <ActivityIndicator color={colors.accentHi} />
+      <ActivityIndicator color={colors.accent} />
     </View>
   );
 }
@@ -64,29 +62,30 @@ export function Chip({ label, active, onPress, color }: { label: string; active:
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
       style={[styles.chip, active && { backgroundColor: color ?? colors.accent, borderColor: color ?? colors.accent }]}
     >
-      <Text style={[styles.chipText, active && { color: "#fff" }]}>{label}</Text>
+      <Text style={[styles.chipText, active && { color: colors.white }]}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", paddingHorizontal: 18,
+    height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", paddingHorizontal: 18,
   },
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  buttonText: { fontSize: 17, fontWeight: "800" },
   panel: {
-    backgroundColor: colors.card, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border, padding: 16,
+    backgroundColor: colors.card, borderRadius: 20, padding: 16, ...shadow,
   },
-  sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 24, marginBottom: 10 },
-  sectionTitle: { color: colors.text, fontSize: 20, fontWeight: "800" },
+  sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 20, marginBottom: 2 },
+  sectionTitle: { color: colors.text, fontSize: 20, fontWeight: "900" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 48 },
   error: { color: colors.danger, fontSize: 14, textAlign: "center", marginTop: 8 },
   chip: {
-    paddingHorizontal: 12, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: 12, height: 34, borderRadius: 17, borderWidth: 1, borderColor: colors.border,
     backgroundColor: colors.card, alignItems: "center", justifyContent: "center",
   },
-  chipText: { color: colors.text2, fontSize: 13, fontWeight: "600" },
+  chipText: { color: colors.text2, fontSize: 14, fontWeight: "700" },
 });

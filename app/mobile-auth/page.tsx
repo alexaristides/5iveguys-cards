@@ -5,9 +5,16 @@ import { signIn } from "next-auth/react";
 
 // Opened inside the iOS app's auth sheet by /api/mobile/auth/web-start.
 // Runs the normal NextAuth Google flow, then returns to web-finish.
+// ?basic=1 (the fantasy-only app): ask for name and email only, not YouTube. include_granted_scopes
+// keeps any YouTube access a website user already gave, so signing in on the app doesn't drop it.
 export default function MobileAuthPage() {
   useEffect(() => {
-    signIn("google", { callbackUrl: "/api/mobile/auth/web-finish" });
+    const basic = new URLSearchParams(window.location.search).get("basic") === "1";
+    signIn(
+      "google",
+      { callbackUrl: "/api/mobile/auth/web-finish" },
+      basic ? { scope: "openid email profile", include_granted_scopes: "true" } : undefined,
+    );
   }, []);
 
   return (

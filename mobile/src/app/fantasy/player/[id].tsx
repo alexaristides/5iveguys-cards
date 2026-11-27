@@ -3,11 +3,10 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
 import { FANTASY_RULES, formatPrice, PLAYER_STATUS, POSITION_LABEL } from "@shared/fantasy";
-import { POSITION_COLOR } from "@/components/fantasy/FantasyPitch";
 import { ErrorText, Loading } from "@/components/ui";
 import { imageUri } from "@/lib/images";
 import { useFantasy, useFantasyPlayer } from "@/lib/queries";
-import { colors } from "@/lib/theme";
+import { colors, POSITION_COLOR, shadow } from "@/lib/theme";
 
 /** A player's fantasy card: availability, price, form, ownership and points by gameweek. */
 export default function FantasyPlayerScreen() {
@@ -55,7 +54,7 @@ export default function FantasyPlayerScreen() {
         <View style={styles.grid}>
           <Stat label="Points" value={row.totalPoints} />
           <Stat label="Form" value={row.form} />
-          <Stat label="Selected" value={`${row.selectedBy}%`} />
+          <Stat label="In teams" value={`${row.selectedBy}%`} />
           <Stat label="Played" value={row.appearances} />
           <Stat label="Goals" value={row.goals} />
           <Stat label="Assists" value={row.assists} />
@@ -72,7 +71,7 @@ export default function FantasyPlayerScreen() {
             <Text style={[styles.th, { flex: 1 }]}>Match</Text>
             <Text style={[styles.th, styles.c]}>G</Text>
             <Text style={[styles.th, styles.c]}>A</Text>
-            <Text style={[styles.th, styles.c]}>BP</Text>
+            <Text style={[styles.th, styles.c]}>Bon</Text>
             <Text style={[styles.th, styles.c]}>Pts</Text>
           </View>
           {[...gameweeks].reverse().map((g) => (
@@ -109,22 +108,22 @@ const styles = StyleSheet.create({
   art: { width: 96, aspectRatio: 785 / 1085, borderRadius: 10, backgroundColor: colors.cardHi },
   name: { color: colors.text, fontSize: 26, fontWeight: "900" },
   pos: { alignSelf: "flex-start", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
-  posText: { color: "#fff", fontSize: 12, fontWeight: "900" },
+  posText: { color: colors.white, fontSize: 12, fontWeight: "900" },
   price: { color: colors.text, fontSize: 22, fontWeight: "900", fontVariant: ["tabular-nums"] },
   change: { fontSize: 12, fontWeight: "800" },
   news: { marginTop: 16, borderWidth: 1, borderRadius: 12, padding: 12, gap: 2 },
   newsTitle: { fontSize: 14, fontWeight: "900" },
   newsText: { color: colors.text2, fontSize: 14 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 16 },
-  stat: { width: "23.5%", backgroundColor: colors.card, borderRadius: 12, paddingVertical: 10, alignItems: "center", gap: 2 },
+  stat: { width: "23.5%", backgroundColor: colors.card, borderRadius: 14, paddingVertical: 10, alignItems: "center", gap: 2, ...shadow },
   statValue: { color: colors.text, fontSize: 18, fontWeight: "900", fontVariant: ["tabular-nums"] },
   statLabel: { color: colors.text3, fontSize: 10, fontWeight: "700" },
   section: { color: colors.text, fontSize: 18, fontWeight: "800", marginTop: 22, marginBottom: 8 },
   muted: { color: colors.text3, fontSize: 14 },
-  table: { backgroundColor: colors.card, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 4 },
+  table: { backgroundColor: colors.card, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 4, ...shadow },
   tr: { flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   th: { color: colors.text3, fontSize: 11, fontWeight: "800" },
   td: { color: colors.text2, fontSize: 14, fontVariant: ["tabular-nums"] },
   c: { width: 34, textAlign: "right" },
-  pts: { color: colors.text, fontWeight: "900" },
+  pts: { color: colors.accent, fontWeight: "900" },
 });

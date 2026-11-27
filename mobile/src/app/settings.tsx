@@ -3,8 +3,8 @@ import { router } from "expo-router";
 import { Image } from "expo-image";
 import { useAuth } from "@/lib/auth";
 import { useAccount } from "@/lib/queries";
-import { FEATURES, PRIVACY_URL, SUPPORT_URL, TERMS_URL } from "@/lib/config";
-import { colors } from "@/lib/theme";
+import { PRIVACY_URL, SUPPORT_URL, TERMS_URL } from "@/lib/config";
+import { colors, shadow } from "@/lib/theme";
 
 export default function Settings() {
   const { signOut, deleteAccount } = useAuth();
@@ -13,7 +13,7 @@ export default function Settings() {
   function confirmDelete() {
     Alert.alert(
       "Delete account?",
-      "This permanently deletes your account, points, cards (including any packs you bought) and match history. This can't be undone.",
+      "This permanently deletes your account and your fantasy team, and takes you out of every league. This can't be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -36,24 +36,27 @@ export default function Settings() {
       </View>
 
       <View style={styles.group}>
-        <Row label="How 5iveG works" onPress={() => { router.back(); router.push("/tour"); }} />
+        <Row label="Show the intro again" onPress={() => { router.back(); router.push("/tour"); }} />
         <Row label="Help & Support" onPress={() => Linking.openURL(SUPPORT_URL)} />
         <Row label="Privacy Policy" onPress={() => Linking.openURL(PRIVACY_URL)} />
         <Row label="Terms of Service" onPress={() => Linking.openURL(TERMS_URL)} />
-        {FEATURES.fantasy && <Row label="Fantasy admin" onPress={() => { router.back(); router.push("/fantasy/admin"); }} />}
-        <Row label="Sign out" onPress={() => { router.back(); signOut(); }} />
+        <Row label="Sign out" last onPress={() => { router.back(); signOut(); }} />
       </View>
 
       <View style={styles.group}>
-        <Row label="Delete account" danger onPress={confirmDelete} />
+        <Row label="Delete account" danger last onPress={confirmDelete} />
       </View>
     </View>
   );
 }
 
-function Row({ label, onPress, danger }: { label: string; onPress: () => void; danger?: boolean }) {
+function Row({ label, onPress, danger, last }: { label: string; onPress: () => void; danger?: boolean; last?: boolean }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.cardHi }]}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => [styles.row, last && { borderBottomWidth: 0 }, pressed && { backgroundColor: colors.cardHi }]}
+    >
       <Text style={[styles.rowText, danger && { color: colors.danger }]}>{label}</Text>
     </Pressable>
   );
@@ -63,9 +66,9 @@ const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: colors.bg, padding: 20, paddingTop: 28, gap: 18 },
   profile: { flexDirection: "row", alignItems: "center", gap: 14 },
   avatar: { width: 52, height: 52, borderRadius: 26 },
-  name: { color: colors.text, fontSize: 20, fontWeight: "800" },
+  name: { color: colors.text, fontSize: 20, fontWeight: "900" },
   email: { color: colors.text2, fontSize: 14, marginTop: 2 },
-  group: { backgroundColor: colors.card, borderRadius: 14, overflow: "hidden" },
+  group: { backgroundColor: colors.card, borderRadius: 18, overflow: "hidden", ...shadow },
   row: { paddingHorizontal: 16, paddingVertical: 15, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  rowText: { color: colors.text, fontSize: 16, fontWeight: "600" },
+  rowText: { color: colors.text, fontSize: 16, fontWeight: "700" },
 });
