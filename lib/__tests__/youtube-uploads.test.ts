@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-const prisma = vi.hoisted(() => ({ videoMeta: { findMany: vi.fn(), updateMany: vi.fn() } }));
+const prisma = vi.hoisted(() => ({ videoMeta: { findMany: vi.fn(), updateMany: vi.fn(), createMany: vi.fn() } }));
 vi.mock("../db", () => ({ prisma }));
-const { classifyShorts, isShortVideo, parseUploadsFeed } = await import("../youtube-uploads");
+const { classifyShorts, isShortVideo, parseUploadsFeed, refreshChannelUploads, uploadFeeds } = await import("../youtube-uploads");
 
 const FEED = `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
@@ -100,6 +100,51 @@ describe("classifyShorts", () => {
     prisma.videoMeta.findMany.mockRejectedValueOnce(new Error("db down"));
     vi.spyOn(console, "error").mockImplementation(() => {});
     await expect(classifyShorts("ch1")).resolves.toBeUndefined();
+    vi.restoreAllMocks();
+  });
+});
+
+describe("refreshChannelUploads", () => {
+  const entry = (id: string, short: boolean) =>
+    `<entry><yt:videoId>${id}</yt:videoId><title>${id}</title><link rel="alternate" href="https://www.youtube.com/${short ? "shorts/" : "watch?v="}${id}"/><published>2026-11-20T18:00:00+00:00</published></entry>`;
+
+  it("reads the channel's uploads and its videos-only playlist", () => {
+    expect(uploadFeeds("UCb-JBVeZwzsxBedIXl8OplA")).toEqual([
+      "https://www.youtube.com/feeds/videos.xml?channel_id=UCb-JBVeZwzsxBedIXl8OplA",
+      "https://www.youtube.com/feeds/videos.xml?playlist_id=UULFb-JBVeZwzsxBedIXl8OplA",
+    ]);
+  });
+
+  it("stores new videos from both feeds once each, Shorts tagged, and tags stored ones it now knows", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) =>
+      new Response(String(url).includes("UULF")
+        ? `<feed>${entry("vidA", false)}${entry("vidOld", false)}</feed>`
+        : `<feed>${entry("short1", true)}${entry("vidA", false)}${entry("stored", true)}</feed>`),
+    );
+    prisma.videoMeta.findMany.mockResolvedValueOnce([{ videoId: "stored", isShort: null }]);
+    prisma.videoMeta.createMany.mockResolvedValue({ count: 3 });
+    prisma.videoMeta.updateMany.mockClear().mockResolvedValue({ count: 1 });
+
+    await refreshChannelUploads({ id: "chA", youtubeChannelId: "UCaaaaaaaaaaaaaaaaaaaaaa" });
+
+    const created = prisma.videoMeta.createMany.mock.calls[0][0].data;
+    expect(created.map((v: { videoId: string; isShort: boolean }) => [v.videoId, v.isShort]).sort()).toEqual([
+      ["short1", true], ["vidA", false], ["vidOld", false],
+    ]);
+    expect(prisma.videoMeta.updateMany).toHaveBeenCalledWith({ where: { channelId: "chA", videoId: { in: ["stored"] } }, data: { isShort: true } });
+    vi.restoreAllMocks();
+  });
+
+  it("still stores the channel feed when the videos-only feed fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) =>
+      String(url).includes("UULF") ? new Response("", { status: 404 }) : new Response(`<feed>${entry("vidB", false)}</feed>`),
+    );
+    prisma.videoMeta.findMany.mockResolvedValueOnce([]);
+    prisma.videoMeta.createMany.mockClear().mockResolvedValue({ count: 1 });
+
+    await refreshChannelUploads({ id: "chB", youtubeChannelId: "UCbbbbbbbbbbbbbbbbbbbbbb" });
+
+    expect(prisma.videoMeta.createMany.mock.calls[0][0].data.map((v: { videoId: string }) => v.videoId)).toEqual(["vidB"]);
     vi.restoreAllMocks();
   });
 });

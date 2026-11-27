@@ -24,8 +24,19 @@ export function parseUploadsFeed(xml: string) {
 }
 
 /**
+ * The feeds to read for a channel: all uploads (Shorts tagged), and its videos-only playlist
+ * (UULF + the channel id without "UC"), so the newest 15 proper videos always come in however many
+ * Shorts the channel posts in between.
+ */
+export const uploadFeeds = (youtubeChannelId: string) => [
+  `https://www.youtube.com/feeds/videos.xml?channel_id=${youtubeChannelId}`,
+  `https://www.youtube.com/feeds/videos.xml?playlist_id=UULF${youtubeChannelId.slice(2)}`,
+];
+
+/**
  * Store a channel's newest uploads in VideoMeta, so the MOTM list stays current without anyone
- * pressing "Sync YouTube" (the iPhone app no longer does). Reads the channel's public RSS feed:
+ * pressing "Sync YouTube" (the iPhone app no longer does). The older back catalogue came from the
+ * website's YouTube sync, which reads the whole uploads list. Reads the channel's public RSS feeds:
  * no API key, no quota, no fan's token. Runs at most every 15 minutes per channel per server and
  * never throws: if YouTube is down the list just shows what's already stored.
  */
@@ -36,12 +47,17 @@ export async function refreshChannelUploads(channel: { id: string; youtubeChanne
   lastRefresh.set(channel.id, now);
 
   try {
-    const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${channel.youtubeChannelId}`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) throw new Error(`YouTube feed ${res.status}`);
-    const videos = parseUploadsFeed(await res.text());
+    const feeds = await Promise.allSettled(
+      uploadFeeds(channel.youtubeChannelId).map(async (url) => {
+        const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+        if (!res.ok) throw new Error(`YouTube feed ${res.status}: ${url}`);
+        return parseUploadsFeed(await res.text());
+      }),
+    );
+    if (feeds.every((f) => f.status === "rejected")) throw (feeds[0] as PromiseRejectedResult).reason;
+    // One entry per video (a video is in both feeds).
+    const byId = new Map(feeds.flatMap((f) => (f.status === "fulfilled" ? f.value : [])).map((v) => [v.videoId, v]));
+    const videos = [...byId.values()];
     if (!videos.length) return;
 
     const existing = await prisma.videoMeta.findMany({

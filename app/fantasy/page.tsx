@@ -66,7 +66,7 @@ export default function MyTeamPage() {
     body = (
       <>
         <Hero eyebrow="COMING SOON" title="Kicking off soon ⚽">
-          When the 5ive Guys&apos; season starts you&apos;ll pick 7 of the real players and score points from every match.
+          When our season starts you&apos;ll pick 7 of our real players and score points from every match.
         </Hero>
         <HowItWorks />
       </>
@@ -103,7 +103,7 @@ function Welcome({ data, now }: { data: FantasyOverview; now: number }) {
         action={next ? <Link href="/fantasy/team" className={heroButton}>Pick my team</Link> : undefined}
         footer={next ? <DeadlineLine gameweek={next} now={now} /> : undefined}
       >
-        Choose any {FANTASY_RULES.squadSize} of the 5ive Guys and score points from their real Division 1 matches. It&apos;s free and takes a minute.
+        Choose any {FANTASY_RULES.squadSize} of the 5ive Guys and score points from our real Division 1 matches. It&apos;s free and takes a minute.
       </Hero>
       {!next && <p className={muted}>No gameweek is open for picks right now. Check back soon.</p>}
       <HowItWorks />

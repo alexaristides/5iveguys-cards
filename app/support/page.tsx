@@ -22,7 +22,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     q: "How does Fantasy work?",
     a: (
       <>
-        Pick any 7 players from the squad (there are no prices), choose a captain, and score points from their real matches.
+        Pick any 7 players from the squad (there are no prices), choose a captain, and score points from our real matches.
         The full rules are on the{" "}
         <a href="/how-to-play" className="text-purple-400 underline hover:text-purple-300">
           How to play tab

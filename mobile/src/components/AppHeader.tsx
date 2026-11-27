@@ -13,7 +13,7 @@ export function AppHeader({ title }: { title: string }) {
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
       <View style={styles.left}>
-        <Image source={require("../../assets/icon.png")} style={styles.logo} accessibilityIgnoresInvertColors />
+        <Image source={require("../../assets/5iveguys-badge.png")} style={styles.logo} accessibilityIgnoresInvertColors />
         <Text style={styles.title} accessibilityRole="header">{title}</Text>
       </View>
       <Pressable onPress={() => router.push("/settings")} hitSlop={8} accessibilityRole="button" accessibilityLabel="Account and settings">

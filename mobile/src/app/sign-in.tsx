@@ -33,9 +33,9 @@ export default function SignIn() {
     <View style={[styles.wrap, { paddingTop: insets.top + 28, paddingBottom: insets.bottom + 20 }]}>
       <LinearGradient colors={[colors.accentSoft, colors.bg]} style={StyleSheet.absoluteFill} end={{ x: 0.5, y: 0.5 }} />
       <View style={styles.hero}>
-        <Image source={require("../../assets/icon.png")} style={styles.logo} />
+        <Image source={require("../../assets/5iveguys-badge.png")} style={styles.logo} />
         <Text style={styles.title}>5iveG Fantasy</Text>
-        <Text style={styles.sub}>Fantasy football for the 5ive Guys&apos; real Division 1 season.</Text>
+        <Text style={styles.sub}>Fantasy football for our real Division 1 season.</Text>
       </View>
 
       <View style={styles.steps}>

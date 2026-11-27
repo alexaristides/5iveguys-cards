@@ -21,7 +21,7 @@ export default function HowToPlayTab() {
       <AppHeader title="How to play" />
       <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
         <Text style={styles.intro}>
-          Fantasy football for the 5ive Guys&apos; real Division 1 season, with Fantasy Premier League&apos;s rules made for 7-a-side.
+          Fantasy football for our real Division 1 season, with Fantasy Premier League&apos;s rules made for 7-a-side.
         </Text>
         <HowItWorks title={null} />
 
