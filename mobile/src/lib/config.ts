@@ -4,5 +4,5 @@ export const PRIVACY_URL = `${API_URL}/privacy`;
 export const TERMS_URL = `${API_URL}/terms`;
 export const SUPPORT_URL = `${API_URL}/support`;
 
-/** The team whose videos the MOTM tab lists. */
+/** The team whose videos the MOTM tab lists and whose squad the Players tab rates. */
 export const MOTM_CHANNEL = "5iveguysfc";

@@ -3,7 +3,7 @@ import { api } from "./api";
 import { MOTM_CHANNEL } from "./config";
 import type {
   Account, FantasyGameweekResult, FantasyHistory, FantasyLeaderboard, FantasyLeagueStandings, FantasyLeagueSummary,
-  FantasyOverview, FantasyPlayerDetail, MotmResults, Video,
+  FantasyOverview, FantasyPlayerDetail, MotmResults, SquadRating, Video, VotesResponse,
 } from "./types";
 
 export function useAccount() {
@@ -73,4 +73,17 @@ export function useMotm(videoId: string) {
     queryKey: ["motm", videoId],
     queryFn: () => api<MotmResults>(`/api/channels/${MOTM_CHANNEL}/videos/${videoId}/motm`),
   });
+}
+
+/** The squad with the fans' overall for each player and whether you've rated them. */
+export function useSquadRatings() {
+  return useQuery({
+    queryKey: ["players"],
+    queryFn: () => api<{ players: SquadRating[] }>(`/api/channels/${MOTM_CHANNEL}/players`).then((r) => r.players),
+  });
+}
+
+/** The fans' average on each stat for one player, and your rating. */
+export function useVotes(cardId: string) {
+  return useQuery({ queryKey: ["votes", cardId], queryFn: () => api<VotesResponse>(`/api/cards/${cardId}/votes`) });
 }
