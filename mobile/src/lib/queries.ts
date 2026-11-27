@@ -1,8 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "./api";
+import { MOTM_CHANNEL } from "./config";
 import type {
   Account, FantasyGameweekResult, FantasyHistory, FantasyLeaderboard, FantasyLeagueStandings, FantasyLeagueSummary,
-  FantasyOverview, FantasyPlayerDetail,
+  FantasyOverview, FantasyPlayerDetail, MotmResults, Video,
 } from "./types";
 
 export function useAccount() {
@@ -53,4 +54,23 @@ export function useFantasyLeagues(enabled = true) {
 
 export function useFantasyLeague(id: string) {
   return useQuery({ queryKey: ["fantasy-league", id], queryFn: () => api<FantasyLeagueStandings>(`/api/fantasy/leagues/${id}`) });
+}
+
+/** The team's videos, newest first, 24 a page. */
+export function useVideos() {
+  return useInfiniteQuery({
+    queryKey: ["videos", MOTM_CHANNEL],
+    queryFn: ({ pageParam }) =>
+      api<{ videos: Video[]; total: number; page: number; pageSize: number }>(`/api/channels/${MOTM_CHANNEL}/videos?page=${pageParam}`),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
+  });
+}
+
+/** Man of the Match standings for one video, and your vote. */
+export function useMotm(videoId: string) {
+  return useQuery({
+    queryKey: ["motm", videoId],
+    queryFn: () => api<MotmResults>(`/api/channels/${MOTM_CHANNEL}/videos/${videoId}/motm`),
+  });
 }

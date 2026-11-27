@@ -83,6 +83,25 @@ function Points({ photo }: { photo?: Photo }) {
   );
 }
 
+/** A video card with the vote on it. */
+function Motm({ photo }: { photo?: Photo }) {
+  return (
+    <View style={styles.motmCard}>
+      <View style={styles.motmThumb}>
+        <View style={styles.motmPlay}><View style={styles.motmTriangle} /></View>
+      </View>
+      <View style={styles.motmRow}>
+        <Face photo={photo} size={52} ring={colors.gold} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.motmLabel}>⭐ MAN OF THE MATCH</Text>
+          <Text style={styles.motmName}>{photo?.name ?? "Your pick"}</Text>
+        </View>
+        <View style={styles.motmVote}><Text style={styles.motmVoteText}>✓ Voted</Text></View>
+      </View>
+    </View>
+  );
+}
+
 function League() {
   const rows = [
     { rank: 1, name: "Sunday Legends", pts: 312, me: false },
@@ -132,7 +151,7 @@ function Page({ page, index, scrollX, width }: { page: PageSpec; index: number; 
   );
 }
 
-/** The game in four swipeable pages. Shown once on first launch; replay it from Settings. */
+/** The app in five swipeable pages. Shown once on first launch; replay it from Settings. */
 export function Tour({ onDone }: { onDone: () => void }) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -160,6 +179,12 @@ export function Tour({ onDone }: { onDone: () => void }) {
       title: "Score from real matches",
       body: "Goals, assists and clean sheets in their real games score you points. Your captain scores double.",
       art: <Points photo={photos[0]} />,
+    },
+    {
+      key: "motm",
+      title: "Vote Man of the Match",
+      body: "After every video, pick the player of the match and see who the fans chose.",
+      art: <Motm photo={photos[3]} />,
     },
     {
       key: "league",
@@ -263,6 +288,18 @@ const styles = StyleSheet.create({
   },
   ptsChipPts: { color: colors.green, fontSize: 16, fontWeight: "900" },
   ptsChipLabel: { color: colors.text, fontSize: 13, fontWeight: "800" },
+  motmCard: { width: 290, backgroundColor: colors.card, borderRadius: 22, overflow: "hidden", ...shadow, shadowOpacity: 0.15 },
+  motmThumb: { height: 150, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
+  motmPlay: { width: 64, height: 46, borderRadius: 14, backgroundColor: "#FF0033", alignItems: "center", justifyContent: "center" },
+  motmTriangle: {
+    width: 0, height: 0, marginLeft: 4, borderTopWidth: 10, borderBottomWidth: 10, borderLeftWidth: 17,
+    borderTopColor: "transparent", borderBottomColor: "transparent", borderLeftColor: colors.white,
+  },
+  motmRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
+  motmLabel: { color: colors.goldText, fontSize: 11, fontWeight: "900", letterSpacing: 0.8 },
+  motmName: { color: colors.text, fontSize: 20, fontWeight: "900" },
+  motmVote: { backgroundColor: colors.green, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7 },
+  motmVoteText: { color: colors.white, fontSize: 13, fontWeight: "900" },
   table: { width: 290, gap: 10 },
   tableRow: {
     flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: colors.card, borderRadius: 16, paddingHorizontal: 16,

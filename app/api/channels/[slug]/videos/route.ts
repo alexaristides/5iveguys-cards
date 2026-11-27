@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { refreshChannelUploads } from "@/lib/youtube-uploads";
 
 const PAGE_SIZE = 24;
 
@@ -19,6 +20,9 @@ export async function GET(
   const { searchParams } = req.nextUrl;
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
   const q = searchParams.get("q")?.trim() ?? "";
+
+  // The newest videos, without waiting for someone to sync YouTube (throttled, never throws).
+  if (page === 1 && !q) await refreshChannelUploads(channel);
 
   const where = {
     channelId: channel.id,
