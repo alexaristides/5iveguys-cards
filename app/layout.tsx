@@ -3,14 +3,14 @@ import "./globals.css";
 import Providers from "./providers";
 
 const description =
-  "Printed 1st Edition trading cards, the 5IVE STREET game and fantasy football for fans of the 5ive Guys YouTube channel.";
+  "The fantasy football app for the 5ive Guys YouTube channel, plus trading cards of the real players and the 5IVE STREET game.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.5iveg.com"),
-  title: { default: "5iveG · The 5ive Guys fan app", template: "%s · 5iveG" },
+  title: { default: "5iveG · 5ive Guys Fantasy Football", template: "%s · 5iveG" },
   description,
   applicationName: "5iveG",
-  openGraph: { type: "website", siteName: "5iveG", locale: "en_GB", title: "5iveG · The 5ive Guys fan app", description },
+  openGraph: { type: "website", siteName: "5iveG", locale: "en_GB", title: "5iveG · 5ive Guys Fantasy Football", description },
   twitter: { card: "summary_large_image" },
   appleWebApp: { title: "5iveG", statusBarStyle: "black-translucent" },
   verification: {

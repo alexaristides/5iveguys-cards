@@ -18,7 +18,7 @@ export default function TermsPage() {
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">Acceptance</h2>
           <p>
-            By accessing or using 5iveG (&ldquo;the App&rdquo;), you agree to these Terms.
+            By accessing or using 5iveG (&ldquo;the App&rdquo;, on the web and on iPhone), you agree to these Terms.
             If you do not agree, do not use the App.
           </p>
         </section>
@@ -26,9 +26,17 @@ export default function TermsPage() {
         <section className="space-y-3">
           <h2 className="text-white font-semibold text-base">The App</h2>
           <p>
-            The App is a free fan app for the 5ive Guys and Other Guys YouTube channels, with optional player packs
-            you can buy (below) and printed card packs sold on the website. Points, cards and fantasy scores have no real-world monetary value and cannot be
-            exchanged for cash or prizes.
+            The App is the free fantasy football app for the 5ive Guys YouTube channel. In the iPhone app and on the
+            website you pick a fantasy team from the 5ive Guys squad, rate the players, vote for Man of the Match and
+            play in private leagues with your friends. The iPhone app has no in-app purchases.
+          </p>
+          <p>
+            The website also has trading cards and points for the 5ive Guys and Other Guys YouTube channels, the
+            5IVE STREET game, and printed card packs sold in the website shop (below).
+          </p>
+          <p>
+            Fantasy football is free to play and has no prizes. Points, cards and fantasy scores have no real-world
+            monetary value and cannot be exchanged for cash or prizes.
           </p>
         </section>
 
@@ -42,38 +50,15 @@ export default function TermsPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-white font-semibold text-base">Points and cards</h2>
+          <h2 className="text-white font-semibold text-base">Points and cards (website)</h2>
           <p>
-            You get points for being a fan. We reserve the right to adjust point values, add or remove card
-            types, or change how points work at any time without notice.
+            On the website you get points for being a fan. We reserve the right to adjust point values, add or remove
+            card types, or change how points work at any time without notice.
           </p>
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="text-white font-semibold text-base">Player packs</h2>
-          <ul className="space-y-2 list-disc list-inside">
-            <li>
-              Player packs are optional in-app purchases in the iPhone app, sold through the App Store and charged to
-              your Apple ID at the price shown before you buy.
-            </li>
-            <li>
-              Each pack has 5 cards: at least one card of the player you picked (revealed last), and four more cards
-              from the same squad drawn at random. The chances of each rarity are shown in the app before you buy.
-            </li>
-            <li>£1 from every pack goes to the player whose pack it is.</li>
-            <li>
-              Packs are delivered as soon as your payment is confirmed and stay in your account until you open them.
-              Cards you open go into your collection, duplicates included.
-            </li>
-            <li>
-              Refunds are handled by Apple (reportaproblem.apple.com). A refunded pack can no longer be opened, and its
-              player&rsquo;s share is taken back.
-            </li>
-            <li>
-              Cards are just for fun: they cannot be sold, transferred or exchanged for money. If you delete your
-              account, your cards and unopened packs are deleted too and cannot be restored.
-            </li>
-          </ul>
+          <p>
+            Cards are just for fun: they cannot be sold, transferred or exchanged for money. If you delete your
+            account, your points and cards are deleted too and cannot be restored.
+          </p>
         </section>
 
         <section id="shop" className="space-y-3 scroll-mt-6">
@@ -137,8 +122,8 @@ export default function TermsPage() {
         </section>
 
         <p className="text-zinc-700 text-xs pt-4 border-t border-zinc-900">
-          5iveG is an independent fan project and is not affiliated with, endorsed by, or sponsored by
-          YouTube, Google LLC, Apple Inc., or any related entities.
+          5iveG is not affiliated with, endorsed by, or sponsored by YouTube, Google LLC, Apple Inc., or any
+          related entities.
         </p>
       </div>
       </div>

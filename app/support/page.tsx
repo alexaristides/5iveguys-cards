@@ -12,25 +12,20 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "How do I get points?",
-    a: "You get points for being a fan. Sign in and connect your YouTube account, and they add up on their own.",
+    a: "Points are on the website, not in the iPhone app. You get points for being a fan: sign in on the website, open Extras from the menu, connect your YouTube account, and they add up on their own.",
   },
   {
-    q: "I signed in with Apple. How do I connect YouTube?",
-    a: (
-      <>
-        Tap <span className="text-white">Connect YouTube</span> on the YouTube tab in the app. If that Google account
-        already has its own 5iveG profile, sign out and use Sign in with Google instead.
-      </>
-    ),
+    q: "How do I vote for Man of the Match?",
+    a: "In the iPhone app or on the website, open the MOTM tab, pick a 5ive Guys video and tap the player you think was best. You can change your vote whenever you like.",
   },
   {
     q: "How does Fantasy work?",
     a: (
       <>
-        Pick any 7 players from the squad and put them in any position (there are no prices), choose a captain, and score points from their real matches.
+        Pick any 7 players from the squad (there are no prices), choose a captain, and score points from their real matches.
         The full rules are on the{" "}
-        <a href="/fantasy" className="text-purple-400 underline hover:text-purple-300">
-          Fantasy page
+        <a href="/how-to-play" className="text-purple-400 underline hover:text-purple-300">
+          How to play tab
         </a>
         .
       </>
@@ -40,7 +35,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     q: "How do I delete my account?",
     a: (
       <>
-        In the iPhone app, open <span className="text-white">Settings → Delete account</span>. This permanently deletes
+        In the iPhone app, open <span className="text-white">Settings → Delete account</span>; on the website, open the menu and tap <span className="text-white">Delete account</span>. This permanently deletes
         your account, points, cards, fantasy team and match history. You can also ask us below, from the email address
         on your account, and we&rsquo;ll delete it for you.
       </>
@@ -88,8 +83,7 @@ export default function SupportPage() {
           <a href="/terms" className="underline hover:text-zinc-500">
             Terms of Service
           </a>
-          . 5iveG is an independent fan project and is not affiliated with, endorsed by, or sponsored by YouTube or
-          Google LLC.
+          . 5iveG is not affiliated with, endorsed by, or sponsored by YouTube or Google LLC.
         </p>
       </div>
       </div>
