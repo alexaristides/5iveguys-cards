@@ -222,7 +222,7 @@ function PlayerStatCard({ player, stats, bonus, maxConceded, onChange }: {
         <Stepper label="Goals" value={stats.goals} onChange={(v) => onChange({ goals: v })} />
         <Stepper label="Assists" value={stats.assists} onChange={(v) => onChange({ assists: v })} />
         {keeper && <Stepper label="Saves" value={stats.saves} onChange={(v) => onChange({ saves: v })} />}
-        {defends && <Stepper label="Conceded" value={stats.goalsConceded} max={maxConceded} onChange={(v) => onChange({ goalsConceded: v })} />}
+        {defends && <ConcededStat value={stats.goalsConceded} max={maxConceded} onChange={(v) => onChange({ goalsConceded: v })} />}
       </div>
 
       <div className="mt-4 flex gap-2">
@@ -250,7 +250,7 @@ function PlayerStatCard({ player, stats, bonus, maxConceded, onChange }: {
       {more && (
         <div className="space-y-4 pt-1">
           <div className="grid grid-cols-2 gap-y-4">
-            {!defends && <Stepper label="Conceded" value={stats.goalsConceded} max={maxConceded} onChange={(v) => onChange({ goalsConceded: v })} />}
+            {!defends && <ConcededStat value={stats.goalsConceded} max={maxConceded} onChange={(v) => onChange({ goalsConceded: v })} />}
             <Stepper label="Own goals" value={stats.ownGoals} onChange={(v) => onChange({ ownGoals: v })} />
             <Stepper label="Pens missed" value={stats.penaltyMisses} onChange={(v) => onChange({ penaltyMisses: v })} />
             <Stepper label="Yellows" value={stats.yellowCards} onChange={(v) => onChange({ yellowCards: v })} max={2} />
@@ -275,6 +275,29 @@ function PlayerStatCard({ player, stats, bonus, maxConceded, onChange }: {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Goals conceded comes from the final score: it starts at the opponent's goals and can only go down
+ * (for someone who wasn't on for all of them). With a clean sheet there's nothing to change, so it's
+ * shown as a plain number rather than a stepper with both buttons greyed out.
+ */
+function ConcededStat({ value, max, onChange }: { value: number; max: number; onChange: (v: number) => void }) {
+  if (max === 0) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <span className="text-zinc-400 text-xs font-semibold uppercase tracking-wide">Conceded</span>
+        <span className="h-11 flex items-center text-white text-2xl font-black tabular-nums">0</span>
+        <span className="text-emerald-400 text-xs font-semibold">Clean sheet</span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <Stepper label="Conceded" value={value} max={max} onChange={onChange} />
+      <span className="text-zinc-500 text-xs">Up to {max}, from the score</span>
     </div>
   );
 }
