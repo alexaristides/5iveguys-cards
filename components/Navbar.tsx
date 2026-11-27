@@ -84,7 +84,7 @@ export default function Navbar({ user, points, channel }: NavbarProps) {
             {channel ? (
               <ChannelSwitcher current={channel} />
             ) : (
-              <Link href="/dashboard" className="flex items-center" aria-label="5iveG home">
+              <Link href="/fantasy" className="flex items-center" aria-label="5iveG home">
                 <ThemedLogo className="h-6" />
               </Link>
             )}

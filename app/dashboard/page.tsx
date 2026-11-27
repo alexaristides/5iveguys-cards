@@ -10,7 +10,6 @@ import CardDisplay from "@/components/CardDisplay";
 import CardRatingsLeaderboard from "@/components/CardRatingsLeaderboard";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
-import ShopBanner from "@/components/ShopBanner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -75,23 +74,6 @@ const RARITY_COLORS: Record<Rarity, string> = {
 };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
-const TILE =
-  "group text-left rounded-3xl bg-zinc-900/60 border border-white/[0.07] hover:border-white/20 overflow-hidden flex flex-col transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-black/50";
-const DEFAULT_SHOWCASE = ["/cards/home/Ryan_Home.jpg", "/cards/home/Milo_Home.jpg", "/cards/home/Theo_Home.jpg"];
-const FANTASY_FACES = ["Louis", "Neymar", "Oscar", "Uriel"];
-
-function TileText({ title, cta, accent, children }: { title: string; cta: string; accent: string; children: React.ReactNode }) {
-  return (
-    <div className="p-5 flex flex-col flex-1">
-      <h3 className="text-white text-xl font-extrabold tracking-tight">{title}</h3>
-      <p className="mt-1.5 text-zinc-400 text-sm leading-relaxed">{children}</p>
-      <span className={`mt-auto pt-5 text-sm font-semibold ${accent}`}>
-        {cta} <span className="inline-block transition-transform group-hover:translate-x-1">→</span>
-      </span>
-    </div>
-  );
-}
 
 function StatPill({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -192,8 +174,6 @@ export default function DashboardPage() {
   const [searchFocused, setSearchFocused] = useState(false);
   const searchDebounce = useRef<ReturnType<typeof setTimeout>>();
 
-  // Top-level mode (home → collect). Play and Fantasy are pages of their own (/game, /fantasy).
-  const [activeMode, setActiveMode] = useState<"home" | "collect">("home");
   // Collect sub-tab
   const [activeTab, setActiveTab] = useState<"channels" | "collection" | "discover" | "cards">("channels");
   const [showInactive, setShowInactive] = useState(false);
@@ -247,15 +227,6 @@ export default function DashboardPage() {
       return ri - rj;
     });
 
-  // The collection's three best cards for the Collect tile, or three of the squad until there are any.
-  const showcase = [
-    ...[...ownedCards]
-      .sort((a, b) => RARITY_ORDER.indexOf(a.card?.rarity as Rarity) - RARITY_ORDER.indexOf(b.card?.rarity as Rarity))
-      .map((uc) => uc.card!.imageUrl)
-      .filter((src, k, all) => all.indexOf(src) === k),
-    ...DEFAULT_SHOWCASE,
-  ].slice(0, 3);
-
   // Unique channels in collection (for filter pills)
   const collectionChannels = channels.filter((ch) =>
     ownedCards.some((uc) => {
@@ -287,108 +258,11 @@ export default function DashboardPage() {
 
       <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
 
-        {/* ── Home ── */}
-        {activeMode === "home" && (
-          <div className="space-y-10">
-            <section className="flex items-center gap-4">
-              {user?.image ? (
-                <div className="relative w-14 h-14 rounded-full overflow-hidden ring-2 ring-purple-500/40 shrink-0">
-                  <Image src={user.image} alt="" fill className="object-cover" />
-                </div>
-              ) : (
-                <div className="w-14 h-14 rounded-full bg-purple-700 flex items-center justify-center shrink-0">
-                  <span className="text-white text-xl font-bold">{user?.name?.[0] ?? "?"}</span>
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="text-zinc-500 text-sm">Welcome back</p>
-                <h1 className="text-white text-2xl sm:text-3xl font-extrabold tracking-tight truncate">{user?.name?.split(" ")[0] ?? "Fan"}</h1>
-              </div>
-              <dl className="ml-auto flex gap-6 sm:gap-8 text-right">
-                <div>
-                  <dt className="text-zinc-500 text-[11px] uppercase tracking-[0.14em]">Cards</dt>
-                  <dd className="text-white text-xl font-bold tabular-nums">{collectionLoading ? "–" : ownedCards.length}</dd>
-                </div>
-                <div>
-                  <dt className="text-zinc-500 text-[11px] uppercase tracking-[0.14em]">Points</dt>
-                  <dd className="text-white text-xl font-bold tabular-nums">
-                    {channelsLoading ? "–" : channels.reduce((n, c) => n + (c.isActive ? c.stats.spendablePoints : 0), 0).toLocaleString()}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-
-            <ShopBanner />
-
-            <section>
-              <h2 className="text-zinc-400 text-xs font-semibold uppercase tracking-[0.16em] mb-4">Your 5iveG</h2>
-              <div className="grid gap-4 md:grid-cols-3">
-                <button type="button" onClick={() => setActiveMode("collect")} className={TILE}>
-                  <div className="relative h-44 bg-[radial-gradient(90%_120%_at_50%_0%,rgba(147,51,234,0.45),transparent_70%)] overflow-hidden" aria-hidden>
-                    {showcase.map((src, k) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        key={src + k}
-                        src={src}
-                        alt=""
-                        className={`absolute top-6 w-[28%] max-w-[104px] rounded-lg shadow-xl shadow-black/60 transition-transform duration-300 ${
-                          ["left-[14%] -rotate-[9deg] group-hover:-rotate-[13deg]", "left-1/2 -translate-x-1/2 z-10 group-hover:-translate-y-1.5", "right-[14%] rotate-[9deg] group-hover:rotate-[13deg]"][k]
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <TileText title="Collect" cta="Open your collection" accent="text-purple-300">
-                    Get points for being a fan, open digital packs and build your collection.
-                  </TileText>
-                </button>
-
-                <Link href="/game" className={TILE}>
-                  <div className="relative h-44 overflow-hidden" aria-hidden>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/brand/street-squad.jpg" alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/10 to-transparent" />
-                    <span className="absolute left-4 bottom-3 text-white text-lg font-extrabold italic tracking-tight drop-shadow">5IVE STREET</span>
-                  </div>
-                  <TileText title="Play" cta="Play now" accent="text-emerald-300">
-                    5IVE STREET 3v3 and its story mode, the 7v7 sim, live 1v1 and the leaderboard.
-                  </TileText>
-                </Link>
-
-                <Link href="/fantasy" className={TILE}>
-                  <div className="relative h-44 bg-[radial-gradient(90%_120%_at_50%_0%,rgba(245,158,11,0.28),transparent_70%)] flex items-center justify-center" aria-hidden>
-                    <div className="flex -space-x-3">
-                      {FANTASY_FACES.map((name, k) => (
-                        <div key={name} className={`relative ${k === 2 ? "z-10" : ""}`}>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={`/cards/home/${name}_Home.jpg`}
-                            alt=""
-                            className="w-16 h-16 rounded-full object-cover object-[50%_18%] ring-4 ring-zinc-950"
-                          />
-                          {k === 2 && (
-                            <span className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-amber-400 text-black text-[11px] font-black flex items-center justify-center ring-2 ring-zinc-950">
-                              C
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <TileText title="Fantasy" cta="Pick your team" accent="text-amber-300">
-                    Pick the real 5ive Guys, choose your captain and score from their Division 1 matches.
-                  </TileText>
-                </Link>
-              </div>
-            </section>
-          </div>
-        )}
-
-        {/* ── Collect mode ── */}
-        {activeMode === "collect" && (
+        {/* Your collection, card ratings and worlds: opened from the Extras tab. */}
           <>
-            <button type="button" onClick={() => setActiveMode("home")} className="mb-6 text-sm text-zinc-500 hover:text-white transition-colors">
-              ← Home
-            </button>
+            <Link href="/extras" className="inline-block mb-6 text-sm text-zinc-500 hover:text-white transition-colors">
+              ← Extras
+            </Link>
             {/* Profile hero */}
             <div className="flex items-center gap-4 mb-8">
               {user?.image ? (
@@ -422,10 +296,9 @@ export default function DashboardPage() {
               ))}
             </div>
           </>
-        )}
 
         {/* ── My Channels tab ── */}
-        {activeMode === "collect" && activeTab === "channels" && (
+        {activeTab === "channels" && (
           <>
             {channelsLoading ? (
               <div className="flex justify-center py-20">
@@ -491,7 +364,7 @@ export default function DashboardPage() {
         )}
 
         {/* ── Collection tab ── */}
-        {activeMode === "collect" && activeTab === "collection" && (
+        {activeTab === "collection" && (
           <>
             {collectionLoading ? (
               <div className="flex justify-center py-20">
@@ -592,14 +465,14 @@ export default function DashboardPage() {
         )}
 
         {/* ── Card Ratings tab ── */}
-        {activeMode === "collect" && activeTab === "cards" && (
+        {activeTab === "cards" && (
           <CardRatingsLeaderboard
             channels={channels.map((c) => ({ id: c.slug, name: c.name, slug: c.slug }))}
           />
         )}
 
         {/* ── Discover tab ── */}
-        {activeMode === "collect" && activeTab === "discover" && (
+        {activeTab === "discover" && (
           <div className="max-w-xl">
             <p className="text-zinc-500 text-sm mb-5">
               Find active channels and join the community to start earning points.

@@ -53,9 +53,12 @@ const TONES = {
 /**
  * The site's top bar on the public pages and the signed-in home: logo, the main sections, and
  * sign in or the account menu. (The team pages under /[channelSlug] have their own Navbar.)
- * `signInTo` is where signing in lands (the signed-in home unless a page wants people back on it).
+ * `signInTo` is where signing in lands (the signed-in home, My Team, unless a page wants people back on it).
+ * `tabs` swaps the main links for the app's tabs (AppShell); phones have those in the bottom tab bar instead.
  */
-export default function SiteHeader({ variant = "dark", signInTo = "/dashboard" }: { variant?: keyof typeof TONES; signInTo?: string }) {
+export default function SiteHeader({ variant = "dark", signInTo = "/fantasy", tabs }: {
+  variant?: keyof typeof TONES; signInTo?: string; tabs?: { href: string; label: string; active: boolean }[];
+}) {
   const path = usePathname();
   const { data: session, status } = useSession();
   const [menu, setMenu] = useState(false);
@@ -73,20 +76,22 @@ export default function SiteHeader({ variant = "dark", signInTo = "/dashboard" }
 
   const user = session?.user;
   const active = (href: string) => path === href || path.startsWith(`${href}/`);
+  const nav = tabs ?? LINKS.map((l) => ({ ...l, active: active(l.href) }));
 
   return (
     <header className={`sticky top-0 z-40 border-b backdrop-blur-xl ${t.bar}`}>
       <div className="max-w-6xl mx-auto h-16 px-4 sm:px-6 flex items-center gap-6">
-        <Link href={user ? "/dashboard" : "/"} className="shrink-0" aria-label="5iveG home">
+        <Link href={user ? "/fantasy" : "/"} className="shrink-0" aria-label="5iveG home">
           <Logo className="h-7" ink={variant === "light"} />
         </Link>
 
         <nav className="hidden md:flex items-center gap-1 text-sm" aria-label="Main">
-          {LINKS.map((l) => (
+          {nav.map((l) => (
             <Link
               key={l.href}
               href={l.href}
-              className={`px-3 py-2 rounded-lg font-medium transition-colors ${active(l.href) ? t.linkOn : t.link}`}
+              aria-current={l.active ? "page" : undefined}
+              className={`px-3 py-2 rounded-lg transition-colors ${tabs ? "font-bold" : "font-medium"} ${l.active ? t.linkOn : t.link}`}
             >
               {l.label}
               {l.href === "/shop" && <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-amber-400 align-middle" aria-hidden />}
@@ -95,12 +100,14 @@ export default function SiteHeader({ variant = "dark", signInTo = "/dashboard" }
         </nav>
 
         <div className="ml-auto flex items-center gap-2" ref={menuRef}>
-          <Link
-            href="/shop"
-            className={`md:hidden px-3 py-1.5 rounded-full border text-xs font-bold ${t.shop}`}
-          >
-            {PRINT_SHOP.forSale ? "Shop packs" : "Packs soon"}
-          </Link>
+          {!tabs && (
+            <Link
+              href="/shop"
+              className={`md:hidden px-3 py-1.5 rounded-full border text-xs font-bold ${t.shop}`}
+            >
+              {PRINT_SHOP.forSale ? "Shop packs" : "Packs soon"}
+            </Link>
+          )}
 
           {status === "loading" ? (
             <div className="w-9 h-9" />
@@ -150,7 +157,7 @@ export default function SiteHeader({ variant = "dark", signInTo = "/dashboard" }
                   {user.email && <p className={`text-xs truncate ${t.email}`}>{user.email}</p>}
                 </div>
               )}
-              <div className="md:hidden">
+              <div className={tabs ? "hidden" : "md:hidden"}>
                 {LINKS.map((l) => (
                   <Link key={l.href} href={l.href} className={`block px-3 py-2 rounded-lg ${t.item}`}>
                     {l.label}
@@ -159,8 +166,11 @@ export default function SiteHeader({ variant = "dark", signInTo = "/dashboard" }
               </div>
               {user ? (
                 <>
-                  <Link href="/dashboard" className={`block px-3 py-2 rounded-lg ${t.item}`}>
-                    My 5iveG
+                  <Link href="/fantasy" className={`block px-3 py-2 rounded-lg ${t.item}`}>
+                    My Team
+                  </Link>
+                  <Link href="/extras" className={`block px-3 py-2 rounded-lg ${t.item}`}>
+                    Extras
                   </Link>
                   <Link href="/settings" className={`block px-3 py-2 rounded-lg ${t.item}`}>
                     Settings

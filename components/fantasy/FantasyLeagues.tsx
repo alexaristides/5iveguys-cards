@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { card, inputClass, panel, primaryButton, secondaryButton } from "@/components/fantasy/FantasyShell";
+import { card, inputClass, panel, primaryButton, secondaryButton } from "@/components/AppShell";
 
 export interface LeagueRow {
   rank: number; previousRank: number | null; id: string; name: string; manager: string | null; totalPoints: number; lastPoints: number | null; mine?: boolean;

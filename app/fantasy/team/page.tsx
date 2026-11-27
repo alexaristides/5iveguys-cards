@@ -6,9 +6,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { FantasyPitch, POSITION_BG, type PitchSlot } from "@/components/fantasy/FantasyPitch";
-import {
-  card, chipClass, FantasyShell, inputClass, panel, primaryButton, Spinner, type FantasyOverview, type FantasyPlayerRow,
-} from "@/components/fantasy/FantasyShell";
+import { AppShell, card, chipClass, inputClass, panel, primaryButton, Spinner } from "@/components/AppShell";
+import { type FantasyOverview, type FantasyPlayerRow } from "@/components/fantasy/types";
 import {
   buySquad, CHIP_IDS, CHIPS, entryError, FANTASY_RULES, formatCountdown, formatDeadline, formatPrice, PLAYER_STATUS, POSITION_LABEL,
   seasonHalf, transferCostFor, transfersBetween, type Chip, type FantasyPosition, type SquadPlayer,
@@ -29,11 +28,11 @@ export default function FantasyTeamPage() {
     if (status === "authenticated") fetch("/api/fantasy").then((r) => r.json()).then(setData);
   }, [status, router]);
 
-  if (!data) return <FantasyShell><Spinner /></FantasyShell>;
+  if (!data) return <AppShell><Spinner /></AppShell>;
   if (!data.season || data.nextGameweek === null) {
-    return <FantasyShell><p className={`${panel} text-ink-2`}>There&apos;s no gameweek open for picks right now. <Link href="/fantasy" className="text-violet-600 font-bold">Back</Link></p></FantasyShell>;
+    return <AppShell><p className={`${panel} text-ink-2`}>There&apos;s no gameweek open for picks right now. <Link href="/fantasy" className="text-violet-600 font-bold">Back</Link></p></AppShell>;
   }
-  return <FantasyShell><Editor data={data} onSaved={() => router.push("/fantasy")} /></FantasyShell>;
+  return <AppShell><Editor data={data} onSaved={() => router.push("/fantasy")} /></AppShell>;
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -189,7 +188,7 @@ function Editor({ data, onSaved }: { data: FantasyOverview; onSaved: () => void 
         <p className="text-ink-3 text-xs">One chip a gameweek; you can cancel it until the deadline.{season.secondHalfFrom ? ` Chips come back from gameweek ${season.secondHalfFrom}.` : ""}</p>
       </section>
 
-      <div className="sticky bottom-4 space-y-2">
+      <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-4 space-y-2">
         {(error || saveError) && <p className="text-center text-red-600 text-sm font-semibold bg-red-50/95 border border-red-100 rounded-xl py-1.5 px-3">{saveError ?? error}</p>}
         <button onClick={save} disabled={!!error || saving}
           className={`${primaryButton} w-full h-[52px] text-[17px] shadow-hero disabled:shadow-none`}>

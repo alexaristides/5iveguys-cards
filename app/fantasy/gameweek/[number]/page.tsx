@@ -4,7 +4,8 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { FantasyPitch, type PitchSlot } from "@/components/fantasy/FantasyPitch";
-import { BackLink, card, FantasyShell, panel, SectionTitle, Spinner, type FantasyOverview } from "@/components/fantasy/FantasyShell";
+import { AppShell, BackLink, card, panel, SectionTitle, Spinner } from "@/components/AppShell";
+import { type FantasyOverview } from "@/components/fantasy/types";
 import { CHIPS, type Chip, type EntryScore, type GameweekStatus, type Pick } from "@/lib/fantasy";
 import { lineupFromPicks, slotPositions } from "@/lib/fantasy-lineup";
 
@@ -21,7 +22,7 @@ interface GameweekResult {
 
 /** A team's points for one gameweek: who scored what, the captain and chips. */
 export default function FantasyGameweekPage() {
-  return <Suspense fallback={<FantasyShell><Spinner /></FantasyShell>}><Gameweek /></Suspense>;
+  return <Suspense fallback={<AppShell><Spinner /></AppShell>}><Gameweek /></Suspense>;
 }
 
 function Gameweek() {
@@ -54,8 +55,8 @@ function Gameweek() {
     </div>
   );
 
-  if (error) return <FantasyShell><BackLink />{nav}<p className="text-red-600 font-semibold">{error}</p></FantasyShell>;
-  if (!result || !overview) return <FantasyShell>{nav}<Spinner /></FantasyShell>;
+  if (error) return <AppShell><BackLink />{nav}<p className="text-red-600 font-semibold">{error}</p></AppShell>;
+  if (!result || !overview) return <AppShell>{nav}<Spinner /></AppShell>;
 
   const { gameweek, team, entry, score, lines } = result;
   const live = gameweek.status === "live";
@@ -80,7 +81,7 @@ function Gameweek() {
     : [];
 
   return (
-    <FantasyShell>
+    <AppShell>
       <BackLink />
       {nav}
       <div className="text-center -mt-2">
@@ -140,7 +141,7 @@ function Gameweek() {
           })}
         </section>
       )}
-    </FantasyShell>
+    </AppShell>
   );
 }
 

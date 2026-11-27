@@ -50,7 +50,7 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (status === "authenticated") router.push("/dashboard");
+    if (status === "authenticated") router.push("/fantasy");
   }, [status, router]);
 
   if (status === "loading" || status === "authenticated") {
@@ -84,7 +84,7 @@ export default function HomePage() {
             <div className="mt-8 flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+                onClick={() => signIn("google", { callbackUrl: "/fantasy" })}
                 className="inline-flex items-center gap-2.5 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-zinc-200 transition"
               >
                 <GoogleG />

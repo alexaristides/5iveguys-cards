@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { RankMove } from "@/components/fantasy/FantasyLeagues";
-import { BackLink, card, FantasyShell, Spinner } from "@/components/fantasy/FantasyShell";
+import { AppShell, BackLink, card, Spinner } from "@/components/AppShell";
 import type { teamHistory } from "@/lib/fantasy-db";
 import { CHIPS, FANTASY_RULES, formatPrice } from "@/lib/fantasy";
 
@@ -12,7 +12,7 @@ type History = Awaited<ReturnType<typeof teamHistory>>;
 
 /** A team's season gameweek by gameweek. */
 export default function FantasyHistoryPage() {
-  return <Suspense fallback={<FantasyShell><Spinner /></FantasyShell>}><HistoryView /></Suspense>;
+  return <Suspense fallback={<AppShell><Spinner /></AppShell>}><HistoryView /></Suspense>;
 }
 
 function HistoryView() {
@@ -25,12 +25,12 @@ function HistoryView() {
       .then(async (r) => (r.ok ? setData(await r.json()) : setError((await r.json()).error ?? "Couldn't load the history.")));
   }, [teamId]);
 
-  if (error) return <FantasyShell><BackLink /><p className="text-red-600 font-semibold">{error}</p></FantasyShell>;
-  if (!data) return <FantasyShell><Spinner /></FantasyShell>;
+  if (error) return <AppShell><BackLink /><p className="text-red-600 font-semibold">{error}</p></AppShell>;
+  if (!data) return <AppShell><Spinner /></AppShell>;
   const weeks = [...data.weeks].reverse();
 
   return (
-    <FantasyShell>
+    <AppShell>
       <BackLink />
       <div>
         <h1 className="text-ink text-2xl sm:text-3xl font-black">{data.team.name}</h1>
@@ -59,6 +59,6 @@ function HistoryView() {
         </table>
         {weeks.length === 0 && <p className="text-ink-3 text-sm text-center p-4 border-t border-lilac-line">No gameweeks played yet.</p>}
       </div>
-    </FantasyShell>
+    </AppShell>
   );
 }

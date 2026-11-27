@@ -778,10 +778,10 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
           </button>
         </div>
         <Link
-          href="/dashboard"
+          href="/extras"
           className="block text-center text-zinc-500 hover:text-zinc-300 text-sm font-semibold transition-colors"
         >
-          Back to Dashboard
+          Back to Extras
         </Link>
       </div>
     );

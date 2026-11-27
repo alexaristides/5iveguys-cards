@@ -17,7 +17,7 @@ export default function SinglePlayerPage() {
       {!immersive && (
         <header className="relative border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-md sticky top-0 z-20">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
-            <Link href="/dashboard" className="flex items-center gap-2 shrink-0">
+            <Link href="/extras" className="flex items-center gap-2 shrink-0">
               <div className="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center">
                 <span className="text-white text-xs font-bold">5</span>
               </div>
