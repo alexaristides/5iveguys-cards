@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
@@ -20,6 +20,9 @@ export default function MotmTab() {
   // Native tabs mount up front: look for new videos whenever the tab comes back.
   const { refetch } = videos;
   useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
+  // The spinner is for pull-to-refresh only, not the quiet refresh when the tab comes back.
+  const [pulling, setPulling] = useState(false);
+  const pull = async () => { setPulling(true); await refetch(); setPulling(false); };
 
   let body;
   if (!videos.data) {
@@ -82,7 +85,7 @@ export default function MotmTab() {
       <ScrollView
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
-        refreshControl={<RefreshControl refreshing={videos.isRefetching && !videos.isFetchingNextPage} onRefresh={refetch} tintColor={colors.accent} />}
+        refreshControl={<RefreshControl refreshing={pulling} onRefresh={pull} tintColor={colors.accent} />}
       >
         <Text style={styles.intro}>Who was the best player? Pick a video and vote for your Man of the Match.</Text>
         {body}

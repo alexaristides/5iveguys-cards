@@ -25,6 +25,9 @@ export default function PlayersTab() {
   // Native tabs mount up front: pick up new ratings whenever the tab comes back.
   const { refetch } = players;
   useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
+  // The spinner is for pull-to-refresh only, not the quiet refresh when the tab comes back.
+  const [pulling, setPulling] = useState(false);
+  const pull = async () => { setPulling(true); await refetch(); setPulling(false); };
 
   const all = useMemo(() => players.data ?? [], [players.data]);
   const ratedCount = all.filter((p) => p.rated).length;
@@ -76,7 +79,7 @@ export default function PlayersTab() {
       <ScrollView
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
-        refreshControl={<RefreshControl refreshing={players.isRefetching} onRefresh={refetch} tintColor={colors.accent} />}
+        refreshControl={<RefreshControl refreshing={pulling} onRefresh={pull} tintColor={colors.accent} />}
       >
         <Text style={styles.intro}>Rate the 5ive Guys. The fans&apos; ratings make each player&apos;s overall.</Text>
         {body}

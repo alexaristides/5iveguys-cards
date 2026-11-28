@@ -48,6 +48,8 @@ export default function PlayerScreen() {
   // Sliders start from your last rating, else the fans' average, else 50 across the board.
   const base = userVote ?? (voteCount ? averages : EVEN_RATING);
   const draft = { ...base, ...edits } as StatsMap;
+  // Save stays off until a stat moves, so a double tap on "Rate" can't save the starting values.
+  const changed = STAT_FIELDS.some((f) => edits[f] !== undefined && Math.round(edits[f]!) !== Math.round(base[f]));
   const setStat = (key: StatKey, v: number) => { setSaved(false); setEdits((d) => ({ ...d, [key]: v })); };
   const overall = player.overall;
   const myOverall = rating ? computeOverall(draft, player.position) : userVote ? computeOverall(userVote, player.position) : null;
@@ -86,7 +88,7 @@ export default function PlayerScreen() {
   const footer = rating ? (
     <View style={styles.footerRow}>
       <Button title="Cancel" variant="secondary" onPress={cancel} style={{ flex: 1 }} />
-      <Button title="Save rating" onPress={save} loading={saving} style={{ flex: 2 }} />
+      <Button title="Save rating" onPress={save} loading={saving} disabled={!changed} style={{ flex: 2 }} />
     </View>
   ) : (
     <Button title={userVote ? "Change your rating" : `Rate ${firstName}`} onPress={startRating} />
@@ -167,7 +169,7 @@ export default function PlayerScreen() {
               <View style={[styles.fill, { width: `${voteCount ? averages[s.key] : 0}%`, backgroundColor: s.color }]} />
               {userVote && <View style={[styles.marker, { left: `${userVote[s.key]}%` }]} />}
             </View>
-            <Text style={styles.statValue}>{voteCount ? averages[s.key] : "–"}</Text>
+            <Text style={styles.statValue} numberOfLines={1}>{voteCount ? averages[s.key] : "–"}</Text>
           </View>
         ))}
       </View>
@@ -261,7 +263,7 @@ const styles = StyleSheet.create({
   track: { flex: 1, height: 10, borderRadius: 5, backgroundColor: colors.cardHi, justifyContent: "center" },
   fill: { position: "absolute", left: 0, top: 0, bottom: 0, borderRadius: 5 },
   marker: { position: "absolute", width: 3, height: 18, marginLeft: -1.5, borderRadius: 1.5, backgroundColor: colors.text },
-  statValue: { width: 30, color: colors.text, fontSize: 15, fontWeight: "900", textAlign: "right", fontVariant: ["tabular-nums"] },
+  statValue: { width: 40, color: colors.text, fontSize: 15, fontWeight: "900", textAlign: "right", fontVariant: ["tabular-nums"] },
   legend: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, alignSelf: "flex-end" },
   legendMarker: { width: 3, height: 12, borderRadius: 1.5, backgroundColor: colors.text },
   legendText: { color: colors.text3, fontSize: 12, fontWeight: "700" },

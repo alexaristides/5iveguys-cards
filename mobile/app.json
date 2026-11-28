@@ -10,7 +10,7 @@
     "backgroundColor": "#F4F2FB",
     "ios": {
       "bundleIdentifier": "com.fiveguysfc.cards",
-      "buildNumber": "10",
+      "buildNumber": "12",
       "appleTeamId": "UHL8CHCWFJ",
       "supportsTablet": false,
       "usesAppleSignIn": true,
