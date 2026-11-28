@@ -7,7 +7,9 @@ import { POSITION_BG } from "@/components/fantasy/FantasyPitch";
 import { PlayerSheet } from "@/components/fantasy/PlayerSheet";
 import { CHIPS } from "@/lib/fantasy";
 import { LAST_SEASON, type LastSeason } from "@/lib/fantasy-last-season";
-import { formatStat, STAT_GROUPS, statBoards, type BoardRow, type FantasyStats, type StatBoard } from "@/lib/fantasy-stats";
+import {
+  formatStat, playerTable, STAT_GROUPS, statBoards, TABLE_COLUMNS, type BoardRow, type FantasyStats, type StatBoard, type StatsPlayer,
+} from "@/lib/fantasy-stats";
 
 async function getJSON<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -19,9 +21,10 @@ async function getJSON<T>(url: string): Promise<T> {
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /**
- * The season's stats, as in the app (mobile/src/app/fantasy/stats.tsx): who's most picked, transferred
- * in and out and captained, the leaders on points, goals and the rest, the best gameweek scores, and
- * last season. Open to everyone (it's the same for every fan). Click a player for their card.
+ * The season's stats, as in the app (mobile/src/app/fantasy/stats.tsx): every player's numbers in a
+ * table, who's most picked, transferred in and out and captained, the leaders on points, goals and the
+ * rest, the best gameweek scores, and last season. Open to everyone (it's the same for every fan).
+ * Click a player for their card.
  */
 export default function FantasyStatsPage() {
   const [data, setData] = useState<FantasyStats | null>(null);
@@ -70,6 +73,9 @@ function Stats({ data, onPlayer }: { data: FantasyStats; onPlayer: (id: string) 
       </div>
       {chipList.length > 0 && <p className="text-ink-3 text-[13px] text-center -mt-1.5">{chipList.join("  ·  ")}</p>}
 
+      <SectionTitle>All players</SectionTitle>
+      <PlayerTable players={data.players} onPlayer={onPlayer} />
+
       {boards.length === 0 && (
         <p className="text-ink-2 text-[15px] text-center py-4">The lists fill up once fans pick their teams and the first gameweek is scored.</p>
       )}
@@ -86,6 +92,60 @@ function Stats({ data, onPlayer }: { data: FantasyStats; onPlayer: (id: string) 
         );
       })}
     </div>
+  );
+}
+
+/** Every player's season so far: played, goals, assists, clean sheets and points. Click a column to sort by it. */
+function PlayerTable({ players, onPlayer }: { players: StatsPlayer[]; onPlayer: (id: string) => void }) {
+  const [sortBy, setSortBy] = useState("points");
+  const rows = playerTable(players, sortBy);
+  return (
+    <section className={`${card} overflow-hidden -mt-1`}>
+      <table className="w-full table-fixed text-left">
+        <colgroup>
+          <col />
+          {TABLE_COLUMNS.map((c, i) => <col key={c.id} style={{ width: i === TABLE_COLUMNS.length - 1 ? 52 : 40 }} />)}
+        </colgroup>
+        <thead>
+          <tr className="text-ink-3 text-[11px] font-extrabold">
+            <th scope="col" className="pl-4 py-2.5 font-extrabold">Player</th>
+            {TABLE_COLUMNS.map((c) => (
+              <th key={c.id} scope="col" aria-sort={sortBy === c.id ? "descending" : undefined} className="p-0 last:pr-3 text-right">
+                <button
+                  type="button"
+                  onClick={() => setSortBy(c.id)}
+                  title={`Sort by ${c.title.toLowerCase()}`}
+                  className={`w-full py-2.5 text-right whitespace-nowrap font-extrabold ${sortBy === c.id ? "text-violet-600" : "hover:text-ink-2"}`}
+                >
+                  {c.short}{sortBy === c.id ? " ▾" : ""}
+                </button>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p) => (
+            <tr key={p.id} onClick={() => onPlayer(p.id)} className="border-t border-lilac-line cursor-pointer hover:bg-lilac-2 active:opacity-70">
+              <td className="pl-4 py-2">
+                <button type="button" onClick={(e) => { e.stopPropagation(); onPlayer(p.id); }} className="flex items-center gap-2 min-w-0 max-w-full text-left">
+                  <span className="text-ink text-[15px] font-extrabold truncate">{p.name}</span>
+                  <span className={`shrink-0 rounded-md px-1.5 py-px text-[10px] font-black text-white ${POSITION_BG[p.position]}`}>{p.position}</span>
+                </button>
+              </td>
+              {TABLE_COLUMNS.map((c) => (
+                <td
+                  key={c.id}
+                  className={`py-2 text-right tabular-nums text-[15px] last:pr-3 ${sortBy === c.id ? "text-violet-600 font-black" : "text-ink-2 font-bold"}`}
+                >
+                  {c.value(p)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="border-t border-lilac-line px-4 py-2 text-ink-3 text-xs">Pl played · G goals · A assists · CS clean sheets · Pts points. Click a column to sort.</p>
+    </section>
   );
 }
 

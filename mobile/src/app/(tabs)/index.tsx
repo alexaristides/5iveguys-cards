@@ -7,6 +7,7 @@ import type { FantasyStats } from "@shared/fantasy-stats";
 import { AppHeader } from "@/components/AppHeader";
 import { FantasyPitch, type PitchSlot } from "@/components/fantasy/FantasyPitch";
 import { HowItWorks } from "@/components/fantasy/HowItWorks";
+import { OscarQuote } from "@/components/fantasy/OscarQuote";
 import { RankMove } from "@/components/fantasy/LeaderRow";
 import { StatHighlights } from "@/components/fantasy/StatHighlights";
 import { ErrorText, Loading, Panel, SectionTitle } from "@/components/ui";
@@ -27,8 +28,10 @@ function useNow(intervalMs: number) {
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const openGameweek = (number: number) => router.push({ pathname: "/fantasy/gameweek/[number]", params: { number: String(number) } });
 const openPlayer = (id: string) => router.push({ pathname: "/fantasy/player/[id]", params: { id } });
+/** Oscar's card, for his quote of the day. */
+const oscarImage = (data: FantasyOverview) => data.players.find((p) => p.name === "Oscar")?.imageUrl ?? null;
 
-/** My Team: what to do next, this gameweek's points, your 7 on the pitch and the season's stat leaders. */
+/** My Team: what to do next, this gameweek's points, Oscar's quote of the day, your 7 on the pitch and the season's stat leaders. */
 export default function MyTeamTab() {
   const fantasy = useFantasy();
   const data = fantasy.data;
@@ -89,6 +92,7 @@ function Welcome({ data, now, stats }: { data: FantasyOverview; now: number; sta
         Choose any {FANTASY_RULES.squadSize} of the 5ive Guys and score points from our real Division 1 matches. It&apos;s free and takes a minute.
       </Hero>
       {!next && <Text style={styles.muted}>No gameweek is open for picks right now. Check back soon.</Text>}
+      <OscarQuote imageUrl={oscarImage(data)} />
       <StatHighlights stats={stats} />
       <HowItWorks />
     </>
@@ -178,6 +182,8 @@ function Home({ data, now, gameweek, stats }: {
       </View>
 
       {live ? <>{pointsCard}{nextCard}</> : <>{nextCard}{pointsCard}</>}
+
+      <OscarQuote imageUrl={oscarImage(data)} />
 
       {lineup && (
         <>

@@ -7,6 +7,7 @@ import { AppShell, cardLink, ErrorText, Hero, heroButton, panel, SectionTitle, S
 import { RankMove } from "@/components/fantasy/FantasyLeagues";
 import { FantasyPitch, type PitchSlot } from "@/components/fantasy/FantasyPitch";
 import { HowItWorks } from "@/components/fantasy/HowItWorks";
+import { OscarQuote } from "@/components/fantasy/OscarQuote";
 import { PlayerSheet } from "@/components/fantasy/PlayerSheet";
 import { StatHighlights } from "@/components/fantasy/StatHighlights";
 import type { FantasyOverview } from "@/components/fantasy/types";
@@ -44,7 +45,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /**
  * My Team, as in the app (mobile/src/app/(tabs)/index.tsx): what to do next, this gameweek's points,
- * your 7 on the pitch and the season's stat leaders.
+ * Oscar's quote of the day, your 7 on the pitch and the season's stat leaders.
  */
 export default function MyTeamPage() {
   const { status } = useSession();
@@ -116,6 +117,7 @@ function Welcome({ data, now, stats, openPlayer }: {
         Choose any {FANTASY_RULES.squadSize} of the 5ive Guys and score points from our real Division 1 matches. It&apos;s free and takes a minute.
       </Hero>
       {!next && <p className={muted}>No gameweek is open for picks right now. Check back soon.</p>}
+      <OscarQuote imageUrl={oscarImage(data)} />
       <StatHighlights stats={stats} openPlayer={openPlayer} />
       <HowItWorks />
     </>
@@ -205,6 +207,8 @@ function Home({ data, now, gameweek, stats, openPlayer }: {
 
       {live ? <>{pointsCard}{nextCard}</> : <>{nextCard}{pointsCard}</>}
 
+      <OscarQuote imageUrl={oscarImage(data)} />
+
       {lineup && (
         <>
           <SectionTitle
@@ -233,6 +237,9 @@ function Home({ data, now, gameweek, stats, openPlayer }: {
 }
 
 const muted = "text-ink-2 text-[15px] leading-[21px] text-center";
+
+/** Oscar's card, for his quote of the day. */
+const oscarImage = (data: FantasyOverview) => data.players.find((p) => p.name === "Oscar")?.imageUrl ?? null;
 
 function DeadlineLine({ gameweek, now }: { gameweek: Gameweek; now: number }) {
   return (
