@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm run dev          # Start dev server
 npm run build        # prisma generate + next build
-npm run lint         # ESLint
+npm run lint         # ESLint, whole repo (eslint.config.mjs: next/core-web-vitals + next/typescript; skips mobile/, public/street/). Also runs in next build
 npm run db:push      # Push schema changes to DB (no migration file)
 npm run db:studio    # Open Prisma Studio
 ```

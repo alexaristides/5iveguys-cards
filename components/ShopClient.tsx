@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   DELIVERY, PRINT_PACKS, PRINT_SHOP, REFUND_POLICY, formatPounds, nextBundle, packImage, priceFor, type Zone,
@@ -309,9 +310,9 @@ export default function ShopClient({
             </button>
             <p className="text-zinc-500 text-xs leading-relaxed">
               Secure payment by Stripe. {REFUND_POLICY} See our{" "}
-              <a href="/terms#shop" className="underline hover:text-zinc-300">
+              <Link href="/terms#shop" className="underline hover:text-zinc-300">
                 terms
-              </a>
+              </Link>
               .
             </p>
           </div>

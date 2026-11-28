@@ -158,7 +158,7 @@ export function autoComplete(lineup: Lineup, players: LineupPlayer[], moneyLeft:
     const rest = empty.slice(n + 1);
     const cheapestRest = (exclude: string) => {
       const used = new Set([exclude]);
-      return rest.reduce((sum, r) => {
+      return rest.reduce((sum) => {
         const c = pool.filter((p) => !used.has(p.id)).sort((a, b) => a.price - b.price)[0];
         if (c) used.add(c.id);
         return sum + (c?.price ?? 0);

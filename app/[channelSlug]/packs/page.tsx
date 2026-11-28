@@ -3,13 +3,12 @@
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import Navbar from "@/components/Navbar";
 import PackOpening from "@/components/PackOpening";
 import { SkeletonBox } from "@/components/Skeleton";
 import { PACKS, CardResult } from "@/lib/cards";
 
 export default function PacksPage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const params = useParams<{ channelSlug: string }>();
   const channelSlug = params.channelSlug;
 

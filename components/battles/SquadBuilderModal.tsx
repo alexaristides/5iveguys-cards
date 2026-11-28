@@ -13,13 +13,6 @@ const RARITY_STYLES: Record<Rarity, string> = {
   legendary: "border-amber-400",
 };
 
-const RARITY_BADGE: Record<Rarity, { label: string; cls: string }> = {
-  common:    { label: "Common",    cls: "bg-zinc-700 text-zinc-300" },
-  rare:      { label: "Rare",      cls: "bg-blue-900/80 text-blue-300" },
-  epic:      { label: "Epic",      cls: "bg-purple-900/80 text-purple-300" },
-  legendary: { label: "Legendary", cls: "bg-amber-900/80 text-amber-300" },
-};
-
 const ATTR_STYLES: Record<Attribute, { dot: string; text: string; label: string }> = {
   Pace:  { dot: "bg-blue-400",  text: "text-blue-400",  label: "Pace" },
   Power: { dot: "bg-red-400",   text: "text-red-400",   label: "Power" },

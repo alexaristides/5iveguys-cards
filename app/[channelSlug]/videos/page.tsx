@@ -23,7 +23,7 @@ function timeAgo(dateStr: string) {
 }
 
 export default function VideosPage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const params = useParams<{ channelSlug: string }>();
   const { channelSlug } = params;
 

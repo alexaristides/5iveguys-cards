@@ -84,11 +84,6 @@ function loadFromStorage(cards: FootballCard[]): { formation: Formation; lineup:
   } catch { return null; }
 }
 
-const RARITY_BADGE: Record<string, string> = {
-  common: "bg-zinc-700/80 text-zinc-300", rare: "bg-blue-900/60 text-blue-300",
-  epic: "bg-purple-900/60 text-purple-300", legendary: "bg-amber-900/60 text-amber-400",
-};
-
 export default function FootballGame({ onPhaseChange }: { onPhaseChange?: (phase: Phase) => void } = {}) {
   const [phase, setPhase]           = useState<Phase>("setup");
   const [shareCopied, setShareCopied] = useState(false);

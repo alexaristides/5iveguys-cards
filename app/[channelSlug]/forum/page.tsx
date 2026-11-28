@@ -53,7 +53,7 @@ function Avatar({ user, size = 8 }: { user: Author; size?: number }) {
 }
 
 export default function ForumPage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const params = useParams<{ channelSlug: string }>();
   const router = useRouter();
   const { channelSlug } = params;
