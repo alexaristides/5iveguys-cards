@@ -3,13 +3,15 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "r
 import { router, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { CHIPS, FANTASY_RULES } from "@shared/fantasy";
+import type { FantasyStats } from "@shared/fantasy-stats";
 import { AppHeader } from "@/components/AppHeader";
 import { FantasyPitch, type PitchSlot } from "@/components/fantasy/FantasyPitch";
 import { HowItWorks } from "@/components/fantasy/HowItWorks";
 import { RankMove } from "@/components/fantasy/LeaderRow";
+import { StatHighlights } from "@/components/fantasy/StatHighlights";
 import { ErrorText, Loading, Panel, SectionTitle } from "@/components/ui";
 import { formatCountdown, formatDeadline, lineupFromPicks, slotPositions } from "@/lib/fantasy";
-import { useFantasy, useFantasyGameweek } from "@/lib/queries";
+import { useFantasy, useFantasyGameweek, useFantasyStats } from "@/lib/queries";
 import { colors, HERO_GRADIENT, shadow } from "@/lib/theme";
 import type { FantasyGameweek, FantasyGameweekResult, FantasyOverview } from "@/lib/types";
 
@@ -26,18 +28,20 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const openGameweek = (number: number) => router.push({ pathname: "/fantasy/gameweek/[number]", params: { number: String(number) } });
 const openPlayer = (id: string) => router.push({ pathname: "/fantasy/player/[id]", params: { id } });
 
-/** My Team: what to do next, this gameweek's points and your 7 on the pitch. */
+/** My Team: what to do next, this gameweek's points, your 7 on the pitch and the season's stat leaders. */
 export default function MyTeamTab() {
   const fantasy = useFantasy();
   const data = fantasy.data;
   const current = data?.team ? data.currentGameweek : null;
   const gameweek = useFantasyGameweek(current);
+  const stats = useFantasyStats();
   const now = useNow(30_000);
 
   // Native tabs mount up front, so refetch on every visit: deadlines, transfers and points move.
   const { refetch } = fantasy;
-  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
-  const refresh = () => Promise.all([fantasy.refetch(), current !== null && gameweek.refetch()]);
+  const refetchStats = stats.refetch;
+  useFocusEffect(useCallback(() => { refetch(); refetchStats(); }, [refetch, refetchStats]));
+  const refresh = () => Promise.all([fantasy.refetch(), stats.refetch(), current !== null && gameweek.refetch()]);
 
   let body;
   if (!data) {
@@ -52,9 +56,9 @@ export default function MyTeamTab() {
       </>
     );
   } else if (!data.team) {
-    body = <Welcome data={data} now={now} />;
+    body = <Welcome data={data} now={now} stats={stats.data} />;
   } else {
-    body = <Home data={data} now={now} gameweek={gameweek.data?.gameweek.number === current ? gameweek.data : null} />;
+    body = <Home data={data} now={now} gameweek={gameweek.data?.gameweek.number === current ? gameweek.data : null} stats={stats.data} />;
   }
 
   return (
@@ -72,7 +76,7 @@ export default function MyTeamTab() {
 }
 
 /** No team yet: what the game is and one big button. */
-function Welcome({ data, now }: { data: FantasyOverview; now: number }) {
+function Welcome({ data, now, stats }: { data: FantasyOverview; now: number; stats: FantasyStats | undefined }) {
   const next = data.gameweeks.find((g) => g.number === data.nextGameweek);
   return (
     <>
@@ -85,12 +89,15 @@ function Welcome({ data, now }: { data: FantasyOverview; now: number }) {
         Choose any {FANTASY_RULES.squadSize} of the 5ive Guys and score points from our real Division 1 matches. It&apos;s free and takes a minute.
       </Hero>
       {!next && <Text style={styles.muted}>No gameweek is open for picks right now. Check back soon.</Text>}
+      <StatHighlights stats={stats} />
       <HowItWorks />
     </>
   );
 }
 
-function Home({ data, now, gameweek }: { data: FantasyOverview; now: number; gameweek: FantasyGameweekResult | null }) {
+function Home({ data, now, gameweek, stats }: {
+  data: FantasyOverview; now: number; gameweek: FantasyGameweekResult | null; stats: FantasyStats | undefined;
+}) {
   const team = data.team!;
   const players = useMemo(() => new Map(data.players.map((p) => [p.id, p])), [data.players]);
   const next = data.gameweeks.find((g) => g.number === data.nextGameweek);
@@ -189,6 +196,8 @@ function Home({ data, now, gameweek }: { data: FantasyOverview; now: number; gam
           <FantasyPitch slots={slots} />
         </>
       )}
+
+      <StatHighlights stats={stats} />
 
       <Pressable onPress={() => router.push("/fantasy/history")} style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.7 }]} accessibilityRole="button">
         <Text style={styles.linkRowText}>📈  Your points, week by week</Text>
