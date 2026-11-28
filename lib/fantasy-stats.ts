@@ -129,3 +129,15 @@ export function statBoards(players: StatsPlayer[], limit = 5) {
 }
 
 export const formatStat = (board: StatBoard, n: number) => (board.format ?? String)(n);
+
+/** The leaders My Team shows (website and app), in order. */
+export const HIGHLIGHT_BOARDS = ["picked", "points", "goals", "in"];
+
+/** Each highlight board's leader, and how many more share first place. Boards nobody is on are left out. */
+export function statHighlights(players: StatsPlayer[]) {
+  return HIGHLIGHT_BOARDS.flatMap((id) => {
+    const board = STAT_BOARDS.find((b) => b.id === id);
+    const rows = board ? boardRows(players, board, players.length) : [];
+    return board && rows.length ? [{ board, ...rows[0], tied: rows.filter((r) => r.rank === 1).length - 1 }] : [];
+  });
+}

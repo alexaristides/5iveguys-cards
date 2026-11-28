@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boardRows, formatStat, STAT_BOARDS, STAT_GROUPS, statBoards, type StatsPlayer } from "../fantasy-stats";
+import { boardRows, formatStat, HIGHLIGHT_BOARDS, STAT_BOARDS, STAT_GROUPS, statBoards, statHighlights, type StatsPlayer } from "../fantasy-stats";
 
 const player = (name: string, s: Partial<StatsPlayer> = {}): StatsPlayer => ({
   id: name.toLowerCase(), name, position: "MID", imageUrl: null, isActive: true,
@@ -49,5 +49,18 @@ describe("stat boards", () => {
   it("puts every board in a section", () => {
     const groups = new Set<string>(STAT_GROUPS.map((g) => g.id));
     expect(STAT_BOARDS.every((b) => groups.has(b.group))).toBe(true);
+  });
+
+  it("picks each highlight's leader for My Team, with how many share first place", () => {
+    const players = [
+      player("Ann", { selectedBy: 80, points: 12, appearances: 2, goals: 2 }),
+      player("Bob", { selectedBy: 80, points: 9, appearances: 2, goals: 1 }),
+      player("Cal", { selectedBy: 40, points: 3, appearances: 1 }),
+    ];
+    const highlights = statHighlights(players);
+    expect(highlights.map((h) => [h.board.id, h.player.name, h.value, h.tied])).toEqual([
+      ["picked", "Ann", 80, 1], ["points", "Ann", 12, 0], ["goals", "Ann", 2, 0],
+    ]);
+    expect(HIGHLIGHT_BOARDS.every((id) => STAT_BOARDS.some((b) => b.id === id))).toBe(true);
   });
 });

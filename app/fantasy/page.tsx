@@ -8,9 +8,11 @@ import { RankMove } from "@/components/fantasy/FantasyLeagues";
 import { FantasyPitch, type PitchSlot } from "@/components/fantasy/FantasyPitch";
 import { HowItWorks } from "@/components/fantasy/HowItWorks";
 import { PlayerSheet } from "@/components/fantasy/PlayerSheet";
+import { StatHighlights } from "@/components/fantasy/StatHighlights";
 import type { FantasyOverview } from "@/components/fantasy/types";
 import { CHIPS, FANTASY_RULES, formatCountdown, formatDeadline, type GameweekStatus } from "@/lib/fantasy";
 import { lineupFromPicks, slotPositions } from "@/lib/fantasy-lineup";
+import type { FantasyStats } from "@/lib/fantasy-stats";
 
 /** GET /api/fantasy/gameweeks/[number], the parts My Team shows. */
 interface GameweekPoints {
@@ -40,12 +42,16 @@ function useNow(intervalMs: number) {
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-/** My Team, as in the app (mobile/src/app/(tabs)/index.tsx): what to do next, this gameweek's points and your 7 on the pitch. */
+/**
+ * My Team, as in the app (mobile/src/app/(tabs)/index.tsx): what to do next, this gameweek's points,
+ * your 7 on the pitch and the season's stat leaders.
+ */
 export default function MyTeamPage() {
   const { status } = useSession();
   const [data, setData] = useState<FantasyOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [gameweek, setGameweek] = useState<GameweekPoints | null>(null);
+  const [stats, setStats] = useState<FantasyStats | null>(null);
   const [sheet, setSheet] = useState<string | null>(null);
   const now = useNow(30_000);
   const current = data?.team ? data.currentGameweek : null;
@@ -53,6 +59,7 @@ export default function MyTeamPage() {
   useEffect(() => {
     if (status !== "authenticated") return;
     getJSON<FantasyOverview>("/api/fantasy").then(setData, (e: Error) => setError(e.message));
+    getJSON<FantasyStats>("/api/fantasy/stats").then(setStats, () => {});
   }, [status]);
   useEffect(() => {
     if (current === null) return;
@@ -72,13 +79,14 @@ export default function MyTeamPage() {
       </>
     );
   } else if (!data.team) {
-    body = <Welcome data={data} now={now} />;
+    body = <Welcome data={data} now={now} stats={stats} openPlayer={setSheet} />;
   } else {
     body = (
       <Home
         data={data}
         now={now}
         gameweek={gameweek?.gameweek.number === current ? gameweek : null}
+        stats={stats}
         openPlayer={setSheet}
       />
     );
@@ -93,7 +101,9 @@ export default function MyTeamPage() {
 }
 
 /** No team yet: what the game is and one big button. */
-function Welcome({ data, now }: { data: FantasyOverview; now: number }) {
+function Welcome({ data, now, stats, openPlayer }: {
+  data: FantasyOverview; now: number; stats: FantasyStats | null; openPlayer: (id: string) => void;
+}) {
   const next = data.gameweeks.find((g) => g.number === data.nextGameweek);
   return (
     <>
@@ -106,13 +116,14 @@ function Welcome({ data, now }: { data: FantasyOverview; now: number }) {
         Choose any {FANTASY_RULES.squadSize} of the 5ive Guys and score points from our real Division 1 matches. It&apos;s free and takes a minute.
       </Hero>
       {!next && <p className={muted}>No gameweek is open for picks right now. Check back soon.</p>}
+      <StatHighlights stats={stats} openPlayer={openPlayer} />
       <HowItWorks />
     </>
   );
 }
 
-function Home({ data, now, gameweek, openPlayer }: {
-  data: FantasyOverview; now: number; gameweek: GameweekPoints | null; openPlayer: (id: string) => void;
+function Home({ data, now, gameweek, stats, openPlayer }: {
+  data: FantasyOverview; now: number; gameweek: GameweekPoints | null; stats: FantasyStats | null; openPlayer: (id: string) => void;
 }) {
   const team = data.team!;
   const players = useMemo(() => new Map(data.players.map((p) => [p.id, p])), [data.players]);
@@ -207,6 +218,8 @@ function Home({ data, now, gameweek, openPlayer }: {
           <FantasyPitch slots={slots} />
         </>
       )}
+
+      <StatHighlights stats={stats} openPlayer={openPlayer} />
 
       <Link
         href="/fantasy/history"
