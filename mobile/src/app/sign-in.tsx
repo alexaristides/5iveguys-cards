@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
+import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useQuery } from "@tanstack/react-query";
 import { STEPS } from "@/components/fantasy/HowItWorks";
+import { api } from "@/lib/api";
 import { AuthCancelled, useAuth } from "@/lib/auth";
 import { colors, shadow } from "@/lib/theme";
 
@@ -13,6 +16,12 @@ export default function SignIn() {
   const { signInWithGoogle, signInWithApple } = useAuth();
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [busy, setBusy] = useState<"google" | "apple" | null>(null);
+  // Email shows once the website has it set up (RESEND_API_KEY + EMAIL_FROM), so it never shows broken.
+  const emailOn = useQuery({
+    queryKey: ["sign-in-options"],
+    queryFn: () => api<{ email: boolean }>("/api/sign-in/options"),
+    staleTime: Infinity,
+  }).data?.email;
 
   useEffect(() => {
     AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => {});
@@ -65,6 +74,16 @@ export default function SignIn() {
         >
           {busy === "google" ? <ActivityIndicator color={colors.text} /> : <Text style={styles.googleText}><Text style={styles.g}>G</Text>  Continue with Google</Text>}
         </Pressable>
+        {emailOn && (
+          <Pressable
+            onPress={() => router.push("/sign-in-email")}
+            disabled={!!busy}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.google, (pressed || !!busy) && { opacity: 0.7 }]}
+          >
+            <Text style={styles.googleText}>✉️  Continue with email</Text>
+          </Pressable>
+        )}
         <Text style={styles.note}>Free to play. We only use your name and email.</Text>
       </View>
     </View>

@@ -57,6 +57,7 @@ function RootStack() {
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="sign-in" />
+        <Stack.Screen name="sign-in-email" options={{ ...sheet, sheetAllowedDetents: [0.75] }} />
       </Stack.Protected>
     </Stack>
   );
