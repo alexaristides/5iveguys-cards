@@ -10,6 +10,7 @@ import {
   type Chip, type EntryInput, type FantasyPosition, type LockedWeek, type Pick, type PlayerStats, type PlayerStatus,
   type Squad, type SquadPlayer,
 } from "@/lib/fantasy";
+import type { FantasyStats } from "@/lib/fantasy-stats";
 
 export class FantasyError extends Error {
   constructor(message: string, readonly status = 400) {
@@ -396,6 +397,7 @@ const playerListCache = new Map<string, { at: number; value: ReturnType<typeof p
 
 export function invalidateFantasyCache() {
   playerListCache.clear();
+  statsCache = null;
 }
 
 function cachedPlayerList(seasonId: string, gameweeks: (Gameweek & { priceChanges: Prisma.JsonValue })[]) {
@@ -525,6 +527,160 @@ export async function playerDetail(playerId: string) {
       };
     }),
   };
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+
+/** The team whose match videos the Man of the Match votes count on. */
+const TEAM_CHANNEL = "5iveguysfc";
+
+/**
+ * Every player's season tallies for the stats page (lib/fantasy-stats.ts turns them into boards).
+ * Picks, captains and transfers are counted in the database: with thousands of teams, reading every
+ * entry's picks here would be megabytes.
+ */
+async function seasonStats(): Promise<FantasyStats> {
+  const season = await activeSeason();
+  if (!season) return { season: null, scoredThrough: null, teamCount: 0, transfers: 0, chips: {}, bestWeeks: [], players: [] };
+
+  const gameweeks = await prisma.fantasyGameweek.findMany({
+    where: { seasonId: season.id }, orderBy: { number: "asc" }, select: { id: true, number: true, deadline: true, finalizedAt: true },
+  });
+  const finished = gameweeks.filter((g) => g.finalizedAt);
+  const lastScored = finished.at(-1)?.number ?? 0;
+  const squad = FANTASY_RULES.squadSize;
+  const channel = await prisma.channel.findUnique({ where: { slug: TEAM_CHANNEL }, select: { id: true } });
+  // This season's match videos: published since the first gameweek kicked off.
+  const seasonStart = gameweeks[0]?.deadline ?? null;
+
+  const [players, rows, current, moves, chips, best, motm] = await Promise.all([
+    prisma.fantasyPlayer.findMany({ where: { seasonId: season.id }, orderBy: { name: "asc" } }),
+    prisma.fantasyPlayerStats.findMany({
+      where: { gameweekId: { in: finished.map((g) => g.id) } },
+      select: {
+        playerId: true, played: true, points: true, goals: true, assists: true, cleanSheet: true, saves: true, bonus: true,
+        yellowCards: true, redCard: true,
+      },
+    }),
+    // Every team's current team (its most recent entry: every team has one in the last scored
+    // gameweek, so nothing older is read), and who's captain of it.
+    prisma.$queryRaw<{ playerId: string; picked: number; captained: number; teams: number }[]>`
+      WITH latest AS (
+        SELECT DISTINCT ON (e."teamId") e.picks, e."captainId" FROM "FantasyEntry" e
+        JOIN "FantasyGameweek" g ON g.id = e."gameweekId"
+        WHERE g."seasonId" = ${season.id} AND g.number >= ${lastScored}
+        ORDER BY e."teamId", g.number DESC
+      )
+      SELECT x.pick->>'playerId' AS "playerId", COUNT(*)::int AS picked,
+        COUNT(*) FILTER (WHERE x.pick->>'playerId' = latest."captainId")::int AS captained,
+        (SELECT COUNT(*) FROM latest)::int AS teams
+      FROM latest, jsonb_array_elements(latest.picks) WITH ORDINALITY AS x(pick, i)
+      WHERE x.i <= ${squad}
+      GROUP BY 1`,
+    // Transfers: each entry that made some, against the team before it, as saveEntry counts them
+    // (Free Hit weeks are skipped: the team goes back to how it was). The team before is looked up
+    // per entry (by team, through its index), so this never sorts the whole season's picks.
+    prisma.$queryRaw<{ playerId: string; in: number; out: number }[]>`
+      WITH changed AS (
+        SELECT
+          ARRAY(SELECT p->>'playerId' FROM jsonb_array_elements(e.picks) WITH ORDINALITY AS a(p, i) WHERE i <= ${squad}) AS ids,
+          ARRAY(SELECT p->>'playerId' FROM jsonb_array_elements(b.picks) WITH ORDINALITY AS a(p, i) WHERE i <= ${squad}) AS was
+        FROM "FantasyEntry" e
+        JOIN "FantasyGameweek" g ON g.id = e."gameweekId"
+        CROSS JOIN LATERAL (
+          SELECT p.picks FROM "FantasyEntry" p JOIN "FantasyGameweek" pg ON pg.id = p."gameweekId"
+          WHERE p."teamId" = e."teamId" AND pg."seasonId" = g."seasonId" AND pg.number < g.number
+            AND (p.chip IS NULL OR p.chip <> 'free_hit')
+          ORDER BY pg.number DESC LIMIT 1
+        ) b
+        WHERE g."seasonId" = ${season.id} AND e."transfersMade" > 0 AND (e.chip IS NULL OR e.chip <> 'free_hit')
+      )
+      SELECT id AS "playerId", SUM(t_in)::int AS "in", SUM(t_out)::int AS "out" FROM (
+        SELECT id, 1 AS t_in, 0 AS t_out FROM changed, unnest(ids) AS id WHERE NOT (id = ANY(was))
+        UNION ALL
+        SELECT id, 0, 1 FROM changed, unnest(was) AS id WHERE NOT (id = ANY(ids))
+      ) m
+      GROUP BY 1`,
+    prisma.fantasyEntry.groupBy({
+      by: ["chip"],
+      where: { chip: { not: null }, gameweek: { seasonId: season.id, deadline: { lte: new Date() } } },
+      _count: { _all: true },
+    }),
+    prisma.fantasyEntry.findMany({
+      where: { points: { gt: 0 }, gameweek: { seasonId: season.id, finalizedAt: { not: null } } },
+      orderBy: [{ points: "desc" }, { updatedAt: "asc" }],
+      take: 3,
+      select: { points: true, gameweek: { select: { number: true } }, team: { select: { name: true, user: { select: { name: true } } } } },
+    }),
+    // Man of the Match: on each of this season's match videos, whoever the fans voted top (joint top
+    // counts for each). Guests from another team can top a vote; only our own players are counted.
+    channel && seasonStart
+      ? prisma.$queryRaw<{ playerName: string; wins: number }[]>`
+          WITH tally AS (
+            SELECT v."videoId", v."playerChannelId", v."playerName", COUNT(*) AS votes
+            FROM "MotmVote" v
+            JOIN "VideoMeta" m ON m."videoId" = v."videoId" AND m."channelId" = v."channelId"
+            WHERE v."channelId" = ${channel.id} AND m."publishedAt" >= ${seasonStart} AND m."isShort" IS NOT TRUE
+            GROUP BY 1, 2, 3
+          ),
+          ranked AS (SELECT *, MAX(votes) OVER (PARTITION BY "videoId") AS top FROM tally)
+          SELECT "playerName", COUNT(*)::int AS wins FROM ranked
+          WHERE votes = top AND "playerChannelId" = ${channel.id}
+          GROUP BY 1`
+      : Promise.resolve([]),
+  ]);
+
+  const teams = current[0]?.teams ?? 0;
+  const share = (n: number | undefined) => (teams ? Math.round(((n ?? 0) / teams) * 100) : 0);
+  const now = new Map(current.map((r) => [r.playerId, r]));
+  const transfers = new Map(moves.map((r) => [r.playerId, r]));
+  const motmWins = new Map(motm.map((r) => [r.playerName.trim().toLowerCase(), r.wins]));
+
+  return {
+    season: { name: season.name },
+    scoredThrough: finished.at(-1)?.number ?? null,
+    teamCount: teams,
+    transfers: moves.reduce((n, r) => n + r.in, 0),
+    chips: Object.fromEntries(chips.flatMap((c) => (isChip(c.chip) ? [[c.chip, c._count._all]] : []))),
+    bestWeeks: best.map((e) => ({ team: e.team.name, manager: e.team.user.name, gameweek: e.gameweek.number, points: e.points! })),
+    players: players.map((p) => {
+      const mine = rows.filter((r) => r.playerId === p.id);
+      const sum = (f: (r: (typeof mine)[number]) => number) => mine.reduce((s, r) => s + f(r), 0);
+      return {
+        id: p.id, name: p.name, position: p.position as FantasyPosition, imageUrl: p.imageUrl, isActive: p.isActive,
+        points: sum((r) => r.points),
+        appearances: sum((r) => Number(r.played)),
+        goals: sum((r) => r.goals),
+        assists: sum((r) => r.assists),
+        cleanSheets: sum((r) => Number(r.cleanSheet)),
+        saves: sum((r) => r.saves),
+        bonus: sum((r) => r.bonus),
+        yellowCards: sum((r) => r.yellowCards),
+        redCards: sum((r) => Number(r.redCard)),
+        motmWins: motmWins.get(p.name.trim().toLowerCase()) ?? 0,
+        selectedBy: share(now.get(p.id)?.picked),
+        captainedBy: share(now.get(p.id)?.captained),
+        transfersIn: transfers.get(p.id)?.in ?? 0,
+        transfersOut: transfers.get(p.id)?.out ?? 0,
+      };
+    }),
+  };
+}
+
+/** The stats are the same for everyone, so each server keeps them for a minute (admin changes clear them). */
+const STATS_TTL = 60_000;
+let statsCache: { at: number; value: Promise<FantasyStats> } | null = null;
+
+/** GET /api/fantasy/stats */
+export function fantasyStats() {
+  if (statsCache && Date.now() - statsCache.at < STATS_TTL) return statsCache.value;
+  const value = seasonStats();
+  const entry = { at: Date.now(), value };
+  statsCache = entry;
+  value.catch(() => {
+    if (statsCache === entry) statsCache = null;
+  });
+  return value;
 }
 
 // ── Leagues ───────────────────────────────────────────────────────────────────

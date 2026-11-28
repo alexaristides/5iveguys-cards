@@ -18,7 +18,7 @@ export const TABS = [
   { href: "/fantasy", label: "My Team", icon: ShirtIcon, match: (p: string) => p === "/fantasy" || /^\/fantasy\/(team|gameweek|history|player)\b/.test(p) },
   { href: "/players", label: "Players", icon: PeopleIcon, match: (p: string) => p.startsWith("/players") },
   { href: "/motm", label: "MOTM", icon: StarIcon, match: (p: string) => p.startsWith("/motm") },
-  { href: "/leagues", label: "Leagues", icon: TrophyIcon, match: (p: string) => p.startsWith("/leagues") || /^\/fantasy\/(league|join)\b/.test(p) },
+  { href: "/leagues", label: "Leagues", icon: TrophyIcon, match: (p: string) => p.startsWith("/leagues") || /^\/fantasy\/(league|join|stats)\b/.test(p) },
   { href: "/how-to-play", label: "How to play", icon: QuestionIcon, match: (p: string) => p.startsWith("/how-to-play") },
 ];
 

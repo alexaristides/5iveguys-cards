@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import type { FantasyStats } from "@shared/fantasy-stats";
 import { api } from "./api";
 import { MOTM_CHANNEL } from "./config";
 import type {
@@ -37,6 +38,11 @@ export function useFantasyHistory(teamId?: string) {
     queryKey: ["fantasy-history", teamId ?? "me"],
     queryFn: () => api<FantasyHistory>(`/api/fantasy/history${teamId ? `?teamId=${teamId}` : ""}`),
   });
+}
+
+/** The season's stats: picks, transfers and each player's tallies (boards in lib/fantasy-stats.ts). */
+export function useFantasyStats() {
+  return useQuery({ queryKey: ["fantasy-stats"], queryFn: () => api<FantasyStats>("/api/fantasy/stats") });
 }
 
 export function useFantasyPlayer(id: string) {
