@@ -130,6 +130,31 @@ export function statBoards(players: StatsPlayer[], limit = 5) {
 
 export const formatStat = (board: StatBoard, n: number) => (board.format ?? String)(n);
 
+/** A column of the all-players table on the stats page (website and app). */
+export interface TableColumn {
+  id: string;
+  /** Header in the table. */
+  short: string;
+  title: string;
+  value: (p: StatsPlayer) => number;
+}
+
+export const TABLE_COLUMNS: TableColumn[] = [
+  { id: "appearances", short: "Pl", title: "Played", value: (p) => p.appearances },
+  { id: "goals", short: "G", title: "Goals", value: (p) => p.goals },
+  { id: "assists", short: "A", title: "Assists", value: (p) => p.assists },
+  { id: "cleanSheets", short: "CS", title: "Clean sheets", value: (p) => p.cleanSheets },
+  { id: "points", short: "Pts", title: "Points", value: (p) => p.points },
+];
+
+/** Every player still in the squad, most first on a column (then most points, then by name). */
+export function playerTable(players: StatsPlayer[], sortBy = "points") {
+  const column = TABLE_COLUMNS.find((c) => c.id === sortBy) ?? TABLE_COLUMNS[TABLE_COLUMNS.length - 1];
+  return players
+    .filter((p) => p.isActive)
+    .sort((a, b) => column.value(b) - column.value(a) || b.points - a.points || a.name.localeCompare(b.name));
+}
+
 /** The leaders My Team shows (website and app), in order. */
 export const HIGHLIGHT_BOARDS = ["picked", "points", "goals", "in"];
 

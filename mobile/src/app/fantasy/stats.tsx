@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { CHIPS } from "@shared/fantasy";
 import { LAST_SEASON, type LastSeason } from "@shared/fantasy-last-season";
-import { formatStat, STAT_GROUPS, statBoards, type BoardRow, type FantasyStats, type StatBoard } from "@shared/fantasy-stats";
+import {
+  formatStat, playerTable, STAT_GROUPS, statBoards, TABLE_COLUMNS, type BoardRow, type FantasyStats, type StatBoard, type StatsPlayer,
+} from "@shared/fantasy-stats";
 import { Screen } from "@/components/Screen";
 import { ErrorText, Loading, Panel, SectionTitle } from "@/components/ui";
 import { imageUri } from "@/lib/images";
@@ -15,8 +18,9 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const openPlayer = (id: string) => router.push({ pathname: "/fantasy/player/[id]", params: { id } });
 
 /**
- * The season's stats (same lists as the website's /fantasy/stats): who's most picked, transferred in
- * and out and captained, the leaders on points, goals and the rest, the best gameweek scores, and last season.
+ * The season's stats (same lists as the website's /fantasy/stats): every player's numbers in a table,
+ * who's most picked, transferred in and out and captained, the leaders on points, goals and the rest,
+ * the best gameweek scores, and last season.
  */
 export default function FantasyStatsScreen() {
   const stats = useFantasyStats();
@@ -47,6 +51,9 @@ function Stats({ data }: { data: FantasyStats }) {
       </Panel>
       {chipList.length > 0 && <Text style={styles.chips}>{chipList.join("  ·  ")}</Text>}
 
+      <SectionTitle>All players</SectionTitle>
+      <PlayerTable players={data.players} />
+
       {boards.length === 0 && (
         <Text style={styles.muted}>The lists fill up once fans pick their teams and the first gameweek is scored.</Text>
       )}
@@ -62,6 +69,61 @@ function Stats({ data }: { data: FantasyStats }) {
           </View>
         );
       })}
+    </View>
+  );
+}
+
+/** Every player's season so far: played, goals, assists, clean sheets and points. Tap a column to sort by it. */
+function PlayerTable({ players }: { players: StatsPlayer[] }) {
+  const [sortBy, setSortBy] = useState("points");
+  const rows = playerTable(players, sortBy);
+  return (
+    <View style={styles.card}>
+      <View style={styles.tableHead}>
+        <Text style={[styles.headCell, { flex: 1 }]}>Player</Text>
+        {TABLE_COLUMNS.map((c, i) => (
+          <Pressable
+            key={c.id}
+            onPress={() => setSortBy(c.id)}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={`Sort by ${c.title.toLowerCase()}`}
+            accessibilityState={{ selected: sortBy === c.id }}
+            style={i === TABLE_COLUMNS.length - 1 ? styles.numWide : styles.num}
+          >
+            <Text style={[styles.headCell, styles.right, sortBy === c.id && { color: colors.accent }]}>
+              {c.short}{sortBy === c.id ? " ▾" : ""}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      {rows.map((p) => (
+        <Pressable
+          key={p.id}
+          onPress={() => openPlayer(p.id)}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.tableRow, pressed && { opacity: 0.6 }]}
+        >
+          <View style={styles.nameRow}>
+            <Text style={styles.name} numberOfLines={1}>{p.name}</Text>
+            <View style={[styles.pos, { backgroundColor: POSITION_COLOR[p.position] }]}>
+              <Text style={styles.posText}>{p.position}</Text>
+            </View>
+          </View>
+          {TABLE_COLUMNS.map((c, i) => (
+            <Text
+              key={c.id}
+              style={[
+                i === TABLE_COLUMNS.length - 1 ? styles.numWide : styles.num, styles.right, styles.cell,
+                sortBy === c.id && { color: colors.accent, fontWeight: "900" },
+              ]}
+            >
+              {c.value(p)}
+            </Text>
+          ))}
+        </Pressable>
+      ))}
+      <Text style={styles.tableKey}>Pl played · G goals · A assists · CS clean sheets · Pts points. Tap a column to sort.</Text>
     </View>
   );
 }
@@ -194,6 +256,20 @@ const styles = StyleSheet.create({
   summaryLabel: { color: colors.text3, fontSize: 11, fontWeight: "600" },
   chips: { color: colors.text3, fontSize: 13, textAlign: "center", marginTop: -6 },
   card: { backgroundColor: colors.card, borderRadius: 20, overflow: "hidden", ...shadow },
+  tableHead: { flexDirection: "row", alignItems: "center", paddingLeft: 16, paddingRight: 12, paddingVertical: 10 },
+  headCell: { color: colors.text3, fontSize: 11, fontWeight: "800" },
+  tableRow: {
+    flexDirection: "row", alignItems: "center", paddingLeft: 16, paddingRight: 12, paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border,
+  },
+  num: { width: 36 },
+  numWide: { width: 46 },
+  right: { textAlign: "right" },
+  cell: { color: colors.text2, fontSize: 15, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  tableKey: {
+    color: colors.text3, fontSize: 12, paddingHorizontal: 16, paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border,
+  },
   head: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12 },
   icon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center" },
   title: { color: colors.text, fontSize: 17, fontWeight: "900" },

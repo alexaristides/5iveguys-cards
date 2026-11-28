@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { boardRows, formatStat, HIGHLIGHT_BOARDS, STAT_BOARDS, STAT_GROUPS, statBoards, statHighlights, type StatsPlayer } from "../fantasy-stats";
+import {
+  boardRows, formatStat, HIGHLIGHT_BOARDS, playerTable, STAT_BOARDS, STAT_GROUPS, statBoards, statHighlights, type StatsPlayer,
+} from "../fantasy-stats";
 
 const player = (name: string, s: Partial<StatsPlayer> = {}): StatsPlayer => ({
   id: name.toLowerCase(), name, position: "MID", imageUrl: null, isActive: true,
@@ -62,5 +64,14 @@ describe("stat boards", () => {
       ["picked", "Ann", 80, 1], ["points", "Ann", 12, 0], ["goals", "Ann", 2, 0],
     ]);
     expect(HIGHLIGHT_BOARDS.every((id) => STAT_BOARDS.some((b) => b.id === id))).toBe(true);
+  });
+
+  it("lists every player still in the squad for the table, sorted on the chosen column", () => {
+    const players = [
+      player("Ann", { goals: 1, points: 9 }), player("Bob", { goals: 3, points: 5 }),
+      player("Cal", { goals: 1, points: 12 }), player("Dan", { goals: 9, points: 30, isActive: false }), player("Eve"),
+    ];
+    expect(playerTable(players).map((p) => p.name)).toEqual(["Cal", "Ann", "Bob", "Eve"]);
+    expect(playerTable(players, "goals").map((p) => p.name)).toEqual(["Bob", "Cal", "Ann", "Eve"]);
   });
 });
