@@ -9,7 +9,7 @@ import { colors, shadow } from "@/lib/theme";
 const openLeague = (id: string) => router.push({ pathname: "/fantasy/league/[id]", params: { id } });
 const openJoin = (mode: "join" | "create") => router.push({ pathname: "/fantasy/join", params: { mode } });
 
-/** Leagues: the overall table, your private leagues, and starting or joining one. */
+/** Leagues: the overall table, your private leagues, starting or joining one, and the season's stats. */
 export default function LeaguesTab() {
   const fantasy = useFantasy();
   const team = fantasy.data?.team ?? null;
@@ -66,6 +66,20 @@ export default function LeaguesTab() {
         refreshControl={<RefreshControl refreshing={fantasy.isRefetching} onRefresh={refresh} tintColor={colors.accent} />}
       >
         {body}
+        {fantasy.data && (
+          <Pressable
+            onPress={() => router.push("/fantasy/stats")}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.row, styles.statsRow, pressed && { opacity: 0.7 }]}
+          >
+            <View style={styles.icon}><Text style={{ fontSize: 20 }}>📊</Text></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.name}>Season stats</Text>
+              <Text style={styles.detail}>Most picked, transfers, top scorers</Text>
+            </View>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
+        )}
       </ScrollView>
     </View>
   );
@@ -98,6 +112,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: colors.card, borderRadius: 18,
     paddingHorizontal: 14, paddingVertical: 12, ...shadow,
   },
+  statsRow: { marginTop: 8 },
   icon: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center" },
   name: { color: colors.text, fontSize: 17, fontWeight: "900" },
   detail: { color: colors.text3, fontSize: 13, marginTop: 1 },

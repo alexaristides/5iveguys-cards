@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ErrorText, panel, primaryButton, secondaryButton, SectionTitle, Spinner } from "@/components/AppShell";
+import { ErrorText, LinkRow, panel, primaryButton, secondaryButton, SectionTitle, Spinner } from "@/components/AppShell";
 import { api } from "@/components/fantasy/FantasyLeagues";
 import { JoinSheet, type JoinMode } from "@/components/fantasy/JoinSheet";
 import type { FantasyOverview } from "@/components/fantasy/types";
@@ -12,8 +12,8 @@ interface LeagueSummary { id: string; name: string; code: string; members: numbe
 
 /**
  * The Leagues tab, as in the app (mobile/src/app/(tabs)/leagues.tsx): the overall table, your private
- * leagues, and starting or joining one in the join sheet. `joinCode` (an invite link) opens the sheet
- * with the code filled in; closing it goes to /leagues.
+ * leagues, starting or joining one in the join sheet, and the season's stats. `joinCode` (an invite
+ * link) opens the sheet with the code filled in; closing it goes to /leagues.
  */
 export function LeaguesScreen({ joinCode }: { joinCode?: string }) {
   const router = useRouter();
@@ -113,6 +113,11 @@ export function LeaguesScreen({ joinCode }: { joinCode?: string }) {
   return (
     <div className="flex flex-col gap-3">
       {body}
+      {data && (
+        <div className="pt-2">
+          <LinkRow href="/fantasy/stats" emoji="📊" title="Season stats" detail="Most picked, transfers, top scorers" />
+        </div>
+      )}
       {sheet && data && (
         <JoinSheet
           mode={sheet}
