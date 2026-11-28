@@ -138,7 +138,7 @@ function OvrAreaChart({ history, width = 480, height = 180 }: { history: History
 
   // X-axis ticks (show ~5 dates)
   const step = Math.max(1, Math.floor(history.length / 5));
-  const xTicks = history.filter((_, i) => i % step === 0 || i === history.length - 1).map((h, _, arr) => ({
+  const xTicks = history.filter((_, i) => i % step === 0 || i === history.length - 1).map((h) => ({
     label: h.day.slice(5), // MM-DD
     x: toX(history.indexOf(h)),
   }));

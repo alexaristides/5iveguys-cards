@@ -81,8 +81,8 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
   const [summary, setSummary] = useState<MatchSimulation | null>(null);
   const [creatorLineup, setCreatorLineup] = useState<AssignedPlayer[]>([]);
   const [opponentLineup, setOpponentLineup] = useState<AssignedPlayer[]>([]);
-  const [creatorFormation, setCreatorFormation] = useState<Formation>("2-2-2");
-  const [opponentFormation, setOpponentFormation] = useState<Formation>("2-2-2");
+  const [, setCreatorFormation] = useState<Formation>("2-2-2");
+  const [, setOpponentFormation] = useState<Formation>("2-2-2");
   const [showHalftime, setShowHalftime] = useState(false);
   const [secondHalfFormation, setSecondHalfFormation] = useState<Formation>("2-2-2");
   const [halftimeSubmitted, setHalftimeSubmitted] = useState(false);
@@ -623,9 +623,6 @@ export default function LobbyPage({ params }: { params: Promise<{ id: string }> 
       : iWon
       ? { label: "Victory!", color: "text-green-400", bg: "from-green-900/25", emoji: "🏆" }
       : { label: "Defeat",   color: "text-red-400",   bg: "from-red-900/25",   emoji: "😞" };
-
-    const mvp = summary?.mvp ?? null;
-    const mvpIsMine = mvp ? (userIsCreator ? creatorLineup : opponentLineup).some((p) => p.card.id === mvp.cardId) : false;
 
     return (
       <div className="max-w-sm mx-auto text-center">

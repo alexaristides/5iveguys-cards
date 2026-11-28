@@ -64,10 +64,7 @@ export async function POST(
   return NextResponse.json({ reply }, { status: 201 });
 }
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ slug: string; postId: string }> }
-) {
+export async function DELETE(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

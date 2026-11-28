@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
 
 const GAMES = [
   {
@@ -51,8 +50,6 @@ const GAMES = [
 ];
 
 export default function GamesPage() {
-  const params = useParams<{ channelSlug: string }>();
-
   return (
     <main className="min-h-screen bg-[#0a0a0a]">
       <div className="fixed inset-0 pointer-events-none">

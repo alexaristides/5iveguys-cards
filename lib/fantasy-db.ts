@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 import {
   availableChips, awardBonus, buySquad, entryError, entryPositions, FANTASY_RULES, freeTransfersFor, gameweekStatus, isChip, keptCleanSheet,
   makeLeagueCode, playerPoints, priceChanges, scoreEntry, squadCost, teamValue, transferCostFor, transfersBetween, bpsScore,
-  type Chip, type EntryInput, type FantasyPosition, type LockedWeek, type Pick, type PlayerStats, type PlayerStatus,
+  type EntryInput, type FantasyPosition, type LockedWeek, type Pick, type PlayerStats, type PlayerStatus,
   type Squad, type SquadPlayer,
 } from "@/lib/fantasy";
 

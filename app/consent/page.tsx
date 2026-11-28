@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import ConsentForm from "@/components/ConsentForm";
 import { WORLDS } from "@/lib/worlds";
 
@@ -34,9 +35,9 @@ export default async function ConsentPage({ searchParams }: { searchParams: Prom
         <p className="text-zinc-700 text-xs pt-4 border-t border-zinc-900">
           Your details go straight to the 5iveG team by email and are used only to pay you and keep a record of this
           agreement. Questions?{" "}
-          <a href="/support" className="underline hover:text-zinc-500">
+          <Link href="/support" className="underline hover:text-zinc-500">
             Contact us
-          </a>
+          </Link>
           .
         </p>
       </div>

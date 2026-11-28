@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // `next lint` and `next build` lint the whole repo; eslint.config.mjs decides what is skipped (mobile/, public/street/ …).
+  eslint: { dirs: ["."] },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "lh3.googleusercontent.com" },

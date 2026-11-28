@@ -1,3 +1,4 @@
+import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import SupportForm from "@/components/SupportForm";
@@ -24,9 +25,9 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
       <>
         Pick any 7 players from the squad (there are no prices), choose a captain, and score points from our real matches.
         The full rules are on the{" "}
-        <a href="/how-to-play" className="text-purple-400 underline hover:text-purple-300">
+        <Link href="/how-to-play" className="text-purple-400 underline hover:text-purple-300">
           How to play tab
-        </a>
+        </Link>
         .
       </>
     ),
@@ -76,13 +77,13 @@ export default function SupportPage() {
         </section>
 
         <p className="text-zinc-700 text-xs pt-4 border-t border-zinc-900">
-          <a href="/privacy" className="underline hover:text-zinc-500">
+          <Link href="/privacy" className="underline hover:text-zinc-500">
             Privacy Policy
-          </a>{" "}
+          </Link>{" "}
           ·{" "}
-          <a href="/terms" className="underline hover:text-zinc-500">
+          <Link href="/terms" className="underline hover:text-zinc-500">
             Terms of Service
-          </a>
+          </Link>
           . 5iveG is not affiliated with, endorsed by, or sponsored by YouTube or Google LLC.
         </p>
       </div>

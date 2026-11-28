@@ -70,6 +70,7 @@ function GamesMenu() {
             Street football in 3D with the 5ive Guys squad. Free to play, best on a phone held sideways.
           </p>
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- /street is a static page, not a Next route (CLAUDE.md) */}
             <a
               href="/street"
               className="group rounded-2xl bg-purple-600 p-4 shadow-lg shadow-purple-600/30 transition hover:bg-purple-500 active:scale-[0.99]"
@@ -77,6 +78,7 @@ function GamesMenu() {
               <div className="text-lg font-extrabold text-white">Play a match →</div>
               <div className="mt-0.5 text-xs text-purple-100/80">Pick three, pick the CPU&apos;s three, kick off. Or play a friend online</div>
             </a>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- /street is a static page, not a Next route (CLAUDE.md) */}
             <a
               href="/street?story"
               className="group rounded-2xl border border-amber-300/60 bg-amber-400/15 p-4 transition hover:bg-amber-400/25 active:scale-[0.99]"
@@ -270,7 +272,7 @@ function PvPTab() {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 function GamePageInner() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   // The menu of games, or one of the games that lives on this page.
@@ -289,8 +291,6 @@ function GamePageInner() {
     );
   }
   if (status === "unauthenticated") return null;
-
-  const user = session?.user;
 
   return (
     <main className="min-h-screen bg-[#0a0a0a]">

@@ -37,7 +37,6 @@ export default function BattleReport({
   onDismiss,
 }: BattleReportProps) {
   const iWon = !tie && winnerId === currentUserId;
-  const iLost = !tie && winnerId !== null && winnerId !== currentUserId;
 
   const headline = tie
     ? { icon: "🤝", text: "Tie — wagers refunded", cls: "text-zinc-300" }

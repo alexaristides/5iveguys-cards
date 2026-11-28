@@ -200,22 +200,6 @@ export interface MatchSimulation {
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)); }
-function rnd<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
-
-function pickCard(lineup: AssignedPlayer[], ...positions: Position[]): AssignedPlayer | null {
-  const pool = lineup.filter((p) => positions.includes(p.position));
-  return pool.length > 0 ? rnd(pool) : null;
-}
-
-function pickAttrCard(lineup: AssignedPlayer[], attr: Attribute, ...positions: Position[]): AssignedPlayer | null {
-  const pool = lineup.filter((p) => positions.includes(p.position) && p.card.attribute === attr);
-  return pool.length > 0 ? rnd(pool) : null;
-}
-
-function pickDifferent(lineup: AssignedPlayer[], excludeId: string | null, ...positions: Position[]): AssignedPlayer | null {
-  const pool = lineup.filter((p) => positions.includes(p.position) && p.card.id !== excludeId);
-  return pool.length > 0 ? rnd(pool) : null;
-}
 
 function name(p: AssignedPlayer | null, fallback = "A player"): string {
   return p?.card.name ?? fallback;
@@ -380,7 +364,8 @@ export function simulateMatch(
     const sc  = name(scorerPlayer);
     const as  = name(assisterPlayer, name(_pickCard(atkLineup, "MID")));
     const gk  = name(_pickCard(defLineup, "GK"));
-    const def = name(_pickCard(defLineup, "DEF"));
+    // Unused, but still drawn: it keeps the seeded random sequence (and so PvP replays) unchanged.
+    const _def = name(_pickCard(defLineup, "DEF"));
 
     // Balanced goal probability — sigmoid with luck floor, cap at 12
     const goalProb = clamp((() => {

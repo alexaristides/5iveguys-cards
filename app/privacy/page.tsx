@@ -1,3 +1,4 @@
+import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 
@@ -72,7 +73,7 @@ export default function PrivacyPage() {
             permanently deletes your account and everything linked to it, and revokes the App&rsquo;s access to your
             Google and Apple accounts. Printed pack orders are kept for six years, as UK accounting
             rules require. You can also ask us to delete it through the{" "}
-            <a href="/support" className="text-purple-400 underline hover:text-purple-300">support page</a>. You can
+            <Link href="/support" className="text-purple-400 underline hover:text-purple-300">support page</Link>. You can
             remove the App&rsquo;s YouTube access at any time from your{" "}
             <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" className="text-purple-400 underline hover:text-purple-300">
               Google account permissions
@@ -95,7 +96,7 @@ export default function PrivacyPage() {
             Email{" "}
             <a href="mailto:support@5iveg.com" className="text-purple-400 underline hover:text-purple-300">support@5iveg.com</a>, or for
             questions or data deletion requests you can also use the{" "}
-            <a href="/support" className="text-purple-400 underline hover:text-purple-300">support page</a>.
+            <Link href="/support" className="text-purple-400 underline hover:text-purple-300">support page</Link>.
           </p>
         </section>
 
